@@ -361,14 +361,18 @@ async function fetchLargusListingDetails(browser, listingUrl) {
       const out = { images: [], color: null, doors: null, transmission: null, description: null, category: null, displacement: null, drivetrain: null, version: null, power_hp: null };
 
       const seen = new Set();
-      document.querySelectorAll('img[src*="assets.largus.fr"], img[src*="mixad"], img[src*="largus"], img[data-src*="largus"]').forEach((img) => {
+      const skipPatterns = /logo|favicon|sprite|icon|banner|placeholder|default|header|footer|nav/i;
+      function addImg(img) {
         const url = (img.src || img.dataset.src || img.getAttribute('data-src') || '').split('?')[0];
-        if (url && url.length > 20 && !seen.has(url)) { seen.add(url); out.images.push(url); }
-      });
-      document.querySelectorAll('[class*="gallery"] img, [class*="carousel"] img, .annonce-detail img').forEach((img) => {
-        const url = (img.src || img.dataset.src || img.getAttribute('data-src') || '').split('?')[0];
-        if (url && url.length > 20 && !seen.has(url)) { seen.add(url); out.images.push(url); }
-      });
+        if (!url || url.length < 30 || seen.has(url)) return;
+        if (skipPatterns.test(url)) return;
+        if (img.naturalWidth > 0 && img.naturalWidth < 150) return;
+        if (img.naturalHeight > 0 && img.naturalHeight < 150) return;
+        seen.add(url);
+        out.images.push(url);
+      }
+      document.querySelectorAll('[class*="gallery"] img, [class*="carousel"] img, .annonce-detail img, [class*="slider"] img, [class*="photo"] img').forEach(addImg);
+      document.querySelectorAll('img[src*="assets.largus.fr"]').forEach(addImg);
 
       document.querySelectorAll('ul.list-unstyled, [class*="spec"], [class*="caract"]').forEach((ul) => {
         const lis = Array.from(ul.querySelectorAll('li'));

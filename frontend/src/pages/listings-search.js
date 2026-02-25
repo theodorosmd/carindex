@@ -5,6 +5,21 @@ import { tr, getLang, renderLanguageToggle, attachLanguageToggle, formatCurrency
 // Make logout available globally
 window.logout = logout
 
+const LOGO_PATTERNS = [/logo/i, /brand/i, /favicon/i, /icon/i, /sprite/i, /banner/i, /header.*img/i]
+function getListingImage(images) {
+  if (!images || !images.length) return null
+  for (const url of images) {
+    if (!url) continue
+    const isLogo = LOGO_PATTERNS.some(p => p.test(url))
+    if (isLogo) continue
+    // Skip very short URLs (likely broken) or data URIs under 200 chars (tiny placeholders)
+    if (url.length < 20) continue
+    if (url.startsWith('data:') && url.length < 200) continue
+    return url
+  }
+  return null
+}
+
 // Initialize global state variables
 window.currentPage = 1
 window.currentFilters = {}
@@ -1974,7 +1989,7 @@ function initializeSearch() {
     const sourceName = getSourceName(source)
     const marketPrice = listing.market_price ? formatCurrencyLocale(listing.market_price, listing.currency || 'EUR') : null
     const postedDate = formatDateLocale(listing.posted_date)
-    const imageUrl = listing.images && listing.images.length > 0 ? listing.images[0] : null
+    const imageUrl = getListingImage(listing.images)
     const hasImage = !!imageUrl
     
     let cardHTML = '<div class="listing-card bg-white rounded-lg sm:rounded-xl shadow-md sm:shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer border border-gray-100 overflow-hidden transform hover:-translate-y-1" data-id="' + listing.id + '">'
@@ -1982,7 +1997,7 @@ function initializeSearch() {
     // Image section with lazy loading
     cardHTML += '<div class="relative aspect-[16/10] bg-gray-200 overflow-hidden">'
     if (hasImage) {
-      cardHTML += '<img data-src="' + imageUrl + '" alt="' + capitalize(listing.brand) + ' ' + capitalize(listing.model) + '" class="lazy-image w-full h-full object-cover" loading="lazy" decoding="async" onerror="this.onerror=null; this.src=\'https://via.placeholder.com/600x400?text=' + encodeURIComponent(listing.brand + ' ' + listing.model) + '\'; this.classList.add(\'opacity-50\')">'
+      cardHTML += '<img data-src="' + imageUrl + '" alt="' + capitalize(listing.brand) + ' ' + capitalize(listing.model) + '" class="lazy-image w-full h-full object-cover" loading="lazy" decoding="async" onload="if(this.naturalWidth<150||this.naturalHeight<150){this.style.display=\'none\'}" onerror="this.onerror=null; this.src=\'https://via.placeholder.com/600x400?text=' + encodeURIComponent(listing.brand + ' ' + listing.model) + '\'; this.classList.add(\'opacity-50\')">'
       cardHTML += '<div class="absolute inset-0 bg-gray-200 animate-pulse lazy-placeholder"></div>'
     } else {
       cardHTML += '<div class="w-full h-full flex items-center justify-center text-gray-400"><svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg></div>'
