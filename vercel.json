@@ -3,7 +3,7 @@
   "outputDirectory": "frontend/dist",
   "framework": null,
   "rewrites": [
-    { "source": "/api/:path*", "destination": "https://YOUR_RAILWAY_URL/api/:path*" },
+    { "source": "/api/:path*", "destination": "https://carindex-production.up.railway.app/api/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
