@@ -46,14 +46,18 @@ app.use(errorHandler);
 // Setup monitoring
 setupMonitoring();
 
-// Start cron jobs (if enabled)
-if (process.env.ENABLE_CRON_JOBS !== 'false') {
+// Start cron jobs (if enabled and Supabase configured)
+// Skip cron when vars missing - jobs like autoScraper call Supabase immediately
+const hasSupabase = !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+if (process.env.ENABLE_CRON_JOBS !== 'false' && hasSupabase) {
   try {
     const { startCronJobs } = await import('./scripts/start-cron.js');
     startCronJobs();
   } catch (error) {
     logger.warn('Failed to start cron jobs', { error: error.message });
   }
+} else if (!hasSupabase) {
+  logger.warn('Cron jobs disabled: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not set');
 }
 
 // Start server
