@@ -1,0 +1,50 @@
+{
+  "name": "carindex-backend",
+  "version": "1.0.0",
+  "description": "Carindex API Backend",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "test": "node --test",
+    "setup:supabase": "node src/scripts/setup-supabase.js",
+    "migrate": "node src/scripts/run-migration.js",
+    "migrate:raw": "node src/scripts/run-migration-017.js",
+    "migrate:020": "node src/scripts/run-migration-020-021.js",
+    "migrate:020:sql": "node src/scripts/print-migration-020-021.js",
+    "migrate:020:api": "node src/scripts/run-migration-020-021-api.js",
+    "import:django-db": "node src/scripts/run-django-db-import-mobilede.js",
+    "ingest:file": "node src/scripts/ingest-from-file.js",
+    "import:progress": "node src/scripts/check-django-import-progress.js",
+    "import:mobilede": "node src/scripts/run-mobilede-import.js",
+    "test:ingest": "node src/scripts/test-ingest-flow.js",
+    "test:queue": "node src/scripts/test-queue-add.js",
+    "import:bytbil": "node src/scripts/run-supabase-bytbil-import.js"
+  },
+  "dependencies": {
+    "@sentry/node": "^7.81.1",
+    "@supabase/supabase-js": "^2.86.2",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "express-validator": "^7.0.1",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "node-cron": "^4.2.1",
+    "nodemailer": "^7.0.11",
+    "openai": "^6.10.0",
+    "pg": "^8.11.3",
+    "puppeteer": "^24.34.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "redis": "^4.6.11",
+    "uuid": "^13.0.0",
+    "winston": "^3.11.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}

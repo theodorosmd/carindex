@@ -1,0 +1,15 @@
+[
+  {
+    "source_platform": "custom",
+    "source_listing_id": "sample-1",
+    "brand": "volkswagen",
+    "model": "golf",
+    "price": 15000,
+    "currency": "EUR",
+    "url": "https://example.com/car/1",
+    "location_country": "DE",
+    "location_city": "Berlin",
+    "year": 2020,
+    "mileage": 50000
+  }
+]
