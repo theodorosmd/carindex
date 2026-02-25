@@ -28,6 +28,17 @@ export function setupRoutes(app) {
     res.json({ status: 'ok' });
   });
 
+  // Config check (for debugging missing vars on Railway)
+  app.get('/api/v1/health/config', (req, res) => {
+    const hasSupabaseUrl = !!process.env.SUPABASE_URL;
+    const hasSupabaseKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+    res.json({
+      status: hasSupabaseUrl && hasSupabaseKey ? 'ok' : 'missing_vars',
+      SUPABASE_URL: hasSupabaseUrl,
+      SUPABASE_SERVICE_ROLE_KEY: hasSupabaseKey
+    });
+  });
+
   // DB connectivity check (for debugging 500s - development only)
   app.get('/api/v1/health/db', async (req, res) => {
     try {
