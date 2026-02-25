@@ -34,7 +34,7 @@ app.use((req, res, next) => {
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({ status: 'ok', port: PORT, timestamp: new Date().toISOString() });
 });
 
 // API routes
@@ -47,9 +47,9 @@ app.use(errorHandler);
 setupMonitoring();
 
 // Start server FIRST so Railway sees a healthy process
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   logger.info(`Carindex API server running on port ${PORT}`);
-  console.log(`Server running at http://localhost:${PORT}`);
+  console.log(`Server listening on 0.0.0.0:${PORT}`);
 });
 
 // Start cron jobs AFTER the server is already listening
