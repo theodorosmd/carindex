@@ -25,12 +25,19 @@ dotenv.config();
  * - Variants: gpt-5.2, gpt-5.2-chat, gpt-5.2-pro
  */
 
-// Initialize OpenAI client - API key from environment (NEVER hardcode)
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  timeout: 30000, // 30 second timeout
-  maxRetries: 3
-});
+let _openai = null;
+function getOpenAI() {
+  if (_openai) return _openai;
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error('OpenAI service not configured. Set OPENAI_API_KEY in environment variables.');
+  }
+  _openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+    timeout: 30000,
+    maxRetries: 3
+  });
+  return _openai;
+}
 
 // GPT-5.2 Configuration
 const DEFAULT_MODEL = process.env.OPENAI_MODEL || 'gpt-5.2';
@@ -198,9 +205,8 @@ export async function generateText(prompt, options = {}, userId = null) {
       userId: userId || 'system'
     });
 
-    // Retry logic with exponential backoff
     const response = await retryWithBackoff(async () => {
-      return await openai.chat.completions.create({
+      return await getOpenAI().chat.completions.create({
         model: safeModel,
         messages: [
           {
