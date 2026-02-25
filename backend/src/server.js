@@ -46,8 +46,13 @@ app.use(errorHandler);
 // Setup monitoring
 setupMonitoring();
 
-// Start cron jobs (if enabled and Supabase configured)
-// Skip cron when vars missing - jobs like autoScraper call Supabase immediately
+// Start server FIRST so Railway sees a healthy process
+app.listen(PORT, () => {
+  logger.info(`Carindex API server running on port ${PORT}`);
+  console.log(`Server running at http://localhost:${PORT}`);
+});
+
+// Start cron jobs AFTER the server is already listening
 const hasSupabase = !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
 if (process.env.ENABLE_CRON_JOBS !== 'false' && hasSupabase) {
   try {
@@ -59,12 +64,6 @@ if (process.env.ENABLE_CRON_JOBS !== 'false' && hasSupabase) {
 } else if (!hasSupabase) {
   logger.warn('Cron jobs disabled: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not set');
 }
-
-// Start server
-app.listen(PORT, () => {
-  logger.info(`Carindex API server running on port ${PORT}`);
-  console.log(`🚀 Server running at http://localhost:${PORT}`);
-});
 
 export default app;
 
