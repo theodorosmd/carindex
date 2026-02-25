@@ -47,7 +47,7 @@ Dans **Variables** (onglet du service), ajoutez :
 Variables optionnelles (selon l’usage) :
 
 - `DATABASE_URL` : si des scripts utilisent une connexion PostgreSQL directe.
-- `ENABLE_CRON_JOBS` : `false` pour désactiver les tâches cron au démarrage.
+- `ENABLE_CRON_JOBS` : **mettez `false`** au premier déploiement pour éviter les crashs (les crons appellent Supabase immédiatement).
 - `INGEST_API_KEY` : si vous utilisez l’ingest public.
 
 ---
