@@ -46,13 +46,15 @@ app.use(errorHandler);
 // Setup monitoring
 setupMonitoring();
 
-// Start server FIRST so Railway sees a healthy process
-app.listen(PORT, '0.0.0.0', () => {
-  logger.info(`Carindex API server running on port ${PORT}`);
-  console.log(`Server listening on 0.0.0.0:${PORT}`);
-});
+// When loaded directly (not via start.js), listen on PORT
+if (process.argv[1]?.endsWith('server.js')) {
+  app.listen(PORT, '0.0.0.0', () => {
+    logger.info(`Carindex API server running on port ${PORT}`);
+    console.log(`Server listening on 0.0.0.0:${PORT}`);
+  });
+}
 
-// Start cron jobs AFTER the server is already listening
+// Start cron jobs after server is ready
 const hasSupabase = !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
 if (process.env.ENABLE_CRON_JOBS !== 'false' && hasSupabase) {
   try {
