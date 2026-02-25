@@ -132,6 +132,11 @@ export function formatDate(value) {
   return new Date(value).toLocaleDateString(locale)
 }
 
+export function capitalize(str) {
+  if (!str) return ''
+  return str.replace(/\b\w/g, c => c.toUpperCase())
+}
+
 export function renderLanguageToggle() {
   const lang = getLang()
   const label = t('language.label')

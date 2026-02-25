@@ -1,5 +1,5 @@
 import { getAuthToken } from '../main.js';
-import { tr, renderLanguageToggle, attachLanguageToggle, getLang, formatNumber, formatCurrency } from '../utils/i18n.js';
+import { tr, renderLanguageToggle, attachLanguageToggle, getLang, formatNumber, formatCurrency, capitalize } from '../utils/i18n.js';
 
 export function renderMarketInsights() {
   const app = document.getElementById('app');
@@ -492,7 +492,7 @@ async function loadMarketInsights() {
         <div class="border border-gray-200 rounded-lg p-4 mb-4">
           <div class="flex justify-between items-start">
             <div>
-              <h4 class="font-semibold text-gray-900">${listing.brand} ${listing.model} ${listing.year || ''}</h4>
+              <h4 class="font-semibold text-gray-900">${capitalize(listing.brand)} ${capitalize(listing.model)} ${listing.year || ''}</h4>
               <p class="text-lg font-bold text-blue-600">${formatCurrency(listing.price || 0)}</p>
               <p class="text-sm text-gray-600">DOM: ${listing.dom_days} jours | Baisse: -${listing.price_drop_pct?.toFixed(1)}%</p>
             </div>
@@ -619,7 +619,7 @@ async function loadFastestSellingModels() {
           </td>
           <td class="px-4 py-3 text-sm font-medium text-gray-900">
             <div class="flex flex-col">
-              <span class="font-semibold">${model.brand} ${model.model}</span>
+              <span class="font-semibold">${capitalize(model.brand)} ${capitalize(model.model)}</span>
               ${model.year ? `<span class="text-xs text-gray-500">${model.year}</span>` : ''}
             </div>
           </td>

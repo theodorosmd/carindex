@@ -1,5 +1,5 @@
 import { getAuthToken, getUser, isAdmin } from '../main.js'
-import { tr, renderLanguageToggle, attachLanguageToggle } from '../utils/i18n.js'
+import { tr, renderLanguageToggle, attachLanguageToggle, capitalize } from '../utils/i18n.js'
 
 export async function renderAdminDashboard() {
   const app = document.getElementById('app')
@@ -1853,7 +1853,7 @@ function renderFastestModelsWidget(models) {
             ${index + 1}
           </div>
           <div class="flex-1 min-w-0">
-            <div class="font-semibold text-gray-900 text-sm sm:text-base">${model.brand} ${model.model}</div>
+            <div class="font-semibold text-gray-900 text-sm sm:text-base">${capitalize(model.brand)} ${capitalize(model.model)}</div>
             <div class="text-xs text-gray-500">${model.salesCount} ventes • ${new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(model.medianPrice || 0)}</div>
           </div>
         </div>

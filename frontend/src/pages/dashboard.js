@@ -1,5 +1,5 @@
 import { getAuthToken, getUser, isAdmin } from '../main.js'
-import { tr, getLang, renderLanguageToggle, attachLanguageToggle, formatCurrency } from '../utils/i18n.js'
+import { tr, getLang, renderLanguageToggle, attachLanguageToggle, formatCurrency, capitalize } from '../utils/i18n.js'
 
 export async function renderDashboard() {
   const app = document.getElementById('app')
@@ -387,7 +387,7 @@ function renderFastestModelsWidget(models) {
             ${index + 1}
           </div>
           <div class="flex-1 min-w-0">
-            <div class="font-semibold text-gray-900 text-sm sm:text-base">${model.brand} ${model.model}</div>
+            <div class="font-semibold text-gray-900 text-sm sm:text-base">${capitalize(model.brand)} ${capitalize(model.model)}</div>
             <div class="text-xs text-gray-500">${model.salesCount} ${tr('sales', 'ventes')} • ${formatCurrency(model.medianPrice || 0, 'EUR')}</div>
           </div>
         </div>

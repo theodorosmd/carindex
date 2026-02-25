@@ -1,4 +1,4 @@
-import { tr, renderLanguageToggle, attachLanguageToggle, getLang, formatNumber, formatCurrency } from '../utils/i18n.js'
+import { tr, renderLanguageToggle, attachLanguageToggle, getLang, formatNumber, formatCurrency, capitalize } from '../utils/i18n.js'
 
 export function renderListingsSearch() {
   const app = document.getElementById('app')
@@ -362,7 +362,7 @@ function initializeSearch() {
     
     // Content section
     cardHTML += '<div class="p-4">'
-    cardHTML += '<h3 class="text-lg font-bold text-gray-900 mb-1">' + listing.year + ' ' + listing.brand + ' ' + listing.model + '</h3>'
+    cardHTML += '<h3 class="text-lg font-bold text-gray-900 mb-1">' + listing.year + ' ' + capitalize(listing.brand) + ' ' + capitalize(listing.model) + '</h3>'
     cardHTML += '<div class="flex items-center justify-between mb-3">'
     cardHTML += '<span class="text-2xl font-bold text-blue-600">' + price + '</span>'
     if (listing.confidence_index) {
@@ -413,7 +413,7 @@ function initializeSearch() {
     modalHTML += '</div>'
     
     modalHTML += '<div>'
-    modalHTML += '<h2 class="text-3xl font-bold text-gray-900 mb-2">' + listing.year + ' ' + listing.brand + ' ' + listing.model + '</h2>'
+    modalHTML += '<h2 class="text-3xl font-bold text-gray-900 mb-2">' + listing.year + ' ' + capitalize(listing.brand) + ' ' + capitalize(listing.model) + '</h2>'
     modalHTML += '<div class="text-4xl font-bold text-blue-600 mb-4">' + price + '</div>'
     
     if (marketPrice) {

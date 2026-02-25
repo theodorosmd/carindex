@@ -1,6 +1,6 @@
 import { apiCache } from '../utils/cache.js'
 import { logout } from '../main.js'
-import { tr, getLang, renderLanguageToggle, attachLanguageToggle, formatCurrency as formatCurrencyLocale, formatNumber, formatDate as formatDateLocale } from '../utils/i18n.js'
+import { tr, getLang, renderLanguageToggle, attachLanguageToggle, formatCurrency as formatCurrencyLocale, formatNumber, formatDate as formatDateLocale, capitalize } from '../utils/i18n.js'
 
 // Make logout available globally
 window.logout = logout
@@ -2017,7 +2017,7 @@ function initializeSearch() {
     cardHTML += '<div class="p-4">'
     
     // Title on first line
-    cardHTML += '<h3 class="text-lg font-bold text-gray-900 mb-2">' + listing.brand + ' ' + listing.model + '</h3>'
+    cardHTML += '<h3 class="text-lg font-bold text-gray-900 mb-2">' + capitalize(listing.brand) + ' ' + capitalize(listing.model) + '</h3>'
     
     // Price on second line
     cardHTML += '<div class="mb-3 flex items-center gap-2 flex-wrap">'
@@ -2147,7 +2147,7 @@ function initializeSearch() {
     modalHTML += '</div>'
     
     modalHTML += '<div>'
-    modalHTML += '<h2 class="text-3xl font-bold text-gray-900 mb-2">' + listing.year + ' ' + listing.brand + ' ' + listing.model + '</h2>'
+    modalHTML += '<h2 class="text-3xl font-bold text-gray-900 mb-2">' + listing.year + ' ' + capitalize(listing.brand) + ' ' + capitalize(listing.model) + '</h2>'
     modalHTML += '<div class="text-4xl font-bold text-blue-600 mb-4">' + price + '</div>'
     
     if (marketPrice) {

@@ -1,4 +1,4 @@
-import { tr, renderLanguageToggle, attachLanguageToggle, formatCurrency, formatNumber, getLang } from '../utils/i18n.js'
+import { tr, renderLanguageToggle, attachLanguageToggle, formatCurrency, formatNumber, getLang, capitalize } from '../utils/i18n.js'
 
 // API Cache utility
 const apiCache = {
@@ -337,7 +337,7 @@ function renderListingContent(listing) {
       <div class="lg:col-span-1">
         <div class="bg-white rounded-lg sm:rounded-xl shadow-lg p-4 sm:p-6 lg:sticky lg:top-24">
           <!-- Title & Price -->
-          <h1 class="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">${listing.year || ''} ${listing.brand || ''} ${listing.model || ''}</h1>
+          <h1 class="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">${listing.year || ''} ${capitalize(listing.brand)} ${capitalize(listing.model)}</h1>
           <div class="text-3xl sm:text-4xl font-bold text-blue-600 mb-4 sm:mb-6">${price}</div>
           
           <!-- Market Price -->
