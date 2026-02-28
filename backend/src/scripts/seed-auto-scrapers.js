@@ -28,8 +28,24 @@ const SOURCE_LABELS = {
   '2ememain': '2ememain.be'
 };
 
-// Toutes les 6 heures
-const DEFAULT_CRON = '0 */6 * * *';
+// Toutes les 6 heures, avec minutes décalées pour éviter le lancement simultané
+const CRON_BY_SOURCE = {
+  autoscout24: '0 */6 * * *',
+  'mobile.de': '4 */6 * * *',
+  leboncoin: '8 */6 * * *',
+  largus: '12 */6 * * *',
+  lacentrale: '16 */6 * * *',
+  gaspedaal: '20 */6 * * *',
+  marktplaats: '24 */6 * * *',
+  subito: '28 */6 * * *',
+  'coches.net': '32 */6 * * *',
+  blocket: '36 */6 * * *',
+  bilweb: '40 */6 * * *',
+  bytbil: '44 */6 * * *',
+  finn: '48 */6 * * *',
+  otomoto: '52 */6 * * *',
+  '2ememain': '56 */6 * * *'
+};
 
 async function seedAutoScrapers() {
   console.log('🌱 Seed auto_scrapers...\n');
@@ -52,13 +68,14 @@ async function seedAutoScrapers() {
     const name = `${SOURCE_LABELS[source] || source} - principal`;
     const urls = Array.isArray(searchUrls) ? searchUrls : [searchUrls];
 
+    const scheduleCron = CRON_BY_SOURCE[source] || '0 */6 * * *';
     const { data: inserted, error } = await supabase
       .from('auto_scrapers')
       .insert({
         source,
         name,
         search_urls: urls,
-        schedule_cron: DEFAULT_CRON,
+        schedule_cron: scheduleCron,
         max_results: 999999,
         result_limit_per_thread: 10000,
         enabled: true

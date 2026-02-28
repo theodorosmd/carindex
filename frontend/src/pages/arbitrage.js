@@ -175,7 +175,7 @@ export function renderArbitrage() {
     if (!el) return;
     el.innerHTML = '<p class="text-gray-500">Chargement...</p>';
     try {
-      const r = await apiGet('auto-detected', { limit: 50, _: Date.now() });
+      const r = await apiGet('auto-detected', { limit: 500, _: Date.now() });
       const errMsg = r?.error?.message || (typeof r?.error === 'string' ? r.error : r?.error?.code) || 'Erreur API';
       if (!r?.success) { el.innerHTML = `<p class="text-red-600">${errMsg}</p>`; return; }
       if (!r.opportunities?.length) {
@@ -193,6 +193,7 @@ export function renderArbitrage() {
           <th class="px-4 py-2 text-left text-xs font-medium text-gray-500">Modèle</th>
           <th class="px-4 py-2 text-left text-xs font-medium text-gray-500">Achat</th>
           <th class="px-4 py-2 text-left text-xs font-medium text-gray-500">Vente</th>
+          <th class="px-4 py-2 text-right text-xs font-medium text-gray-500">Liquidité</th>
           <th class="px-4 py-2 text-right text-xs font-medium text-gray-500">Prix achat</th>
           <th class="px-4 py-2 text-right text-xs font-medium text-gray-500">Prix vente</th>
           <th class="px-4 py-2 text-right text-xs font-medium text-gray-500">Marge nette</th>
@@ -215,11 +216,13 @@ export function renderArbitrage() {
                   return `<a href="${url.replace(/"/g, '&quot;')}" target="_blank" rel="noopener" class="text-blue-600 hover:underline font-medium" title="Ouvrir l'annonce sur mobile.de / Blocket / …">${label} →</a>`;
                 }).join(' · ')
               : '';
+            const liquidity = (o.listing_count_buy || 0) + (o.listing_count_sell || 0);
             return `
             <tr class="hover:bg-gray-50 cursor-pointer" data-brand="${brand}" data-model="${model}" data-buy="${buy}" data-sell="${sell}" onclick="window.fillOppFromAuto(this)">
               <td class="px-4 py-2 font-medium">${capitalize(o.brand)} ${capitalize(o.model)}</td>
               <td class="px-4 py-2">${COUNTRY_NAMES[buy] || buy}</td>
               <td class="px-4 py-2">${COUNTRY_NAMES[sell] || sell}</td>
+              <td class="px-4 py-2 text-right" title="${o.listing_count_buy || 0} annonces achat + ${o.listing_count_sell || 0} vente">${liquidity}</td>
               <td class="px-4 py-2 text-right">${formatCurrency(o.buy_median_price)}</td>
               <td class="px-4 py-2 text-right">${formatCurrency(o.sell_median_price)}</td>
               <td class="px-4 py-2 text-right font-bold text-green-600">${formatCurrency(o.net_margin)} (${o.net_margin_pct || 0}%)</td>
@@ -232,7 +235,7 @@ export function renderArbitrage() {
           `}).join('')}
         </tbody>
       </table>
-      <p class="text-xs text-gray-500 mt-2"><strong>Lien direct</strong> (ex. « €24,900 → ») = ouvre l'annonce exacte sur mobile.de / Blocket. « Nos annonces » = nos résultats avec liens.</p>
+      <p class="text-xs text-gray-500 mt-2">Classé par <strong>liquidité</strong> (annonces achat + vente). <strong>Lien direct</strong> (ex. « €24,900 → ») = ouvre l'annonce sur mobile.de / Blocket. « Nos annonces » = nos résultats.</p>
     `;
     } catch (err) {
       el.innerHTML = `<p class="text-red-600">Erreur: ${err?.message || 'Connexion impossible'}. Vérifiez que vous êtes connecté.</p>`;

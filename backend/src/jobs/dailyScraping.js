@@ -49,10 +49,16 @@ export async function runDailyScraping() {
       return results;
     }
 
-    // Run each scraper
-    for (const scraper of scrapers) {
+    // Run each scraper sequentially with delay to avoid memory overload and parallel rate limits
+    const DELAY_BETWEEN_SCRAPERS_MS = 2 * 60 * 1000; // 2 min between each
+    for (let i = 0; i < scrapers.length; i++) {
+      const scraper = scrapers[i];
+      if (i > 0) {
+        logger.info(`Waiting ${DELAY_BETWEEN_SCRAPERS_MS / 1000}s before next scraper...`);
+        await new Promise(r => setTimeout(r, DELAY_BETWEEN_SCRAPERS_MS));
+      }
       try {
-        logger.info(`Running daily scraper: ${scraper.name} (${scraper.source})`);
+        logger.info(`Running daily scraper ${i + 1}/${scrapers.length}: ${scraper.name} (${scraper.source})`);
 
         // Run the scraper
         const scraperResult = await runAutoScraper(scraper);
@@ -76,6 +82,13 @@ export async function runDailyScraping() {
         logger.error(`Error running scraper ${scraper.name}`, {
           error: error.message,
           scraperId: scraper.id
+        });
+        results.scrapers.push({
+          id: scraper.id,
+          name: scraper.name,
+          source: scraper.source,
+          status: 'error',
+          listingsScraped: 0
         });
         results.errors.push({
           scraperId: scraper.id,

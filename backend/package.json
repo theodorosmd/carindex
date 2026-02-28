@@ -35,6 +35,7 @@
     "import:bytbil": "node src/scripts/run-supabase-bytbil-import.js",
     "scrape:all": "node src/scripts/run-all-scrapers-full.js",
     "seed:scrapers": "node src/scripts/seed-auto-scrapers.js",
+    "stagger:crons": "node src/scripts/stagger-scraper-crons.js",
     "reset:scrapers": "node src/scripts/reset-failed-scrapers.js"
   },
   "dependencies": {

@@ -18,6 +18,10 @@ import { logger } from '../utils/logger.js';
 export function startCronJobs() {
   logger.info('Starting cron jobs...');
 
+  if (!process.env.SCRAPE_DO_TOKEN && process.env.ENABLE_AUTO_SCRAPERS !== 'false') {
+    logger.warn('SCRAPE_DO_TOKEN not set — LeBonCoin, Subito, coches.net, OtoMoto, 2ememain will fail. Scrape.do fallback unavailable for Blocket, Bytbil, mobile.de, Gaspedaal. Add token in Railway Variables.');
+  }
+
   // Scraping continu : tourne jusqu'à tout scraper, puis recommence (désactive auto_scrapers + daily)
   if (process.env.ENABLE_CONTINUOUS_SCRAPING === 'true') {
     logger.info('Continuous scraping enabled - scrapers run until all sources are scraped, then repeat');

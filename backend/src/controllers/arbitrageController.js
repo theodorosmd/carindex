@@ -222,13 +222,12 @@ export async function getArbitrageMarginEstimateEndpoint(req, res) {
  */
 export async function getAutoDetectedEndpoint(req, res) {
   try {
-    const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+    const limit = Math.min(parseInt(req.query.limit) || 500, 2000); // Return all opportunities ≥€4000
 
     const { data, error } = await supabase
       .from('arbitrage_opportunities_detected')
       .select('*')
-      .order('net_margin', { ascending: false })
-      .limit(limit * 2);
+      .gte('net_margin', 4000);
 
     if (error) {
       throw new Error(error.message);
@@ -236,6 +235,12 @@ export async function getAutoDetectedEndpoint(req, res) {
 
     const baseOpportunities = (data || [])
       .filter((o) => (o.listing_count_buy || 0) >= 3 && (o.net_margin || 0) >= 4000)
+      .sort((a, b) => {
+        const liqA = (a.listing_count_buy || 0) + (a.listing_count_sell || 0);
+        const liqB = (b.listing_count_buy || 0) + (b.listing_count_sell || 0);
+        if (liqB !== liqA) return liqB - liqA;
+        return (b.net_margin || 0) - (a.net_margin || 0);
+      })
       .slice(0, limit);
 
     const opportunities = await Promise.all(

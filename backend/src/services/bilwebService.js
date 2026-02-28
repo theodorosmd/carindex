@@ -1,6 +1,8 @@
 import { supabase } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import { saveRawListings } from './rawIngestService.js';
+import { fetchViaScrapeDo, isScrapeDoAvailable } from '../utils/scrapeDo.js';
+import * as cheerio from 'cheerio';
 import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 
@@ -22,22 +24,53 @@ export async function runBilwebScraper(searchUrls, options = {}, progressCallbac
   try {
     logger.info('Starting Bilweb.se scraper', { searchUrls, options });
 
-    browser = await puppeteer.launch({
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--disable-gpu'
-      ]
-    });
+    let useScrapeDo = isScrapeDoAvailable();
+    if (useScrapeDo) {
+      logger.info('Bilweb: scrape.do available, will use as fallback if Puppeteer fails');
+    }
+
+    try {
+      browser = await puppeteer.launch({
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--disable-gpu'
+        ]
+      });
+    } catch (launchErr) {
+      logger.warn('Bilweb Puppeteer launch failed', { error: launchErr.message });
+      if (useScrapeDo) {
+        browser = null;
+      } else {
+        throw launchErr;
+      }
+    }
 
     for (const searchUrl of searchUrls) {
       try {
         logger.info('Scraping Bilweb.se URL', { url: searchUrl });
 
-        const listings = await scrapeBilwebUrl(browser, searchUrl, options.maxPages || 10);
+        let listings = [];
+        if (browser) {
+          try {
+            listings = await scrapeBilwebUrl(browser, searchUrl, options.maxPages || 10);
+          } catch (err) {
+            logger.warn('Bilweb Puppeteer failed, trying scrape.do', { error: err.message });
+            if (useScrapeDo) {
+              listings = await scrapeBilwebViaScrapeDo(searchUrl, options.maxPages || 10);
+            } else {
+              throw err;
+            }
+          }
+          if (listings.length === 0 && useScrapeDo) {
+            listings = await scrapeBilwebViaScrapeDo(searchUrl, options.maxPages || 10);
+          }
+        } else if (useScrapeDo) {
+          listings = await scrapeBilwebViaScrapeDo(searchUrl, options.maxPages || 10);
+        }
 
         logger.info('Bilweb.se scraping completed', {
           url: searchUrl,
@@ -94,6 +127,86 @@ export async function runBilwebScraper(searchUrls, options = {}, progressCallbac
       await browser.close();
     }
   }
+}
+
+/**
+ * Scrape Bilweb via scrape.do when Puppeteer fails (anti-bot fallback)
+ */
+async function scrapeBilwebViaScrapeDo(baseUrl, maxPages = 10) {
+  const listings = [];
+  const seen = new Set();
+
+  for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+    const url = pageNum === 1 ? baseUrl : (baseUrl + (baseUrl.includes('?') ? '&' : '?') + `page=${pageNum}`);
+
+    let html;
+    try {
+      html = await fetchViaScrapeDo(url, { render: true, customWait: 4000, geoCode: 'se' });
+    } catch (err) {
+      logger.warn('Bilweb scrape.do fetch failed', { page: pageNum, error: err.message });
+      break;
+    }
+
+    const $ = cheerio.load(html);
+    const cards = $('a[href*="/bil/"], a[href*="/vehicle/"]').closest('.vehicle-item, .car-item, [data-vehicle], article, .listing-card, li');
+    const items = cards.length ? cards : $('a[href*="/bil/"], a[href*="/vehicle/"]');
+
+    const pageListings = [];
+    items.each((_, el) => {
+      const $el = $(el);
+      const link = $el.find('a[href*="/bil/"], a[href*="/vehicle/"]').first().attr('href') || $el.attr('href');
+      if (!link) return;
+      const fullUrl = link.startsWith('http') ? link : `https://www.bilweb.se${link}`;
+      if (seen.has(fullUrl)) return;
+      seen.add(fullUrl);
+
+      const title = $el.find('.title, .vehicle-title, h2, h3').first().text().trim() || $el.text().trim().substring(0, 100);
+      const priceText = $el.find('.price, .vehicle-price, [data-price]').first().text().trim();
+      const image = $el.find('img').first().attr('src');
+      pageListings.push({ url: fullUrl, title, priceText, location: null, image });
+    });
+
+    if (pageListings.length === 0 && pageNum === 1) {
+      $('a[href*="/bil/"], a[href*="/vehicle/"]').each((_, el) => {
+        const href = $(el).attr('href');
+        if (!href) return;
+        const fullUrl = href.startsWith('http') ? href : `https://www.bilweb.se${href}`;
+        if (seen.has(fullUrl)) return;
+        seen.add(fullUrl);
+        const card = $(el).closest('article, li, .card, [class*="listing"]');
+        const title = card.find('h2, h3, .title').first().text().trim() || $(el).text().trim().substring(0, 80);
+        pageListings.push({ url: fullUrl, title, priceText: card.find('[class*="price"]').text().trim(), location: null, image: null });
+      });
+    }
+
+    for (const item of pageListings) {
+      try {
+        const detailHtml = await fetchViaScrapeDo(item.url, { geoCode: 'se' });
+        const $d = cheerio.load(detailHtml);
+        const specs = {};
+        $d('.spec-row, .specification-row, tr').each((_, row) => {
+          const label = $d(row).find('td:first-child, .label').first().text().trim().toLowerCase();
+          const value = $d(row).find('td:last-child, .value').last().text().trim();
+          if (label && value) specs[label] = value;
+        });
+        const details = {
+          specifications: specs,
+          description: $d('.description, .vehicle-description, [data-description]').first().text().trim() || null,
+          images: $d('.gallery img, .images img, [data-image]').map((_, img) => $d(img).attr('src')).get().filter(Boolean)
+        };
+        listings.push({ ...item, ...details });
+      } catch (err) {
+        logger.warn('Bilweb detail fetch failed', { url: item.url });
+        listings.push(item);
+      }
+      await new Promise(r => setTimeout(r, 500));
+    }
+
+    if (pageListings.length === 0) break;
+    await new Promise(r => setTimeout(r, 1500));
+  }
+
+  return listings;
 }
 
 /**

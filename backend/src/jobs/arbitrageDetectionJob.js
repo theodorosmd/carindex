@@ -13,10 +13,10 @@ const MIN_COUNTRIES = 2;
 const MIN_MARGIN_EUR = 4000;
 const MIN_LISTING_COUNT_BUY = 3;
 const MAX_MODELS_TO_SCAN = 80;
-const MAX_OPPORTUNITIES_TO_STORE = 100;
+const MAX_OPPORTUNITIES_TO_STORE = 2000; // Store all opportunities ≥€4000 margin (after repairs)
 const MAX_MARGIN_PCT = 120; // Filter outliers (currency bugs often show 400%+)
 const GARBAGE_BRANDS = new Set(['andere', 'other', 'sonstige', 'divers', 'autre']); // Scraper fallbacks
-const EXCLUDED_BRANDS = new Set(['ferrari', 'maserati', 'lotus', 'aston martin', 'aston', 'lamborghini']); // Brands to skip in auto-detection (for now)
+const EXCLUDED_BRANDS = new Set(['ferrari', 'maserati', 'lotus', 'aston martin', 'aston', 'lamborghini', 'rolls-royce', 'rolls royce']); // Brands to skip in auto-detection (for now)
 
 /**
  * Get top brand+model combinations with listings in 2+ countries
@@ -92,7 +92,7 @@ export async function runArbitrageDetection() {
           year: null,
           minMarginEur: MIN_MARGIN_EUR,
           minMarginPct: 3,
-          limit: 10
+          limit: 100 // All country pairs per model
         });
 
         for (const opp of result.opportunities || []) {
@@ -137,7 +137,13 @@ export async function runArbitrageDetection() {
       }
     }
 
-    allOpportunities.sort((a, b) => b.net_margin - a.net_margin);
+    // Sort by liquidity (listing_count_buy + listing_count_sell) then by margin
+    allOpportunities.sort((a, b) => {
+      const liqA = (a.listing_count_buy || 0) + (a.listing_count_sell || 0);
+      const liqB = (b.listing_count_buy || 0) + (b.listing_count_sell || 0);
+      if (liqB !== liqA) return liqB - liqA;
+      return (b.net_margin || 0) - (a.net_margin || 0);
+    });
     const toStore = allOpportunities.slice(0, MAX_OPPORTUNITIES_TO_STORE);
 
     if (toStore.length === 0) {
