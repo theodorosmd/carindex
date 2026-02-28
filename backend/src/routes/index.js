@@ -15,6 +15,8 @@ import { evaluationsRoutes } from './evaluations.js';
 import { franceRoutes } from './france.js';
 import { priceHistoryRoutes } from './priceHistory.js';
 import { analyticsRoutes } from './analytics.js';
+import { arbitrageRoutes } from './arbitrage.js';
+import { getAutoDetectedEndpoint } from '../controllers/arbitrageController.js';
 import { webhookRoutes } from './webhooks.js';
 import { ingestRoutes, ingestPublicRoutes } from './ingest.js';
 import { authMiddleware } from '../middleware/auth.js';
@@ -76,12 +78,17 @@ export function setupRoutes(app) {
   
   // Apply rate limiting to all API routes
   apiRouter.use(rateLimiter);
-  
-  // Apply authentication to all API routes
+
+  // Public: arbitrage auto-detected (no auth) - MUST be before authMiddleware
+  const arbitragePublicRouter = express.Router();
+  arbitragePublicRouter.get('/auto-detected', getAutoDetectedEndpoint);
+  apiRouter.use('/arbitrage', arbitragePublicRouter);
+
   apiRouter.use(authMiddleware);
 
-  // Mount route modules
+  // Protected routes
   apiRouter.use('/market-price', marketPriceRoutes);
+  apiRouter.use('/arbitrage', arbitrageRoutes);
   apiRouter.use('/trends', trendsRoutes);
   apiRouter.use('/stock', stockRoutes);
   apiRouter.use('/alerts', alertsRoutes);
