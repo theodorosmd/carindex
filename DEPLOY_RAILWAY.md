@@ -47,7 +47,7 @@ Dans **Variables** (onglet du service), ajoutez :
 Variables optionnelles (selon l’usage) :
 
 - `DATABASE_URL` : si des scripts utilisent une connexion PostgreSQL directe.
-- `ENABLE_CRON_JOBS` : **mettez `false`** au premier déploiement pour éviter les crashs (les crons appellent Supabase immédiatement).
+- `ENABLE_CRON_JOBS` : **mettez `false`** au premier déploiement pour éviter les crashs (les crons appellent Supabase immédiatement). **Mettez aussi `false`** si le scraping tourne sur un VPS dédié (voir [DEPLOY_VPS.md](DEPLOY_VPS.md)).
 - `INGEST_API_KEY` : si vous utilisez l’ingest public.
 
 ---
