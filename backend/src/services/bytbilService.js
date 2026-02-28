@@ -3,10 +3,7 @@ import { logger } from '../utils/logger.js';
 import { saveRawListings } from './rawIngestService.js';
 import { fetchViaScrapeDo, isScrapeDoAvailable, isPageBlocked } from '../utils/scrapeDo.js';
 import * as cheerio from 'cheerio';
-import puppeteer from 'puppeteer-extra';
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
-
-puppeteer.use(StealthPlugin());
+import { launchBrowser } from '../utils/puppeteerLaunch.js';
 
 /**
  * Run Bytbil.com scraper and save results to database
@@ -24,16 +21,7 @@ export async function runBytbilScraper(searchUrls, options = {}, progressCallbac
   try {
     logger.info('Starting Bytbil.com scraper', { searchUrls, options });
 
-    browser = await puppeteer.launch({
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--disable-gpu'
-      ]
-    });
+    browser = await launchBrowser();
 
     for (const searchUrl of searchUrls) {
       try {

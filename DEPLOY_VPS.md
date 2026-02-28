@@ -40,8 +40,10 @@ Sans ça, Railway et le VPS exécuteraient tous deux le scraping.
 
 ```bash
 sudo apt update
-sudo apt install -y chromium-browser fonts-liberation libasound2 libatk-bridge2.0-0 libatk1.0-0 libcups2 libdbus-1-3 libdrm2 libgbm1 libgtk-3-0 libnspr4 libnss3 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 xdg-utils
+sudo apt install -y chromium-browser fonts-liberation libasound2 libatk-bridge2.0-0 libatk1.0-0 libcups2 libdbus-1-3 libdrm2 libgbm1 libglib2.0-0 libgtk-3-0 libnspr4 libnss3 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 xdg-utils
 ```
+
+Sur Ubuntu 24.04 : remplacer `libglib2.0-0` par `libglib2.0-0t64` si nécessaire.
 
 ### Node.js 20+
 
@@ -86,6 +88,8 @@ ENABLE_CRON_JOBS=true
 CONTINUOUS_SCRAPE_INTERVAL_HOURS=0
 # 6–8 pour CCX23 (4 vCPU, 16 GB) ; 2–3 pour serveurs plus petits
 SCRAPE_CONCURRENCY=6
+# Chromium système sur VPS (évite erreurs libglib / Puppeteer)
+PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 ```
 
 Optionnel (pour que le VPS ne fasse que le scraping) :
@@ -224,7 +228,29 @@ Puis : `curl http://VOTRE_IP_VPS:3000/health`
 
 ---
 
-## 8. Sécurité et maintenance
+## 8. Dépannage
+
+### Erreur "libglib-2.0.so.0: cannot open shared object file"
+
+Puppeteer utilise Chromium embarqué qui peut manquer de libs sur le VPS. **Solution recommandée** : forcer l’utilisation du Chromium système :
+
+1. Sur le VPS, trouver le chemin : `which chromium-browser || which chromium`
+2. Ajouter dans `backend/.env` :
+   ```env
+   PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+   ```
+   (ou `/usr/bin/chromium` selon le résultat de `which`)
+
+3. `pm2 restart carindex-scraper`
+
+**Alternative** (si Chromium système pose problème) :
+```bash
+bash scripts/fix-puppeteer-deps-vps.sh
+```
+
+---
+
+## 9. Sécurité et maintenance
 
 - **Pare-feu** : bloquez le port 3000 si vous n'exposez pas l'API sur le VPS. Ou ouvrez-le uniquement pour `/health` si un moniteur externe le consulte.
 - **Logs** : `pm2 logs carindex-scraper` ou `pm2 monit`

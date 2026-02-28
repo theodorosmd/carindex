@@ -1,9 +1,6 @@
 import { logger } from '../utils/logger.js';
 import { supabase } from '../config/supabase.js';
-import puppeteer from 'puppeteer-extra';
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
-
-puppeteer.use(StealthPlugin());
+import { launchBrowser } from '../utils/puppeteerLaunch.js';
 
 // In-memory cache with TTL (24 hours)
 const cache = new Map();
@@ -493,15 +490,7 @@ async function fetchResultsWithPuppeteer(searchUrl, maxResults = 100) {
       maxResults
     });
     
-    browser = await puppeteer.launch({
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-blink-features=AutomationControlled',
-        '--disable-features=IsolateOrigins,site-per-process'
-      ]
-    });
+    browser = await launchBrowser();
     
     const page = await browser.newPage();
     

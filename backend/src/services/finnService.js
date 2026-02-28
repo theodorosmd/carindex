@@ -4,10 +4,7 @@ import { saveRawListings } from './rawIngestService.js';
 import { processRawListings } from './rawListingsProcessorService.js';
 import { fetchViaScrapeDo, isScrapeDoAvailable, isPageBlocked } from '../utils/scrapeDo.js';
 import * as cheerio from 'cheerio';
-import puppeteer from 'puppeteer-extra';
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
-
-puppeteer.use(StealthPlugin());
+import { launchBrowser } from '../utils/puppeteerLaunch.js';
 
 const SOURCE_PLATFORM = 'finn';
 const BASE_URL = 'https://www.finn.no';
@@ -71,18 +68,7 @@ export async function runFinnScraper(searchUrls, options = {}, progressCallback 
 
     logger.info('Starting FINN.no scraper', { searchUrls, options });
 
-    browser = await puppeteer.launch({
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--disable-gpu',
-        '--disable-blink-features=AutomationControlled',
-        '--disable-features=IsolateOrigins,site-per-process'
-      ]
-    });
+    browser = await launchBrowser();
 
     const urls = Array.isArray(searchUrls) ? searchUrls : [searchUrls];
 

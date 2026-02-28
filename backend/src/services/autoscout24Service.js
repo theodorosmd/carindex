@@ -3,10 +3,7 @@ import { saveRawListings } from './rawIngestService.js';
 import { processRawListings } from './rawListingsProcessorService.js';
 import { fetchViaScrapeDo, isScrapeDoAvailable } from '../utils/scrapeDo.js';
 import * as cheerio from 'cheerio';
-import puppeteer from 'puppeteer-extra';
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
-
-puppeteer.use(StealthPlugin());
+import { launchBrowser } from '../utils/puppeteerLaunch.js';
 
 const SOURCE_PLATFORM = 'autoscout24';
 const BASE_URL = 'https://www.autoscout24.com';
@@ -117,15 +114,8 @@ async function scrapeAutoscout24Streaming(baseUrl, maxPages, onPageDone) {
 
       if (usePuppeteer && listings.length === 0) {
         if (!browser) {
-          browser = await puppeteer.launch({
-            headless: true,
-            args: [
-              '--no-sandbox',
-              '--disable-setuid-sandbox',
-              '--disable-dev-shm-usage',
-              '--disable-gpu',
-              '--disable-blink-features=AutomationControlled'
-            ]
+          browser = await launchBrowser({
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--disable-blink-features=AutomationControlled']
           });
         }
         listings = await scrapeSearchPagePuppeteer(browser, pageUrl);

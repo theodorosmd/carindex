@@ -27,11 +27,11 @@ echo ""
 echo "[2/4] Installation des dépendances Puppeteer (Chromium)..."
 if grep -q "24.04" /etc/os-release 2>/dev/null; then
   sudo apt-get install -y chromium-browser fonts-liberation libasound2t64 libatk-bridge2.0-0t64 libatk1.0-0t64 \
-    libcups2t64 libdbus-1-3 libdrm2 libgbm1 libgtk-3-0t64 libnspr4 libnss3 \
+    libcups2t64 libdbus-1-3 libdrm2 libgbm1 libglib2.0-0t64 libgtk-3-0t64 libnspr4 libnss3 \
     libxcomposite1 libxdamage1 libxfixes3 libxrandr2 xdg-utils
 else
   sudo apt-get install -y chromium-browser fonts-liberation libasound2 libatk-bridge2.0-0 libatk1.0-0 libcups2 \
-    libdbus-1-3 libdrm2 libgbm1 libgtk-3-0 libnspr4 libnss3 \
+    libdbus-1-3 libdrm2 libgbm1 libglib2.0-0 libgtk-3-0 libnspr4 libnss3 \
     libxcomposite1 libxdamage1 libxfixes3 libxrandr2 xdg-utils
 fi
 

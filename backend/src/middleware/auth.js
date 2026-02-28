@@ -6,13 +6,10 @@ import { logger } from '../utils/logger.js';
  * Does not check plan restrictions (use optionalAuthMiddleware for that)
  */
 export function authMiddleware(req, res, next) {
-  console.log('=== authMiddleware CALLED ===', { path: req.path, method: req.method });
   try {
-    logger.info('authMiddleware called', { path: req.path, method: req.method });
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.log('=== NO AUTH HEADER ===');
       return res.status(401).json({
         error: {
           code: 'UNAUTHORIZED',
@@ -22,15 +19,7 @@ export function authMiddleware(req, res, next) {
     }
 
     const token = authHeader.substring(7);
-    console.log('=== VERIFYING TOKEN ===', { tokenLength: token.length });
-    let decoded;
-    try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
-      console.log('=== TOKEN VERIFIED ===', { userId: decoded.userId });
-    } catch (jwtError) {
-      console.error('=== JWT VERIFY ERROR ===', jwtError);
-      throw jwtError;
-    }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
 
     req.user = {
       id: decoded.userId,
@@ -39,12 +28,9 @@ export function authMiddleware(req, res, next) {
       role: decoded.role || 'user'
     };
 
-    console.log('=== AUTHENTICATION SUCCESSFUL ===', { userId: req.user.id });
-    logger.info('Authentication successful', { userId: req.user.id, path: req.path });
     next();
   } catch (error) {
-    console.error('=== AUTHENTICATION ERROR ===', error);
-    logger.warn('Authentication failed', { error: error.message });
+    logger.warn('Authentication failed', { error: error.message, path: req.path });
     return res.status(401).json({
       error: {
         code: 'UNAUTHORIZED',

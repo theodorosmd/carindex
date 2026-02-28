@@ -3,10 +3,7 @@ import { saveRawListings } from './rawIngestService.js';
 import { processRawListings } from './rawListingsProcessorService.js';
 import { fetchViaScrapeDo, isScrapeDoAvailable, isPageBlocked } from '../utils/scrapeDo.js';
 import * as cheerio from 'cheerio';
-import puppeteer from 'puppeteer-extra';
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
-
-puppeteer.use(StealthPlugin());
+import { launchBrowser } from '../utils/puppeteerLaunch.js';
 
 const SOURCE_PLATFORM = 'lacentrale';
 const BASE_URL = 'https://www.lacentrale.fr';
@@ -105,15 +102,7 @@ async function scrapeLaCentraleStreaming(baseUrl, maxPages, onPageDone) {
 
       if (usePuppeteer && listings.length === 0) {
         if (!browser) {
-          browser = await puppeteer.launch({
-            headless: true,
-            args: [
-              '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
-              '--disable-accelerated-2d-canvas', '--disable-gpu',
-              '--disable-blink-features=AutomationControlled',
-              '--disable-features=IsolateOrigins,site-per-process'
-            ]
-          });
+          browser = await launchBrowser();
         }
         listings = await scrapeLaCentralePagePuppeteer(browser, pageUrl);
       }

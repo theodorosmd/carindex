@@ -3,10 +3,7 @@ import { logger } from '../utils/logger.js';
 import openaiService from './openaiService.js';
 import { saveRawListings } from './rawIngestService.js';
 import { processRawListings } from './rawListingsProcessorService.js';
-import puppeteer from 'puppeteer-extra';
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
-
-puppeteer.use(StealthPlugin());
+import { launchBrowser } from '../utils/puppeteerLaunch.js';
 
 const SOURCE_PLATFORM = 'largus';
 const BASE_URL = 'https://occasion.largus.fr';
@@ -29,18 +26,7 @@ export async function runLargusScraper(searchUrls, options = {}, progressCallbac
 
     logger.info('Starting L\'Argus scraper (Puppeteer)', { searchUrls, options });
 
-    browser = await puppeteer.launch({
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--disable-gpu',
-        '--disable-blink-features=AutomationControlled',
-        '--disable-features=IsolateOrigins,site-per-process'
-      ]
-    });
+    browser = await launchBrowser();
 
     const urls = Array.isArray(searchUrls) ? searchUrls : [searchUrls];
 
@@ -141,8 +127,7 @@ export async function runLargusBackfill(options = {}) {
   const results = { updated: 0, errors: 0, total: listings.length };
 
   try {
-    browser = await puppeteer.launch({
-      headless: true,
+    browser = await launchBrowser({
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
     });
 

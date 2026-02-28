@@ -3,10 +3,7 @@ import { saveRawListings } from './rawIngestService.js';
 import { processRawListings } from './rawListingsProcessorService.js';
 import { fetchViaScrapeDo, isPageBlocked } from '../utils/scrapeDo.js';
 import * as cheerio from 'cheerio';
-import puppeteer from 'puppeteer-extra';
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
-
-puppeteer.use(StealthPlugin());
+import { launchBrowser } from '../utils/puppeteerLaunch.js';
 
 const SOURCE_PLATFORM = 'marktplaats';
 
@@ -28,18 +25,7 @@ export async function runMarktplaatsScraper(searchUrls, options = {}, progressCa
     // Prefer scrape.do if available (Marktplaats has strong anti-bot) - cheaper and often more reliable
     const useScrapeDo = !!process.env.SCRAPE_DO_TOKEN;
     if (!useScrapeDo) {
-      browser = await puppeteer.launch({
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--disable-gpu',
-          '--disable-blink-features=AutomationControlled',
-          '--disable-features=IsolateOrigins,site-per-process'
-        ]
-      });
+      browser = await launchBrowser();
     }
 
     for (const searchUrl of urls) {
