@@ -129,8 +129,8 @@ export async function renderAdminDashboard() {
     </header>
 
     <!-- Main Content -->
-    <div class="min-h-screen bg-gray-50 py-6 sm:py-8">
-      <div class="container mx-auto px-4 sm:px-6">
+    <div class="min-h-screen bg-gray-50 py-4 sm:py-8 overflow-x-hidden">
+      <div class="container mx-auto px-3 sm:px-6 max-w-[100vw]">
         <!-- Page Header -->
         <div class="mb-6 sm:mb-8">
           <h1 class="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Admin Dashboard</h1>

@@ -49,8 +49,8 @@ export async function runDailyScraping() {
       return results;
     }
 
-    // Run each scraper sequentially with delay to avoid memory overload and parallel rate limits
-    const DELAY_BETWEEN_SCRAPERS_MS = 2 * 60 * 1000; // 2 min between each
+    // Run each scraper sequentially with short delay to avoid memory overload
+    const DELAY_BETWEEN_SCRAPERS_MS = 45 * 1000; // 45 sec between each
     for (let i = 0; i < scrapers.length; i++) {
       const scraper = scrapers[i];
       if (i > 0) {

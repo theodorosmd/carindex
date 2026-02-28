@@ -180,7 +180,7 @@ async function runInBatches(items, concurrency, fn) {
 
 async function runAllScrapersFull() {
   try {
-    const concurrency = Math.max(1, parseInt(process.env.SCRAPE_CONCURRENCY || '2', 10));
+    const concurrency = Math.max(1, parseInt(process.env.SCRAPE_CONCURRENCY || '3', 10));
     console.log('🚀 Lancement de tous les scrapers en mode complet (sans limite)...');
     console.log(`   Parallélisme: ${concurrency} scrapers en même temps\n`);
 
