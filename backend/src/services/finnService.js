@@ -29,6 +29,46 @@ export async function runFinnScraper(searchUrls, options = {}, progressCallback 
   try {
     const maxPages = options.maxPages || 10;
 
+    if (isScrapeDoAvailable()) {
+      logger.info('Starting FINN.no scraper (scrape.do first)', { searchUrls, options });
+      const urls = Array.isArray(searchUrls) ? searchUrls : [searchUrls];
+      for (const searchUrl of urls) {
+        try {
+          for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+            const pageUrl = buildPageUrl(searchUrl, pageNum);
+            let html;
+            try {
+              html = await fetchViaScrapeDo(pageUrl, { render: true, customWait: 4000, geoCode: 'no' });
+            } catch (err) {
+              logger.warn('FINN scrape.do failed', { page: pageNum, error: err.message });
+              break;
+            }
+            const pageListings = parseFinnSearchPage(html);
+            if (pageListings.length === 0) break;
+            const enriched = [];
+            for (const item of pageListings) {
+              try {
+                const details = await fetchFinnDetailViaScraper(item.url);
+                enriched.push(details ? { ...item, ...details } : item);
+              } catch { enriched.push(item); }
+              await new Promise(r => setTimeout(r, 500));
+            }
+            await saveRawListings(enriched, SOURCE_PLATFORM);
+            const processResult = await processRawListings({ limit: enriched.length + 100, sourcePlatform: SOURCE_PLATFORM });
+            results.totalScraped += enriched.length;
+            results.saved += (processResult.created || 0) + (processResult.updated || 0) + (processResult.sourceAdded || 0);
+            if (progressCallback) await progressCallback({ totalScraped: results.totalScraped, totalSaved: results.saved, status: 'RUNNING', processedUrls: results.processedUrls });
+            await new Promise(r => setTimeout(r, 1500));
+          }
+          results.processedUrls.push(searchUrl);
+        } catch (err) {
+          logger.error('Error scraping FINN URL', { url: searchUrl, error: err.message });
+          results.errors++;
+        }
+      }
+      return { runId: null, totalScraped: results.totalScraped, saved: results.saved, processedUrls: results.processedUrls };
+    }
+
     logger.info('Starting FINN.no scraper', { searchUrls, options });
 
     browser = await puppeteer.launch({

@@ -53,9 +53,10 @@ export async function fetchViaScrapeDo(targetUrl, {
 
       if (!resp.ok) {
         const body = await resp.text().catch(() => '');
-        if (attempt < retries && [429, 502, 503].includes(resp.status)) {
-          logger.warn('scrape.do transient error, retrying', { status: resp.status, attempt, url: targetUrl });
-          await new Promise(r => setTimeout(r, 5000 * attempt));
+        if (attempt < retries && [429, 502, 503, 504].includes(resp.status)) {
+          const waitMs = resp.status === 429 ? 15000 * attempt : 5000 * attempt;
+          logger.warn('scrape.do transient error, retrying', { status: resp.status, attempt, waitMs, url: targetUrl });
+          await new Promise(r => setTimeout(r, waitMs));
           continue;
         }
         throw new Error(`scrape.do ${resp.status}: ${body.substring(0, 200)}`);

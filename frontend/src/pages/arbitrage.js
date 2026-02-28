@@ -42,35 +42,35 @@ export function renderArbitrage() {
   const app = document.getElementById('app');
   app.innerHTML = `
     <header class="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
-      <div class="container mx-auto px-4 sm:px-6 py-4">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center space-x-4">
-            <a href="#/" class="flex items-center space-x-2">
-              <span class="text-xl sm:text-2xl font-bold text-blue-600">Carindex</span>
+      <div class="container mx-auto px-3 sm:px-6 py-3 sm:py-4 max-w-[100vw]">
+        <div class="flex items-center justify-between gap-2 min-w-0">
+          <div class="flex items-center space-x-2 sm:space-x-4 min-w-0">
+            <a href="#/" class="flex items-center space-x-2 shrink-0">
+              <span class="text-lg sm:text-2xl font-bold text-blue-600">Carindex</span>
             </a>
-            <h1 class="text-lg sm:text-xl font-semibold text-gray-900">Arbitrage Véhicule</h1>
+            <h1 class="text-base sm:text-xl font-semibold text-gray-900 truncate">Arbitrage Véhicule</h1>
           </div>
-          <nav class="flex items-center space-x-4">
+          <nav class="flex items-center space-x-2 sm:space-x-4 shrink-0 text-sm sm:text-base">
             ${renderLanguageToggle()}
-            <a href="#/dashboard" class="text-gray-600 hover:text-blue-600">Dashboard</a>
-            <a href="#/search" class="text-gray-600 hover:text-blue-600">Recherche</a>
+            <a href="#/dashboard" class="text-gray-600 hover:text-blue-600 whitespace-nowrap">Dashboard</a>
+            <a href="#/search" class="text-gray-600 hover:text-blue-600 whitespace-nowrap">Recherche</a>
           </nav>
         </div>
       </div>
     </header>
 
-    <div class="container mx-auto px-4 sm:px-6 py-8">
+    <div class="container mx-auto px-3 sm:px-6 py-4 sm:py-8 max-w-[100vw] overflow-x-hidden">
       <!-- Opportunités auto-détectées -->
-      <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
-        <h2 class="text-xl font-bold text-gray-900 mb-4">🔄 Opportunités auto-détectées</h2>
-        <p class="text-sm text-gray-600 mb-4">Mises à jour quotidiennement (4h). Achat dans le pays moins cher, vente dans le pays plus cher.</p>
-        <div id="auto-opp-result" class="overflow-x-auto">Chargement...</div>
+      <div class="bg-white rounded-xl shadow-lg p-3 sm:p-6 mb-6 overflow-hidden">
+        <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-2 sm:mb-4">🔄 Opportunités auto-détectées</h2>
+        <p class="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">Mises à jour quotidiennement (4h). Achat dans le pays moins cher, vente dans le pays plus cher.</p>
+        <div id="auto-opp-result" class="overflow-x-auto -mx-2 sm:mx-0 rounded-lg border border-gray-200" style="-webkit-overflow-scrolling: touch">Chargement...</div>
       </div>
 
       <!-- Simulateur coûts d'import -->
-      <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
-        <h2 class="text-xl font-bold text-gray-900 mb-4">💰 Simulateur de coûts d'import</h2>
-        <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
+      <div class="bg-white rounded-xl shadow-lg p-3 sm:p-6 mb-6 overflow-hidden">
+        <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">💰 Simulateur de coûts d'import</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mb-4">
           <div>
             <label class="block text-sm font-medium text-gray-600 mb-1">Prix d'achat (€)</label>
             <input type="number" id="sim-price" placeholder="25000" class="w-full px-3 py-2 border rounded-lg">
@@ -101,9 +101,9 @@ export function renderArbitrage() {
       </div>
 
       <!-- Comparaison prix par pays -->
-      <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
-        <h2 class="text-xl font-bold text-gray-900 mb-4">📊 Comparaison des prix par pays</h2>
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+      <div class="bg-white rounded-xl shadow-lg p-3 sm:p-6 mb-6 overflow-hidden">
+        <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">📊 Comparaison des prix par pays</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">
           <input type="text" id="comp-brand" placeholder="Marque (ex: bmw)" class="px-3 py-2 border rounded-lg">
           <input type="text" id="comp-model" placeholder="Modèle (ex: x3)" class="px-3 py-2 border rounded-lg">
           <input type="number" id="comp-year" placeholder="Année (optionnel)" class="px-3 py-2 border rounded-lg" min="2000">
@@ -113,23 +113,23 @@ export function renderArbitrage() {
       </div>
 
       <!-- Opportunités d'arbitrage -->
-      <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
-        <h2 class="text-xl font-bold text-gray-900 mb-4">🎯 Opportunités d'arbitrage</h2>
-        <p class="text-sm text-gray-600 mb-4">Paires de pays où acheter moins cher et revendre plus cher (marge après coûts)</p>
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+      <div class="bg-white rounded-xl shadow-lg p-3 sm:p-6 mb-6 overflow-hidden">
+        <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">🎯 Opportunités d'arbitrage</h2>
+        <p class="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">Paires de pays où acheter moins cher et revendre plus cher (marge après coûts)</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">
           <input type="text" id="opp-brand" placeholder="Marque" class="px-3 py-2 border rounded-lg">
           <input type="text" id="opp-model" placeholder="Modèle" class="px-3 py-2 border rounded-lg">
           <input type="number" id="opp-year" placeholder="Année" class="px-3 py-2 border rounded-lg" min="2000">
           <button onclick="window.loadOpportunities()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">Rechercher</button>
         </div>
-        <div id="opp-result"></div>
+        <div id="opp-result" class="overflow-x-auto"></div>
       </div>
 
       <!-- Annonces avec opportunité -->
-      <div id="list-listings-section" class="bg-white rounded-xl shadow-lg p-6 mb-6">
-        <h2 class="text-xl font-bold text-gray-900 mb-4">🚗 Annonces avec opportunité</h2>
-        <p class="text-sm text-gray-600 mb-4">Annonces réelles sous la médiane du pays de vente cible</p>
-        <div class="grid grid-cols-1 md:grid-cols-5 gap-2 mb-4 flex-wrap">
+      <div id="list-listings-section" class="bg-white rounded-xl shadow-lg p-3 sm:p-6 mb-6 overflow-hidden">
+        <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">🚗 Annonces avec opportunité</h2>
+        <p class="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">Annonces réelles sous la médiane du pays de vente cible</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 mb-4 flex-wrap">
           <input type="text" id="list-brand" placeholder="Marque" class="px-3 py-2 border rounded-lg">
           <input type="text" id="list-model" placeholder="Modèle" class="px-3 py-2 border rounded-lg">
           <input type="number" id="list-year" placeholder="Année" class="px-3 py-2 border rounded-lg">
@@ -143,14 +143,14 @@ export function renderArbitrage() {
           </select>
           <button onclick="window.loadListingsArbitrage()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 col-span-full md:col-span-1">Rechercher</button>
         </div>
-        <div id="list-result"></div>
+        <div id="list-result" class="overflow-x-auto"></div>
       </div>
 
       <!-- Alerte arbitrage -->
-      <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
-        <h2 class="text-xl font-bold text-gray-900 mb-4">🔔 Alerte arbitrage</h2>
-        <p class="text-sm text-gray-600 mb-4">Recevez un email quand une annonce rentable apparaît (achat en X, vente en Y)</p>
-        <div class="grid grid-cols-1 md:grid-cols-5 gap-2 mb-4">
+      <div class="bg-white rounded-xl shadow-lg p-3 sm:p-6 mb-6 overflow-hidden">
+        <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">🔔 Alerte arbitrage</h2>
+        <p class="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">Recevez un email quand une annonce rentable apparaît (achat en X, vente en Y)</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 mb-4">
           <input type="text" id="alert-name" placeholder="Nom de l'alerte" class="px-3 py-2 border rounded-lg">
           <input type="text" id="alert-brand" placeholder="Marque" class="px-3 py-2 border rounded-lg">
           <input type="text" id="alert-model" placeholder="Modèle" class="px-3 py-2 border rounded-lg">
@@ -188,16 +188,16 @@ export function renderArbitrage() {
       return `${appBaseUrl}/?${p.toString()}#/arbitrage`;
     };
     el.innerHTML = `
-      <table class="min-w-full divide-y divide-gray-200">
+      <table class="min-w-[720px] divide-y divide-gray-200 text-sm table-sticky-col">
         <thead class="bg-gray-50"><tr>
-          <th class="px-4 py-2 text-left text-xs font-medium text-gray-500">Modèle</th>
-          <th class="px-4 py-2 text-left text-xs font-medium text-gray-500">Achat</th>
-          <th class="px-4 py-2 text-left text-xs font-medium text-gray-500">Vente</th>
-          <th class="px-4 py-2 text-right text-xs font-medium text-gray-500">Liquidité</th>
-          <th class="px-4 py-2 text-right text-xs font-medium text-gray-500">Prix achat</th>
-          <th class="px-4 py-2 text-right text-xs font-medium text-gray-500">Prix vente</th>
-          <th class="px-4 py-2 text-right text-xs font-medium text-gray-500">Marge nette</th>
-          <th class="px-4 py-2 text-left text-xs font-medium text-gray-500">Liens</th>
+          <th class="px-3 sm:px-4 py-2 text-left text-xs font-medium text-gray-500 whitespace-nowrap">Modèle</th>
+          <th class="px-3 sm:px-4 py-2 text-left text-xs font-medium text-gray-500 whitespace-nowrap">Achat</th>
+          <th class="px-3 sm:px-4 py-2 text-left text-xs font-medium text-gray-500 whitespace-nowrap">Vente</th>
+          <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 whitespace-nowrap">Liquidité</th>
+          <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 whitespace-nowrap">Prix achat</th>
+          <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 whitespace-nowrap">Prix vente</th>
+          <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 whitespace-nowrap">Marge nette</th>
+          <th class="px-3 sm:px-4 py-2 text-left text-xs font-medium text-gray-500 whitespace-nowrap">Liens</th>
         </tr></thead>
         <tbody class="bg-white divide-y">
           ${r.opportunities.map(o => {
@@ -219,14 +219,14 @@ export function renderArbitrage() {
             const liquidity = (o.listing_count_buy || 0) + (o.listing_count_sell || 0);
             return `
             <tr class="hover:bg-gray-50 cursor-pointer" data-brand="${brand}" data-model="${model}" data-buy="${buy}" data-sell="${sell}" onclick="window.fillOppFromAuto(this)">
-              <td class="px-4 py-2 font-medium">${capitalize(o.brand)} ${capitalize(o.model)}</td>
-              <td class="px-4 py-2">${COUNTRY_NAMES[buy] || buy}</td>
-              <td class="px-4 py-2">${COUNTRY_NAMES[sell] || sell}</td>
-              <td class="px-4 py-2 text-right" title="${o.listing_count_buy || 0} annonces achat + ${o.listing_count_sell || 0} vente">${liquidity}</td>
-              <td class="px-4 py-2 text-right">${formatCurrency(o.buy_median_price)}</td>
-              <td class="px-4 py-2 text-right">${formatCurrency(o.sell_median_price)}</td>
-              <td class="px-4 py-2 text-right font-bold text-green-600">${formatCurrency(o.net_margin)} (${o.net_margin_pct || 0}%)</td>
-              <td class="px-4 py-2" onclick="event.stopPropagation()">
+              <td class="px-3 sm:px-4 py-2 font-medium whitespace-nowrap">${capitalize(o.brand)} ${capitalize(o.model)}</td>
+              <td class="px-3 sm:px-4 py-2 whitespace-nowrap">${COUNTRY_NAMES[buy] || buy}</td>
+              <td class="px-3 sm:px-4 py-2 whitespace-nowrap">${COUNTRY_NAMES[sell] || sell}</td>
+              <td class="px-3 sm:px-4 py-2 text-right whitespace-nowrap" title="${o.listing_count_buy || 0} annonces achat + ${o.listing_count_sell || 0} vente">${liquidity}</td>
+              <td class="px-3 sm:px-4 py-2 text-right whitespace-nowrap">${formatCurrency(o.buy_median_price)}</td>
+              <td class="px-3 sm:px-4 py-2 text-right whitespace-nowrap">${formatCurrency(o.sell_median_price)}</td>
+              <td class="px-3 sm:px-4 py-2 text-right font-bold text-green-600 whitespace-nowrap">${formatCurrency(o.net_margin)} (${o.net_margin_pct || 0}%)</td>
+              <td class="px-3 sm:px-4 py-2 min-w-[200px]" onclick="event.stopPropagation()">
                 ${exactLinks ? `<span class="inline-flex flex-wrap items-center gap-x-2">${exactLinks}</span>` : '<span class="text-gray-400 text-sm">Aucun lien direct</span>'}
                 <span class="text-gray-300 mx-2">|</span>
                 <a href="${listingsUrl}" class="text-gray-500 hover:underline text-sm">Nos annonces</a>

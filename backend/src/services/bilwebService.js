@@ -22,12 +22,34 @@ export async function runBilwebScraper(searchUrls, options = {}, progressCallbac
   };
 
   try {
-    logger.info('Starting Bilweb.se scraper', { searchUrls, options });
+    const useScrapeDo = isScrapeDoAvailable();
 
-    let useScrapeDo = isScrapeDoAvailable();
     if (useScrapeDo) {
-      logger.info('Bilweb: scrape.do available, will use as fallback if Puppeteer fails');
+      logger.info('Starting Bilweb.se scraper (scrape.do first)', { searchUrls, options });
+      const urls = Array.isArray(searchUrls) ? searchUrls : [searchUrls];
+      for (const searchUrl of urls) {
+        try {
+          const listings = await scrapeBilwebViaScrapeDo(searchUrl, options.maxPages || 10);
+          if (listings.length > 0) {
+            await saveRawListings(listings, 'bilweb');
+            for (const listing of listings) {
+              try {
+                const saved = await saveBilwebListing(listing);
+                if (saved) results.saved++;
+              } catch { /* skip */ }
+              results.totalScraped++;
+            }
+          }
+          results.processedUrls.push(searchUrl);
+        } catch (err) {
+          logger.error('Error scraping Bilweb URL', { url: searchUrl, error: err.message });
+          results.errors++;
+        }
+      }
+      return results;
     }
+
+    logger.info('Starting Bilweb.se scraper', { searchUrls, options });
 
     try {
       browser = await puppeteer.launch({
@@ -41,12 +63,7 @@ export async function runBilwebScraper(searchUrls, options = {}, progressCallbac
         ]
       });
     } catch (launchErr) {
-      logger.warn('Bilweb Puppeteer launch failed', { error: launchErr.message });
-      if (useScrapeDo) {
-        browser = null;
-      } else {
-        throw launchErr;
-      }
+      throw launchErr;
     }
 
     for (const searchUrl of searchUrls) {
@@ -54,22 +71,15 @@ export async function runBilwebScraper(searchUrls, options = {}, progressCallbac
         logger.info('Scraping Bilweb.se URL', { url: searchUrl });
 
         let listings = [];
-        if (browser) {
-          try {
-            listings = await scrapeBilwebUrl(browser, searchUrl, options.maxPages || 10);
-          } catch (err) {
-            logger.warn('Bilweb Puppeteer failed, trying scrape.do', { error: err.message });
-            if (useScrapeDo) {
-              listings = await scrapeBilwebViaScrapeDo(searchUrl, options.maxPages || 10);
-            } else {
-              throw err;
-            }
-          }
-          if (listings.length === 0 && useScrapeDo) {
+        try {
+          listings = await scrapeBilwebUrl(browser, searchUrl, options.maxPages || 10);
+        } catch (err) {
+          logger.warn('Bilweb Puppeteer failed, trying scrape.do', { error: err.message });
+          if (isScrapeDoAvailable()) {
             listings = await scrapeBilwebViaScrapeDo(searchUrl, options.maxPages || 10);
+          } else {
+            throw err;
           }
-        } else if (useScrapeDo) {
-          listings = await scrapeBilwebViaScrapeDo(searchUrl, options.maxPages || 10);
         }
 
         logger.info('Bilweb.se scraping completed', {

@@ -203,17 +203,17 @@ export async function renderAdminDashboard() {
           </div>
 
           <!-- Scraper Dashboard -->
-          <div class="bg-white rounded-lg sm:rounded-xl shadow-lg p-4 sm:p-6 mb-6 sm:mb-8">
-            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6 gap-2">
-              <h2 class="text-lg sm:text-xl font-bold text-gray-900">Dashboard Scrapers & Crons</h2>
-              <div class="flex items-center gap-2">
+          <div class="bg-white rounded-lg sm:rounded-xl shadow-lg p-3 sm:p-6 mb-6 sm:mb-8 overflow-hidden">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 sm:mb-6 gap-3">
+              <h2 class="text-base sm:text-xl font-bold text-gray-900">Dashboard Scrapers & Crons</h2>
+              <div class="flex flex-row items-center gap-2">
                 <span id="scraper-dashboard-last-update" class="text-xs text-gray-500 hidden sm:inline">Actualisation auto (30s)</span>
-                <button onclick="loadScraperDashboard()" class="w-full sm:w-auto px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition text-sm font-medium whitespace-nowrap">
+                <button onclick="loadScraperDashboard()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition text-sm font-medium whitespace-nowrap">
                   🔄 Actualiser
                 </button>
               </div>
             </div>
-            <p class="text-sm text-gray-600 mb-6">Vue d'ensemble des runs, crons, et statuts (OK / en attente / erreur) par site — synchronisé avec la base</p>
+            <p class="text-xs sm:text-sm text-gray-600 mb-4 sm:mb-6">Vue d'ensemble des runs, crons, et statuts (OK / en attente / erreur) par site</p>
             <div id="scraper-dashboard-content" class="space-y-6">
               <div class="text-center py-8 text-gray-500">
                 <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -464,8 +464,8 @@ export async function renderAdminDashboard() {
               </div>
             </div>
 
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-              <input type="date" id="runs-started-from" class="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+              <input type="date" id="runs-started-from" class="px-3 py-2 border border-gray-300 rounded-lg text-sm min-w-0" />
               <input type="date" id="runs-started-to" class="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
               <select id="runs-status" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
                 <option value="">Tous statuts</option>
@@ -1400,10 +1400,10 @@ function renderScraperDashboard(data) {
       </div>
     </div>
 
-    <div class="mb-6">
-      <h3 class="font-semibold text-gray-900 mb-3">Par site</h3>
-      <p class="text-xs text-gray-500 mb-2">Runs = exécutions du scraper. Listings = annonces en base (résultat cumulé). Queue URLs = en attente (+ en cours pendant 2_collect_details).</p>
-      <div class="sm:hidden space-y-3">
+    <div class="mb-6 overflow-hidden">
+      <h3 class="font-semibold text-gray-900 mb-2 sm:mb-3 text-sm sm:text-base">Par site</h3>
+      <p class="text-xs text-gray-500 mb-2 sm:mb-3">Runs = exécutions. Listings = annonces en base. Queue URLs = en attente.</p>
+      <div class="sm:hidden space-y-3 overflow-x-hidden">
   `
 
   function formatQueueUrls(row) {
@@ -1453,9 +1453,9 @@ function renderScraperDashboard(data) {
       }
 
       mobileCardsHtml += `
-        <div class="border border-gray-200 rounded-lg p-3 bg-white">
-          <div class="flex items-center justify-between mb-2">
-            <span class="font-semibold text-gray-900 text-sm">${name}</span>
+        <div class="border border-gray-200 rounded-lg p-3 bg-white min-w-0">
+          <div class="flex items-center justify-between gap-2 mb-2">
+            <span class="font-semibold text-gray-900 text-sm truncate">${name}</span>
             <span class="text-xs text-gray-500 font-medium">${(row.listings_total || 0).toLocaleString('fr-FR')} listings</span>
           </div>
           <div class="grid grid-cols-3 gap-2 mb-2">
@@ -1537,8 +1537,8 @@ function renderScraperDashboard(data) {
 
   html += mobileCardsHtml
   html += `</div>
-      <div class="hidden sm:block overflow-x-auto rounded-lg border border-gray-200">
-        <table class="min-w-full divide-y divide-gray-200 text-sm table-sticky-col">
+      <div class="hidden sm:block overflow-x-auto overflow-y-visible rounded-lg border border-gray-200 -mx-2 sm:mx-0 touch-pan-x" style="max-width: 100%; -webkit-overflow-scrolling: touch">
+        <table class="min-w-[640px] divide-y divide-gray-200 text-sm table-sticky-col">
           <thead class="bg-gray-50">
             <tr>
               <th class="px-3 sm:px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase bg-gray-50 whitespace-nowrap">Site</th>
@@ -1560,8 +1560,8 @@ function renderScraperDashboard(data) {
 
   if (crons && crons.length > 0) {
     html += `
-      <div>
-        <h3 class="font-semibold text-gray-900 mb-3">Crons (scrapings automatiques)</h3>
+      <div class="overflow-hidden">
+        <h3 class="font-semibold text-gray-900 mb-2 sm:mb-3 text-sm sm:text-base">Crons (scrapings automatiques)</h3>
         <div class="space-y-2">
     `
     crons.forEach((c) => {
@@ -1570,16 +1570,16 @@ function renderScraperDashboard(data) {
       const enabledBadge = c.enabled ? '<span class="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs">Actif</span>' : '<span class="px-2 py-0.5 bg-gray-200 text-gray-600 rounded text-xs">Désactivé</span>'
       const lastResult = c.last_run_result ? ` (${c.last_run_result.saved || 0} sauvegardées)` : ''
       html += `
-        <div class="flex flex-wrap items-center justify-between gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
-          <div class="flex items-center gap-2 flex-wrap">
-            <span class="font-medium text-gray-900">${SOURCE_NAMES[c.source] || c.source}</span>
+        <div class="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="font-medium text-gray-900 text-sm sm:text-base">${SOURCE_NAMES[c.source] || c.source}</span>
             ${c.name && c.name !== (SOURCE_NAMES[c.source] || c.source) ? `<span class="text-gray-500 text-xs">${c.name}</span>` : ''}
             ${enabledBadge}
-            <span class="px-2 py-0.5 rounded text-xs font-mono bg-white border border-gray-200">${c.cron}</span>
+            <span class="px-2 py-0.5 rounded text-xs font-mono bg-white border border-gray-200 break-all">${c.cron}</span>
           </div>
-          <div class="text-xs text-gray-600">
+          <div class="text-xs text-gray-600 flex flex-wrap items-center gap-x-2 gap-y-1">
             Dernier run: ${lastRun}
-            <span class="ml-2 px-2 py-0.5 rounded ${statusClass}">${c.last_run_status || '-'}</span>
+            <span class="px-2 py-0.5 rounded ${statusClass}">${c.last_run_status || '-'}</span>
             ${lastResult}
           </div>
         </div>

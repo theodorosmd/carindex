@@ -26,6 +26,40 @@ export async function runBlocketScraper(searchUrls, options = {}, progressCallba
 
   try {
     const maxPages = options.maxPages || 10;
+    const useScrapeDoFirst = isScrapeDoAvailable();
+
+    if (useScrapeDoFirst) {
+      logger.info('Starting Blocket.se scraper (scrape.do first)', { searchUrls, options });
+      const urls = Array.isArray(searchUrls) ? searchUrls : [searchUrls];
+      for (const searchUrl of urls) {
+        try {
+          for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+            const pageUrl = pageNum === 1 ? searchUrl : (searchUrl.includes('?') ? `${searchUrl}&page=${pageNum}` : `${searchUrl}?page=${pageNum}`);
+            const scrapedListings = await scrapeBlocketSearchViaScraper(pageUrl);
+            if (scrapedListings.length === 0) break;
+            const enriched = [];
+            for (const item of scrapedListings) {
+              try {
+                const details = await fetchBlocketDetailViaScraper(item.url);
+                enriched.push(details ? { ...item, ...details } : item);
+              } catch { enriched.push(item); }
+              await new Promise(r => setTimeout(r, 400));
+            }
+            await saveRawListings(enriched, SOURCE_PLATFORM);
+            const processResult = await processRawListings({ limit: enriched.length + 100, sourcePlatform: SOURCE_PLATFORM });
+            results.totalScraped += enriched.length;
+            results.saved += (processResult.created || 0) + (processResult.updated || 0) + (processResult.sourceAdded || 0);
+            if (progressCallback) await progressCallback({ totalScraped: results.totalScraped, totalSaved: results.saved, status: 'RUNNING', processedUrls: results.processedUrls });
+            await new Promise(r => setTimeout(r, 1500));
+          }
+          results.processedUrls.push(searchUrl);
+        } catch (err) {
+          logger.error('Error scraping Blocket URL', { url: searchUrl, error: err.message });
+          results.errors++;
+        }
+      }
+      return { runId: null, totalScraped: results.totalScraped, saved: results.saved, processedUrls: results.processedUrls };
+    }
 
     logger.info('Starting Blocket.se scraper (Puppeteer)', { searchUrls, options });
 

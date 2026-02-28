@@ -1,7 +1,7 @@
 import { logger } from '../utils/logger.js';
 import { saveRawListings } from './rawIngestService.js';
 import { processRawListings } from './rawListingsProcessorService.js';
-import { fetchViaScrapeDo, isPageBlocked } from '../utils/scrapeDo.js';
+import { fetchViaScrapeDo, isScrapeDoAvailable, isPageBlocked } from '../utils/scrapeDo.js';
 import * as cheerio from 'cheerio';
 import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
@@ -23,6 +23,37 @@ export async function runGaspedaalScraper(searchUrls, options = {}, progressCall
   try {
     const maxPages = options.maxPages || 15;
     const urls = Array.isArray(searchUrls) ? searchUrls : [searchUrls];
+
+    if (isScrapeDoAvailable()) {
+      logger.info('Starting Gaspedaal scraper (scrape.do first)', { urls, options });
+      for (const searchUrl of urls) {
+        try {
+          for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+            const pageUrl = buildPageUrl(searchUrl, pageNum);
+            let html;
+            try {
+              html = await fetchViaScrapeDo(pageUrl, { render: true, customWait: 4000, geoCode: 'nl' });
+            } catch (err) {
+              logger.warn('Gaspedaal scrape.do failed', { page: pageNum, error: err.message });
+              break;
+            }
+            const listings = parseSearchPage(html);
+            if (listings.length === 0) break;
+            await saveRawListings(listings, SOURCE_PLATFORM);
+            const processResult = await processRawListings({ limit: listings.length + 100, sourcePlatform: SOURCE_PLATFORM });
+            results.totalScraped += listings.length;
+            results.saved += (processResult.created || 0) + (processResult.updated || 0) + (processResult.sourceAdded || 0);
+            if (progressCallback) await progressCallback({ totalScraped: results.totalScraped, totalSaved: results.saved, status: 'RUNNING', processedUrls: results.processedUrls });
+            await new Promise(r => setTimeout(r, 1500));
+          }
+          results.processedUrls.push(searchUrl);
+        } catch (err) {
+          logger.error('Error scraping Gaspedaal URL', { url: searchUrl, error: err.message });
+          results.errors++;
+        }
+      }
+      return { runId: null, totalScraped: results.totalScraped, saved: results.saved, processedUrls: results.processedUrls };
+    }
 
     logger.info('Starting Gaspedaal scraper', { urls, options });
 
