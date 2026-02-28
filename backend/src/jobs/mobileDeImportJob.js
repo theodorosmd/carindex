@@ -11,7 +11,7 @@ import { createScraperRun, updateScraperRun } from '../services/ingestRunsServic
 const DEFAULT_CRON = '0 3 * * *'; // 3h du matin
 
 const DEFAULT_SEARCH_URLS = [
-  'https://suchen.mobile.de/fahrzeuge/detailsuche/?cn=DE&s=Car&vc=Car',
+  'https://suchen.mobile.de/fahrzeuge/search.html?isSearchRequest=true&s=Car&vc=Car',
 ];
 
 export async function runMobileDeImportOnce(options = {}) {

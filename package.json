@@ -3,10 +3,12 @@
   "version": "1.0.0",
   "description": "Carindex - Automotive Market Intelligence Platform",
   "scripts": {
+    "check-vps-activity": "cd backend && node src/scripts/check-vps-activity.js",
     "postinstall": "cd frontend && npm install",
     "dev:frontend": "cd frontend && npm run dev",
     "dev:backend": "cd backend && npm run dev",
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:vps": "cd frontend && VITE_API_TARGET=http://91.99.61.232:3000 npm run dev",
     "build:frontend": "cd frontend && npm run build",
     "build": "npm run build:frontend",
     "install:all": "cd frontend && npm install && cd ../backend && npm install"

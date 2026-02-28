@@ -3,10 +3,20 @@ import { tr, renderLanguageToggle, attachLanguageToggle, capitalize } from '../u
 
 export async function renderAdminDashboard() {
   const app = document.getElementById('app')
+  if (!app) {
+    console.error('Admin: #app element not found')
+    document.body.innerHTML = '<div class="p-8 text-center"><h1 class="text-xl text-red-600">Error: App container not found</h1><a href="/">Go home</a></div>'
+    return
+  }
+
+  const showError = (msg) => {
+    app.innerHTML = `<div class="min-h-screen bg-gray-50 flex items-center justify-center p-8"><div class="max-w-md text-center"><h1 class="text-xl font-bold text-red-600 mb-4">Erreur</h1><p class="text-gray-600 mb-4">${msg}</p><a href="/" class="text-blue-600 hover:underline">Retour à l'accueil</a><br><a href="#/login" class="text-blue-600 hover:underline mt-2 inline-block">Connexion</a></div></div>`
+  }
+
   const user = getUser()
   
   if (!user) {
-    window.location.hash = '#/login'
+    window.location.hash = '#/login?redirect=' + encodeURIComponent(window.location.pathname || '/admin')
     return
   }
   
@@ -69,7 +79,8 @@ export async function renderAdminDashboard() {
     window.location.hash = '#/dashboard'
     return
   }
-  
+
+  try {
   app.innerHTML = `
     <!-- Navigation -->
     <header class="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
@@ -721,6 +732,10 @@ export async function renderAdminDashboard() {
       scraperDashboardRefreshInterval = null
     }
   })
+  } catch (e) {
+    console.error('Admin dashboard render error:', e)
+    showError(e.message || 'Erreur lors du chargement du dashboard admin.')
+  }
 }
 
 /**

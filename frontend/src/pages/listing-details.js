@@ -157,9 +157,10 @@ function buildSourceLinksHtml(listing) {
     ? listing.sources.filter(s => s.url)
     : (listing.url ? [{ platform: listing.source_platform || listing.source, url: listing.url }] : [])
   if (sources.length === 0) return ''
+  const linkDisclaimer = '<p class="mt-2 text-xs text-gray-500">' + tr('The seller may have removed this listing. If the link shows an error, the car may no longer be available.', "Le vendeur peut avoir retiré cette annonce. Si le lien affiche une erreur, le véhicule n'est peut-être plus disponible.") + '</p>'
   if (sources.length === 1) {
     return '<a href="' + sources[0].url + '" target="_blank" rel="noopener noreferrer" class="block w-full px-4 sm:px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition text-center text-sm sm:text-base">' +
-      tr('View original listing', "Voir l'annonce originale") + ' →</a>'
+      tr('View original listing', "Voir l'annonce originale") + ' →</a>' + linkDisclaimer
   }
   const links = sources.map(s =>
     '<a href="' + s.url + '" target="_blank" rel="noopener noreferrer" class="flex items-center justify-between w-full px-4 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition text-center text-sm">' +
@@ -167,7 +168,7 @@ function buildSourceLinksHtml(listing) {
     '<span>→</span></a>'
   ).join('')
   return '<div class="space-y-2"><div class="text-sm font-medium text-gray-700">' +
-    tr('Contact seller', 'Contacter le vendeur') + ' :</div>' + links + '</div>'
+    tr('Contact seller', 'Contacter le vendeur') + ' :</div>' + links + linkDisclaimer + '</div>'
 }
 
 // Extract data from specifications if main fields are empty

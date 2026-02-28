@@ -106,8 +106,18 @@ ENABLE_SALES_DETECTION=true
 npm install -g pm2
 pm2 start ecosystem.config.cjs
 pm2 save
-pm2 startup   # démarrage au boot du serveur
+pm2 startup   # exécutez la commande sudo affichée pour démarrage au boot
 ```
+
+**Pour que les scrapers tournent 24/7** (recommandé sur VPS) :
+
+```bash
+cd /opt/carindex
+bash scripts/ensure-scrapers-always-running.sh
+# Puis exécutez la commande sudo affichée par pm2 startup
+```
+
+Vérifiez que `backend/.env` contient : `ENABLE_CONTINUOUS_SCRAPING=true`, `ENABLE_CRON_JOBS=true`, `CONTINUOUS_SCRAPE_INTERVAL_HOURS=0`.
 
 ### Commandes utiles
 
@@ -169,7 +179,52 @@ pm2 restart carindex-scraper
 
 ---
 
-## 7. Sécurité et maintenance
+## 7. Vérifier que le VPS tourne
+
+### Option A : SSH + script de statut (sur le VPS)
+
+```bash
+# Connexion SSH
+ssh root@VOTRE_IP_VPS
+
+# Depuis le VPS
+cd /opt/carindex
+bash scripts/check-vps-status.sh
+```
+
+Ou en une ligne depuis votre machine locale :
+
+```bash
+ssh root@VOTRE_IP_VPS 'cd /opt/carindex && bash scripts/check-vps-status.sh'
+```
+
+Le script affiche : PM2 status, réponse de `/health`, dernières lignes de logs.
+
+### Option B : Vérifier l’activité dans Supabase (depuis votre machine)
+
+```bash
+cd backend
+node src/scripts/check-vps-activity.js
+```
+
+Utilise `SUPABASE_URL` et `SUPABASE_SERVICE_ROLE_KEY` du `.env`. Affiche les runs récents (`scraper_runs`), `raw_listings` récents et l’état des auto-scrapers.
+
+### Option C : Exposer /health pour un moniteur externe
+
+Si vous voulez que le VPS réponde à des health checks externes :
+
+```bash
+# Sur le VPS
+EXPOSE_VPS_HEALTH=1 bash scripts/expose-vps-health.sh
+```
+
+Puis : `curl http://VOTRE_IP_VPS:3000/health`
+
+⚠️ Cela ouvre le port 3000 : l’API complète devient accessible. Utilisez uniquement pour du monitoring contrôlé.
+
+---
+
+## 8. Sécurité et maintenance
 
 - **Pare-feu** : bloquez le port 3000 si vous n'exposez pas l'API sur le VPS. Ou ouvrez-le uniquement pour `/health` si un moniteur externe le consulte.
 - **Logs** : `pm2 logs carindex-scraper` ou `pm2 monit`

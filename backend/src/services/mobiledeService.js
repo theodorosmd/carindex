@@ -101,6 +101,16 @@ export async function runMobileDeScraper(searchUrls, options = {}, progressCallb
 }
 
 /**
+ * Build paginated URL for mobile.de search.
+ * search.html uses pageNumber; detailsuche may use different param.
+ */
+function buildMobileDePageUrl(baseUrl, pageNum) {
+  if (pageNum <= 1) return baseUrl;
+  const sep = baseUrl.includes('?') ? '&' : '?';
+  return `${baseUrl}${sep}pageNumber=${pageNum}`;
+}
+
+/**
  * Scrape une URL de recherche mobile.de
  * mobile.de a une protection anti-bot forte (Datadome, contenu JS). On privilégie scrape.do si disponible.
  */
@@ -111,9 +121,7 @@ async function scrapeMobileDeUrl(browser, url, maxPages = 10) {
   if (isScrapeDoAvailable()) {
     logger.info('mobile.de: using scrape.do (primary - mobile.de blocks Puppeteer often)');
     for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
-      const pageUrl = pageNum === 1
-        ? url
-        : url.includes('?') ? `${url}&pageNumber=${pageNum}` : `${url}?pageNumber=${pageNum}`;
+      const pageUrl = buildMobileDePageUrl(url, pageNum);
       const scraped = await scrapeMobileDeSearchViaScraper(pageUrl);
       if (scraped.length === 0) break;
       allListings.push(...scraped);
@@ -137,9 +145,7 @@ async function scrapeMobileDeUrl(browser, url, maxPages = 10) {
     let currentPage = 1;
 
     while (currentPage <= maxPages) {
-      const pageUrl = currentPage === 1
-        ? url
-        : url.includes('?') ? `${url}&pageNumber=${currentPage}` : `${url}?pageNumber=${currentPage}`;
+      const pageUrl = buildMobileDePageUrl(url, currentPage);
 
       let gotoOk = false;
       for (let attempt = 1; attempt <= 3; attempt++) {
@@ -250,7 +256,7 @@ async function scrapeMobileDeSearchViaScraper(pageUrl) {
   try {
     const html = await fetchViaScrapeDo(pageUrl, {
       render: true,
-      customWait: 6000,
+      customWait: 8000,
       geoCode: 'de',
       superProxy: true
     });
@@ -258,11 +264,19 @@ async function scrapeMobileDeSearchViaScraper(pageUrl) {
     const listings = [];
     const seen = new Set();
 
-    // mobile.de utilise www ou suchen ; links: /fahrzeuge/details/ID ou details.html?id=ID
-    $('a[href*="/fahrzeuge/details"], a[href*="details.html"], a[href*="mobile.de"][href*="id="]').each((_, el) => {
+    // Selectors: /fahrzeuge/details/ID, details.html?id=, datenblatt, listing cards
+    const linkSelectors = [
+      'a[href*="/fahrzeuge/details/"]',
+      'a[href*="details.html"]',
+      'a[href*="datenblatt"]',
+      'a[href*="mobile.de"][href*="id="]',
+      '[data-testid*="listing"] a[href*="/fahrzeuge/"]',
+      'a[href*="mobile.de/fahrzeuge/"]'
+    ].join(', ');
+    $(linkSelectors).each((_, el) => {
       const href = $(el).attr('href');
       if (!href) return;
-      const idMatch = href.match(/\/details\/(\d+)/) || href.match(/[?&]id=(\d+)/);
+      const idMatch = href.match(/\/details\/(\d+)/) || href.match(/\/datenblatt\/(\d+)/) || href.match(/[?&]id=(\d+)/);
       if (!idMatch || seen.has(idMatch[1])) return;
       seen.add(idMatch[1]);
 
@@ -291,9 +305,12 @@ async function scrapeMobileDeSearchViaScraper(pageUrl) {
         title,
       });
     });
+    if (listings.length === 0 && html && html.length > 500) {
+      logger.debug('mobile.de: no listings found in HTML', { htmlLength: html.length, url: pageUrl });
+    }
     return listings;
   } catch (err) {
-    logger.warn('scrape.do search fallback failed for mobile.de', { error: err.message });
+    logger.warn('scrape.do search failed for mobile.de', { error: err.message, url: pageUrl });
     return [];
   }
 }

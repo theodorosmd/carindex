@@ -1,6 +1,7 @@
 import { supabase } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import { createScraperRun, updateScraperRun } from './ingestRunsService.js';
+import { markDisappearedAsSold } from './disappearedListingService.js';
 import { runAutoScout24Scraper } from './autoscout24Service.js';
 import { runMobileDeScraper } from './mobiledeService.js';
 import { runLeBonCoinScraper } from './leboncoinService.js';
@@ -174,6 +175,7 @@ export async function deleteAutoScraper(id) {
  */
 export async function runAutoScraper(scraper) {
   let runId = null;
+  const runStartedAt = new Date();
   try {
     logger.info('Running auto scraper', { id: scraper.id, source: scraper.source, name: scraper.name });
 
@@ -319,6 +321,19 @@ export async function runAutoScraper(scraper) {
         break;
       default:
         throw new Error(`Unsupported source: ${scraper.source}`);
+    }
+
+    // Mark disappeared listings as sold (reduces broken "View original listing" links)
+    try {
+      const saleResult = await markDisappearedAsSold(runId, scraper.source, runStartedAt);
+      if (saleResult.markedAsSold > 0) {
+        logger.info('Disappeared listings marked as sold', {
+          source: scraper.source,
+          markedAsSold: saleResult.markedAsSold
+        });
+      }
+    } catch (saleErr) {
+      logger.warn('Could not mark disappeared listings as sold', { source: scraper.source, error: saleErr.message });
     }
 
     // Update scraper run with success

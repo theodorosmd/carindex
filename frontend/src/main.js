@@ -50,8 +50,8 @@ function route() {
   // to avoid path-based checks intercepting hash routes
   const effectivePath = hash ? null : path
   
-  // Auth routes (public)
-  if (hash === '#/login' || effectivePath === '/login') {
+  // Auth routes (public) - use startsWith to match #/login?redirect=...
+  if (hash === '#/login' || hash?.startsWith('#/login?') || effectivePath === '/login' || (effectivePath && effectivePath.startsWith('/login'))) {
     renderLogin()
     return
   }
@@ -62,7 +62,7 @@ function route() {
   }
   
   // Admin dashboard route (protected, admin only)
-  if (hash === '#/admin' || effectivePath === '/admin') {
+  if (hash === '#/admin' || hash === '#/dashboard/admin' || effectivePath === '/admin' || effectivePath === '/dashboard/admin') {
     if (!isAuthenticated()) {
       const redirectPath = hash || path
       window.history.pushState({}, '', '/login?redirect=' + encodeURIComponent(redirectPath))
@@ -382,7 +382,7 @@ document.addEventListener('click', (e) => {
     if (hash === '#/search' || hash === '#/listings') {
       window.history.pushState({}, '', '/search')
       route()
-    } else if (hash === '#/login' || hash === '#/signup' || hash === '#/dashboard' || hash === '#/admin' || hash === '#/stock-analysis' || hash === '#/auction-margin' || hash.startsWith('#/listing/')) {
+    } else if (hash === '#/login' || hash === '#/signup' || hash === '#/dashboard' || hash === '#/admin' || hash === '#/dashboard/admin' || hash === '#/stock-analysis' || hash === '#/auction-margin' || hash.startsWith('#/listing/')) {
       // Auth routes, dashboard, admin, stock analysis, and listing details
       const nextPath = hash.replace('#', '')
       window.history.pushState({}, '', nextPath)

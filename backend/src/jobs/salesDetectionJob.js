@@ -29,10 +29,10 @@ export function startSalesDetectionJob() {
  */
 export async function detectAndMarkSales() {
   try {
-    // Get listings that are still active but haven't been seen in the last 7 days
-    // This indicates they were likely sold or removed
+    // Get listings that are still active but haven't been seen in the last 3 days
+    // Delta marking handles most disappearances immediately; this catches any missed by failed scrapes
     const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - 7); // 7 days without update
+    cutoffDate.setDate(cutoffDate.getDate() - 3); // 3 days without update
 
     logger.info('Checking for disappeared listings', { cutoffDate: cutoffDate.toISOString() });
 

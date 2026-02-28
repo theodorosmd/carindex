@@ -14,7 +14,7 @@ export const DEFAULT_SCRAPER_URLS = {
     'https://www.autoscout24.lu/lst?sort=standard&desc=0&offer=U&ustate=N%2CU&atype=C'
   ],
   'mobile.de': [
-    'https://suchen.mobile.de/fahrzeuge/detailsuche/?cn=DE&s=Car&vc=Car'
+    'https://suchen.mobile.de/fahrzeuge/search.html?isSearchRequest=true&s=Car&vc=Car'
   ],
   leboncoin: [
     'https://www.leboncoin.fr/c/voitures'

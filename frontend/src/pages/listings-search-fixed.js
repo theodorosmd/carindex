@@ -436,14 +436,16 @@ function initializeSearch() {
     modalHTML += '</div>'
     
     const modalSources = (listing.sources && listing.sources.length > 0 ? listing.sources.filter(function (s) { return s.url }) : null) || (listing.url ? [{ platform: listing.source_platform || listing.source, url: listing.url }] : [])
+    const linkDisclaimer = '<p class="mt-2 text-xs text-gray-500">' + tr('The seller may have removed this listing. If the link shows an error, the car may no longer be available.', 'Le vendeur peut avoir retiré cette annonce. Si le lien affiche une erreur, le véhicule n\'est peut-être plus disponible.') + '</p>'
     modalHTML += '<div class="flex flex-col space-y-2">'
     if (modalSources.length === 1) {
-      modalHTML += '<a href="' + modalSources[0].url + '" target="_blank" rel="noopener noreferrer" class="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition text-center">' + tr('View original listing', 'Voir l\'annonce originale') + '</a>'
+      modalHTML += '<a href="' + modalSources[0].url + '" target="_blank" rel="noopener noreferrer" class="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition text-center">' + tr('View original listing', 'Voir l\'annonce originale') + '</a>' + linkDisclaimer
     } else if (modalSources.length > 1) {
       modalHTML += '<div class="text-sm font-medium text-gray-700 mb-1">' + tr('Contact seller', 'Contacter le vendeur') + ' :</div>'
       modalSources.forEach(function (s) {
         modalHTML += '<a href="' + s.url + '" target="_blank" rel="noopener noreferrer" class="flex items-center justify-between px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition text-center"><span>' + getSourceName(s.platform) + '</span><span>→</span></a>'
       })
+      modalHTML += linkDisclaimer
     }
     modalHTML += '<div class="flex space-x-3"><button class="px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg></button></div>'
     modalHTML += '</div>'

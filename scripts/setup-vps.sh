@@ -79,3 +79,6 @@ fi
 echo ""
 echo "Sur Railway: définissez ENABLE_CRON_JOBS=false"
 echo ""
+echo "Pour vérifier le statut du VPS : bash scripts/check-vps-status.sh"
+echo "Pour exposer /health (monitoring) : EXPOSE_VPS_HEALTH=1 bash scripts/expose-vps-health.sh"
+echo ""
