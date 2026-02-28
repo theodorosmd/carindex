@@ -12,8 +12,8 @@ async function testScraper() {
   console.log('🚀 Test du scraper avec sauvegarde Supabase\n');
   console.log('='.repeat(70));
 
-  // URL de test pour AutoScout24
-  const testUrl = 'https://www.autoscout24.com/lst?sort=standard&desc=0&offer=U&ustate=N%2CU&cy=D&atype=C&';
+  // URL de test pour AutoScout24 (de = principal)
+  const testUrl = 'https://www.autoscout24.de/lst?sort=standard&desc=0&offer=U&ustate=N%2CU&atype=C';
 
   console.log('📋 Configuration:');
   console.log(`   URL de recherche: ${testUrl}`);

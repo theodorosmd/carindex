@@ -4,6 +4,8 @@ import { createScraperRun, updateScraperRun } from './ingestRunsService.js';
 import { runAutoScout24Scraper } from './autoscout24Service.js';
 import { runMobileDeScraper } from './mobiledeService.js';
 import { runLeBonCoinScraper } from './leboncoinService.js';
+import { runSubitoScraper } from './subitoService.js';
+import { runGaspedaalScraper } from './gaspedaalService.js';
 
 function isMissingTableError(error) {
   if (!error) return false;
@@ -208,7 +210,8 @@ export async function runAutoScraper(scraper) {
       resultLimitPerThread: isUnlimited 
         ? 10000 
         : Math.max(maxResultsNum, scraper.result_limit_per_thread || maxResultsNum),
-      maxResults: isUnlimited ? undefined : maxResultsNum
+      maxResults: isUnlimited ? undefined : maxResultsNum,
+      maxPages: isUnlimited ? 9999 : Math.min(Math.ceil(maxResultsNum / 30), 100)
     };
     
     // Log the options being used
@@ -270,6 +273,49 @@ export async function runAutoScraper(scraper) {
       case 'argus':
         const { runLargusScraper } = await import('./largusService.js');
         result = await runLargusScraper(scraper.search_urls, options, progressCallback);
+        break;
+      case 'subito':
+      case 'subito.it':
+        result = await runSubitoScraper(scraper.search_urls, options, progressCallback);
+        break;
+      case 'lacentrale':
+      case 'lacentrale.fr':
+        const { runLaCentraleScraper } = await import('./laCentraleService.js');
+        result = await runLaCentraleScraper(scraper.search_urls, options, progressCallback);
+        break;
+      case 'coches.net':
+      case 'cochesnet':
+        const { runCochesNetScraper } = await import('./cochesnetService.js');
+        result = await runCochesNetScraper(scraper.search_urls, options, progressCallback);
+        break;
+      case 'gaspedaal':
+      case 'gaspedaal.nl':
+        result = await runGaspedaalScraper(scraper.search_urls, options, progressCallback);
+        break;
+      case 'marktplaats':
+      case 'marktplaats.nl':
+        const { runMarktplaatsScraper } = await import('./marktplaatsService.js');
+        result = await runMarktplaatsScraper(scraper.search_urls, {
+          maxPages: options.maxPages || 9999
+        }, progressCallback);
+        break;
+      case '2ememain':
+      case 'deuxememain':
+        const { run2ememainScraper } = await import('./deuxememainService.js');
+        result = await run2ememainScraper(scraper.search_urls, {
+          maxPages: options.maxPages || 9999
+        }, progressCallback);
+        break;
+      case 'finn':
+      case 'finn.no':
+        const { runFinnScraper } = await import('./finnService.js');
+        result = await runFinnScraper(scraper.search_urls, options, progressCallback);
+        break;
+      case 'otomoto':
+      case 'otomoto.pl':
+      case 'automoto':
+        const { runOtomotoScraper } = await import('./otomotoService.js');
+        result = await runOtomotoScraper(scraper.search_urls, { maxPages: options.maxPages || 9999 }, progressCallback);
         break;
       default:
         throw new Error(`Unsupported source: ${scraper.source}`);
@@ -388,13 +434,12 @@ export async function resumeAutoScraper(scraper) {
     const isUnlimited = maxResultsNum >= 999999;
     
     const options = {
-      // IMPORTANT: resultLimitPerThread must be at least equal to maxResults
-      // Otherwise the scraper may stop at resultLimitPerThread even if maxResults is higher
       resultLimitPerThread: isUnlimited 
         ? 10000 
         : Math.max(maxResultsNum, scraper.result_limit_per_thread || maxResultsNum),
       maxResults: isUnlimited ? undefined : maxResultsNum,
-      processedUrls: processedUrls // Pass processed URLs to skip them
+      maxPages: isUnlimited ? 9999 : Math.min(Math.ceil(maxResultsNum / 30), 100),
+      processedUrls: processedUrls
     };
     
     // Progress callback to update database in real-time
@@ -446,6 +491,49 @@ export async function resumeAutoScraper(scraper) {
       case 'argus':
         const { runLargusScraper } = await import('./largusService.js');
         result = await runLargusScraper(scraper.search_urls, options, progressCallback);
+        break;
+      case 'subito':
+      case 'subito.it':
+        result = await runSubitoScraper(scraper.search_urls, options, progressCallback);
+        break;
+      case 'lacentrale':
+      case 'lacentrale.fr':
+        const { runLaCentraleScraper: runLaCentraleScraperResume } = await import('./laCentraleService.js');
+        result = await runLaCentraleScraperResume(scraper.search_urls, options, progressCallback);
+        break;
+      case 'coches.net':
+      case 'cochesnet':
+        const { runCochesNetScraper: runCochesNetScraperResume } = await import('./cochesnetService.js');
+        result = await runCochesNetScraperResume(scraper.search_urls, options, progressCallback);
+        break;
+      case 'gaspedaal':
+      case 'gaspedaal.nl':
+        result = await runGaspedaalScraper(scraper.search_urls, options, progressCallback);
+        break;
+      case 'marktplaats':
+      case 'marktplaats.nl':
+        const { runMarktplaatsScraper: runMarktplaatsScraperResume } = await import('./marktplaatsService.js');
+        result = await runMarktplaatsScraperResume(scraper.search_urls, {
+          maxPages: options.maxPages || 9999
+        }, progressCallback);
+        break;
+      case '2ememain':
+      case 'deuxememain':
+        const { run2ememainScraper: run2ememainResume } = await import('./deuxememainService.js');
+        result = await run2ememainResume(scraper.search_urls, {
+          maxPages: options.maxPages || 9999
+        }, progressCallback);
+        break;
+      case 'finn':
+      case 'finn.no':
+        const { runFinnScraper: runFinnScraperResume } = await import('./finnService.js');
+        result = await runFinnScraperResume(scraper.search_urls, options, progressCallback);
+        break;
+      case 'otomoto':
+      case 'otomoto.pl':
+      case 'automoto':
+        const { runOtomotoScraper: runOtomotoScraperResume } = await import('./otomotoService.js');
+        result = await runOtomotoScraperResume(scraper.search_urls, { maxPages: options.maxPages || 9999 }, progressCallback);
         break;
       default:
         throw new Error(`Unsupported source: ${scraper.source}`);

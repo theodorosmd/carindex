@@ -52,6 +52,20 @@ CREATE TABLE IF NOT EXISTS listings (
     UNIQUE(source_platform, source_listing_id)
 );
 
+-- Listing sources: multiple links per listing (same car on different scrapers)
+CREATE TABLE IF NOT EXISTS listing_sources (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    listing_id UUID NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+    source_platform VARCHAR(50) NOT NULL,
+    source_listing_id VARCHAR(255) NOT NULL,
+    url TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(source_platform, source_listing_id),
+    UNIQUE(listing_id, source_platform)
+);
+CREATE INDEX IF NOT EXISTS idx_listing_sources_listing ON listing_sources(listing_id);
+CREATE INDEX IF NOT EXISTS idx_listing_sources_platform ON listing_sources(source_platform);
+
 -- Market prices (calculated)
 CREATE TABLE IF NOT EXISTS market_prices (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

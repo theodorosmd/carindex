@@ -9,17 +9,31 @@ function extractSourceListingId(rawPayload, sourcePlatform) {
   if (!item) return null;
 
   switch (sourcePlatform) {
-    case 'autoscout24':
+    case 'autoscout24': {
+      if (item.id) return String(item.id);
+      const uuidMatch = item.url?.match(/-([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})(?:\?|$|\/)/i);
+      if (uuidMatch) return uuidMatch[1];
+      const numMatch = item.url?.match(/\/details\/(\d+)/) || item.url?.match(/\/(\d+)(?:\?|$)/);
+      return numMatch ? numMatch[1] : item.url || null;
+    }
     case 'mobile.de':
     case 'mobile_de':
     case 'mobilede':
     case 'leboncoin': {
       if (item.ad_id) return String(item.ad_id);
-      const urlMatch = item.url?.match(/\/details\/(\d+)/) || item.url?.match(/\/(\d+)/);
+      const urlMatch = item.url?.match(/\/ad\/voitures\/(\d+)/) || item.url?.match(/\/details\/(\d+)/) || item.url?.match(/\/(\d+)(?:\?|$)/);
       return urlMatch ? urlMatch[1] : item.id || item.url || null;
     }
+    case 'subito': {
+      const match = item.url?.match(/-(\d{6,})\.htm/) || item.url?.match(/\/(\d+)(?:\?|$)/);
+      return match ? match[1] : item.id || item.url || null;
+    }
     case 'blocket': {
-      const match = item.url?.match(/\/annonser\/[^/]+\/(\d+)/);
+      const match =
+        item.url?.match(/\/item\/(\d+)/) ||
+        item.url?.match(/\/ad\/([a-z0-9-]+)/i) ||
+        item.url?.match(/\/annonser\/[^/]+\/(\d+)/) ||
+        item.url?.match(/\/(\d+)(?:\?|$)/);
       return match ? match[1] : item.id || item.url || null;
     }
     case 'bilweb':
@@ -27,8 +41,24 @@ function extractSourceListingId(rawPayload, sourcePlatform) {
       const match = item.url?.match(/\/bil\/(\d+)/) || item.url?.match(/\/car\/(\d+)/) || item.url?.match(/\/vehicle\/(\d+)/);
       return match ? match[1] : item.id || item.url || null;
     }
+    case 'finn': {
+      const match = item.url?.match(/finnkode=(\d+)/) || item.url?.match(/\/ad\/(\d+)/);
+      return match ? match[1] : item.id || item.url || null;
+    }
     case 'largus': {
       const match = item.url?.match(/annonce-([a-f0-9]+)_/i) || item.url?.match(/annonce-([^_]+)_/);
+      return match ? match[1] : item.id || item.url || null;
+    }
+    case 'coches.net': {
+      const match = item.url?.match(/-(\d+)-covo\.aspx/);
+      return match ? match[1] : item.id || item.url || null;
+    }
+    case 'otomoto': {
+      const match = item.url?.match(/-ID([A-Za-z0-9]+)\.html/);
+      return match ? match[1] : (item.id?.toString() || item.url || null);
+    }
+    case 'marktplaats': {
+      const match = item.url?.match(/\/([am]\d{8,})-/i) || item.url?.match(/-([am]\d{8,})(?:-|$)/i);
       return match ? match[1] : item.id || item.url || null;
     }
     default:

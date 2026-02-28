@@ -15,6 +15,8 @@ ingestPublicRouter.post('/process-raw', triggerProcessRawListings);
 ingestPublicRouter.post('/queue', queueAdd);
 ingestPublicRouter.post('/queue/acquire', queueAcquire);
 ingestPublicRouter.post('/queue/:id/release', queueRelease);
+ingestPublicRouter.post('/runs', createRun);
+ingestPublicRouter.patch('/runs/:id', updateRun);
 
 // Protected routes (auth middleware applied in routes/index.js)
 router.post('/listings', ingestListings);

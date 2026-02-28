@@ -7,7 +7,7 @@ const router = express.Router();
 
 const createAlertValidation = [
   body('name').notEmpty().withMessage('Name is required'),
-  body('type').isIn(['price_drop', 'new_listing', 'market_movement']).withMessage('Valid type is required'),
+  body('type').isIn(['price_drop', 'new_listing', 'market_movement', 'arbitrage']).withMessage('Valid type is required'),
   body('criteria').isObject().withMessage('Criteria must be an object'),
   validateRequest
 ];

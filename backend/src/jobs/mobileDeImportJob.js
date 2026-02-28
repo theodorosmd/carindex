@@ -6,12 +6,12 @@
 import cron from 'node-cron';
 import { logger } from '../utils/logger.js';
 import { runMobileDeScraper } from '../services/mobiledeService.js';
+import { createScraperRun, updateScraperRun } from '../services/ingestRunsService.js';
 
 const DEFAULT_CRON = '0 3 * * *'; // 3h du matin
 
 const DEFAULT_SEARCH_URLS = [
-  'https://www.mobile.de/fahrzeuge/suche.html',
-  'https://www.mobile.de/fahrzeuge/suche.html?fc=17', // Voitures
+  'https://suchen.mobile.de/fahrzeuge/detailsuche/?cn=DE&s=Car&vc=Car',
 ];
 
 export async function runMobileDeImportOnce(options = {}) {
@@ -26,9 +26,41 @@ export async function runMobileDeImportOnce(options = {}) {
     maxPages
   });
 
-  const result = await runMobileDeScraper(searchUrls, { maxPages });
-  logger.info('mobile.de import completed', result);
-  return result;
+  let runId = null;
+  try {
+    const run = await createScraperRun({
+      source_platform: 'mobile.de',
+      status: 'running'
+    });
+    runId = run?.id || null;
+  } catch (runErr) {
+    logger.warn('Could not create scraper run for mobile.de', { error: runErr.message });
+  }
+
+  try {
+    const result = await runMobileDeScraper(searchUrls, { maxPages });
+    logger.info('mobile.de import completed', result);
+
+    if (runId) {
+      await updateScraperRun(runId, {
+        status: 'success',
+        total_scraped: result.totalScraped || 0,
+        total_saved: result.saved || 0,
+        total_failed: result.errors || 0
+      });
+    }
+
+    return result;
+  } catch (error) {
+    logger.error('mobile.de import failed', { error: error.message });
+    if (runId) {
+      await updateScraperRun(runId, {
+        status: 'failed',
+        error_message: error.message
+      });
+    }
+    throw error;
+  }
 }
 
 export function startMobileDeImportJob() {
@@ -44,7 +76,8 @@ export function startMobileDeImportJob() {
     }
   });
 
-  if (process.env.RUN_MOBILEDE_IMPORT_ON_STARTUP === 'true') {
+  // 1 fois au démarrage (à l'heure actuelle) — désactiver avec RUN_MOBILEDE_IMPORT_ON_STARTUP=false
+  if (process.env.RUN_MOBILEDE_IMPORT_ON_STARTUP !== 'false') {
     setTimeout(async () => {
       try {
         await runMobileDeImportOnce();

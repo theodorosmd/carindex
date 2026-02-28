@@ -5,7 +5,9 @@
  *
  * Requires: SUPABASE_ACCESS_TOKEN (Personal Access Token from https://supabase.com/dashboard/account/tokens)
  * Usage: SUPABASE_ACCESS_TOKEN=sbp_xxx node src/scripts/run-migration-020-021-api.js
+ * Or add SUPABASE_ACCESS_TOKEN to backend/.env
  */
+import 'dotenv/config';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';

@@ -84,11 +84,69 @@ export async function getActiveAlerts() {
 }
 
 /**
+ * Check for arbitrage alerts (listings in buy_country profitable when sold in sell_country)
+ */
+async function checkArbitrageAlert(alert) {
+  const criteria = alert.criteria || {};
+  const brand = criteria.brand;
+  const model = criteria.model;
+  const buyCountry = criteria.buy_country || criteria.location_country;
+  const sellCountry = criteria.sell_country;
+  const minMargin = criteria.min_margin_eur || 2000;
+
+  if (!brand || !model || !buyCountry || !sellCountry) return [];
+
+  const { findListingsArbitrageOpportunities } = await import('./arbitrageService.js');
+  const { data: events } = await supabase
+    .from('alert_events')
+    .select('data')
+    .eq('alert_id', alert.id);
+
+  const seenIds = new Set((events || [])
+    .map(e => (typeof e.data === 'string' ? JSON.parse(e.data) : e.data)?.listingId || (typeof e.data === 'string' ? JSON.parse(e.data) : e.data)?.listing_id)
+    .filter(Boolean));
+
+  const { opportunities } = await findListingsArbitrageOpportunities({
+    brand,
+    model,
+    year: criteria.year || null,
+    buyCountry,
+    sellCountry,
+    minMarginEur: minMargin,
+    limit: 20,
+    postedSinceDays: 7  // Only alert on listings posted in last 7 days
+  });
+
+  const newOnes = opportunities.filter(o => !seenIds.has(o.listingId));
+  // Shape as listings for email (id, url, brand, model, year, price, mileage, etc.)
+  return newOnes.map(o => ({
+    id: o.listingId,
+    listing_id: o.listingId,
+    url: o.url,
+    brand: o.brand,
+    model: o.model,
+    year: o.year,
+    price: o.priceEur,
+    mileage: o.mileage,
+    location_city: o.location,
+    location_country: buyCountry,
+    market_price: o.medianSellPrice,
+    net_margin: o.netMargin,
+    net_margin_pct: o.netMarginPct
+  }));
+}
+
+/**
  * Check for new listings matching alert criteria
  */
 export async function checkNewListingsForAlert(alert) {
   try {
     const criteria = alert.criteria || {};
+    const type = alert.type || 'new_listing';
+
+    if (type === 'arbitrage') {
+      return checkArbitrageAlert(alert);
+    }
     
     // Build query based on alert criteria
     let query = supabase

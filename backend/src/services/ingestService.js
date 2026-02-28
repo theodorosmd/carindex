@@ -1,6 +1,11 @@
 import { supabase } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import { recordPriceChange } from './priceHistoryService.js';
+import {
+  getListingIdBySource,
+  findListingByFingerprint,
+  upsertListingSource
+} from './listingSourcesService.js';
 
 function parseNumber(value) {
   if (value === null || value === undefined || value === '') return null;
@@ -27,7 +32,7 @@ function parseJsonField(value) {
   return null;
 }
 
-const LHD_COUNTRIES = ['FR', 'DE', 'IT', 'ES', 'PT', 'BE', 'NL', 'AT', 'CH', 'LU', 'PL', 'CZ', 'SK', 'HU', 'RO', 'GR'];
+const LHD_COUNTRIES = ['FR', 'DE', 'IT', 'ES', 'PT', 'BE', 'NL', 'AT', 'CH', 'LU', 'PL', 'CZ', 'SK', 'HU', 'RO', 'GR', 'SE', 'NO', 'DK', 'FI'];
 
 function normalizeListing(input) {
   const now = new Date().toISOString();
@@ -207,6 +212,7 @@ export async function upsertListingsBatch(listings, options = {}) {
   const results = {
     created: 0,
     updated: 0,
+    sourceAdded: 0, // new: added as extra source to existing listing
     errors: 0,
     items: []
   };
@@ -238,81 +244,142 @@ export async function upsertListingsBatch(listings, options = {}) {
         continue;
       }
 
-      const { data: existing, error: existingError } = await supabase
-        .from('listings')
-        .select('id, price, first_seen')
-        .eq('source_platform', listing.source_platform)
-        .eq('source_listing_id', listing.source_listing_id)
-        .maybeSingle();
+      const platform = listing.source_platform;
+      const sourceId = listing.source_listing_id;
 
-      if (existingError && existingError.code !== 'PGRST116') {
-        throw existingError;
+      // 1. Check listing_sources: same ad already linked?
+      let listingId = await getListingIdBySource(platform, sourceId);
+
+      // 2. Fallback: check listings directly (legacy / before migration)
+      if (!listingId) {
+        const { data: leg, error: legErr } = await supabase
+          .from('listings')
+          .select('id, price, first_seen')
+          .eq('source_platform', platform)
+          .eq('source_listing_id', sourceId)
+          .maybeSingle();
+        if (!legErr && leg) listingId = leg.id;
       }
 
-      if (existing) {
-        const { error: updateError } = await supabase
+      if (listingId) {
+        // Ad already exists – update listing
+        const { data: existing } = await supabase
           .from('listings')
-          .update({
-            ...listing,
-            first_seen: existing.first_seen || listing.first_seen,
-            last_seen: listing.last_seen || new Date().toISOString(),
-            run_id: listing.run_id || existing.run_id
-          })
-          .eq('id', existing.id);
-
-        if (updateError) {
-          throw updateError;
-        }
-
-        results.updated += 1;
-        results.items.push({
-          id: existing.id,
-          source_platform: listing.source_platform,
-          source_listing_id: listing.source_listing_id,
-          status: 'updated'
-        });
-
-        if (listing.price && existing.price !== listing.price) {
-          try {
-            await recordPriceChange(existing.id, listing.price);
-          } catch (priceError) {
-            logger.warn('Failed to record price change', {
-              error: priceError.message,
-              listingId: existing.id
-            });
-          }
-        }
-      } else {
-        const { data: created, error: insertError } = await supabase
-          .from('listings')
-          .insert({
-            ...listing,
-            created_at: new Date().toISOString()
-          })
-          .select()
+          .select('id, price, first_seen')
+          .eq('id', listingId)
           .single();
 
-        if (insertError) {
-          throw insertError;
+        if (existing) {
+          const { source_platform: _sp, source_listing_id: _sl, ...listingUpdate } = listing;
+          const { error: updateError } = await supabase
+            .from('listings')
+            .update({
+              ...listingUpdate,
+              first_seen: existing.first_seen || listing.first_seen,
+              last_seen: listing.last_seen || new Date().toISOString(),
+              run_id: listing.run_id || undefined
+            })
+            .eq('id', listingId);
+
+          if (updateError) throw updateError;
+
+          await upsertListingSource(listingId, platform, sourceId, listing.url);
+
+          results.updated += 1;
+          results.items.push({
+            id: listingId,
+            source_platform: platform,
+            source_listing_id: sourceId,
+            status: 'updated'
+          });
+
+          if (listing.price && existing.price !== listing.price) {
+            try {
+              await recordPriceChange(listingId, listing.price);
+            } catch (priceError) {
+              logger.warn('Failed to record price change', { error: priceError.message, listingId });
+            }
+          }
+        }
+        continue;
+      }
+
+      // 3. Cross-platform match: same car from another scraper?
+      const fingerprintMatch = await findListingByFingerprint(listing, platform);
+
+      if (fingerprintMatch) {
+        // Add this source to the existing listing
+        const added = await upsertListingSource(
+          fingerprintMatch.id,
+          platform,
+          sourceId,
+          listing.url
+        );
+        if (!added) {
+          results.errors += 1;
+          continue;
         }
 
-        results.created += 1;
-        results.items.push({
-          id: created.id,
-          source_platform: listing.source_platform,
-          source_listing_id: listing.source_listing_id,
-          status: 'created'
-        });
+        const { data: existing } = await supabase
+          .from('listings')
+          .select('id, price, first_seen')
+          .eq('id', fingerprintMatch.id)
+          .single();
 
-        if (listing.price) {
-          try {
-            await recordPriceChange(created.id, listing.price);
-          } catch (priceError) {
-            logger.warn('Failed to record initial price', {
-              error: priceError.message,
-              listingId: created.id
-            });
-          }
+        if (existing) {
+          const { error: updateError } = await supabase
+            .from('listings')
+            .update({
+              price: listing.price ?? undefined,
+              last_seen: new Date().toISOString(),
+              url: existing.url || listing.url,
+              images: undefined,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', fingerprintMatch.id);
+
+          if (updateError) throw updateError;
+        }
+
+        results.sourceAdded += 1;
+        results.items.push({
+          id: fingerprintMatch.id,
+          source_platform: platform,
+          source_listing_id: sourceId,
+          status: 'source_added'
+        });
+        continue;
+      }
+
+      // 4. New listing – create and add first source
+      const { data: created, error: insertError } = await supabase
+        .from('listings')
+        .insert({
+          ...listing,
+          created_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        throw insertError;
+      }
+
+      await upsertListingSource(created.id, platform, sourceId, listing.url);
+
+      results.created += 1;
+      results.items.push({
+        id: created.id,
+        source_platform: platform,
+        source_listing_id: sourceId,
+        status: 'created'
+      });
+
+      if (listing.price) {
+        try {
+          await recordPriceChange(created.id, listing.price);
+        } catch (priceError) {
+          logger.warn('Failed to record initial price', { error: priceError.message, listingId: created.id });
         }
       }
     } catch (error) {

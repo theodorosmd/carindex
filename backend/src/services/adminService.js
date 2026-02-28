@@ -3,92 +3,112 @@ import { logger } from '../utils/logger.js';
 
 /**
  * Get admin dashboard statistics
+ * Never throws - returns partial data on any error so admin UI stays usable.
  */
 export async function getAdminStats() {
+  const defaults = {
+    users: { total: 0, recent: 0, by_plan: {} },
+    listings: { total: 0, active: 0, by_source: {} },
+    alerts: { total: 0, active: 0 }
+  };
+
   try {
-    const totalUsers = await safeCount('users', supabase
-      .from('users')
-      .select('*', { count: 'exact', head: true }));
+    const [totalUsers, totalListings, activeListings, totalAlerts, activeAlerts] = await Promise.all([
+      safeCount('users', supabase.from('users').select('*', { count: 'exact', head: true })),
+      safeCount('listings', supabase.from('listings').select('*', { count: 'exact', head: true })),
+      safeCount('listings', supabase.from('listings').select('*', { count: 'exact', head: true }).eq('status', 'active')),
+      safeCount('alerts', supabase.from('alerts').select('*', { count: 'exact', head: true })),
+      safeCount('alerts', supabase.from('alerts').select('*', { count: 'exact', head: true }).eq('status', 'active'))
+    ]);
 
-    const totalListings = await safeCount('listings', supabase
-      .from('listings')
-      .select('*', { count: 'exact', head: true }));
-
-    const activeListings = await safeCount('listings', supabase
-      .from('listings')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'active'));
-
-    const totalAlerts = await safeCount('alerts', supabase
-      .from('alerts')
-      .select('*', { count: 'exact', head: true }));
-
-    const activeAlerts = await safeCount('alerts', supabase
-      .from('alerts')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'active'));
-
-    // Get users by plan
-    const usersByPlan = await safeSelect('users', supabase
-      .from('users')
-      .select('plan')
-      .not('plan', 'is', null));
-
-    const planDistribution = {};
-    usersByPlan.forEach(user => {
-      planDistribution[user.plan] = (planDistribution[user.plan] || 0) + 1;
-    });
-
-    // Get recent users (last 7 days)
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-    const recentUsers = await safeCount('users', supabase
-      .from('users')
-      .select('*', { count: 'exact', head: true })
-      .gte('created_at', sevenDaysAgo.toISOString()));
+    let recentUsers = 0;
+    let usersByPlan = [];
+    let listingsBySource = [];
 
-    // Get listings by source
-    const listingsBySource = await safeSelect('listings', supabase
-      .from('listings')
-      .select('source_platform')
-      .not('source_platform', 'is', null));
+    try {
+      recentUsers = await safeCount('users', supabase
+        .from('users')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', sevenDaysAgo.toISOString()));
+    } catch (e) {
+      logger.warn('Admin stats: recentUsers failed', { error: e.message });
+    }
+
+    try {
+      usersByPlan = await safeSelect('users', supabase
+        .from('users')
+        .select('plan')
+        .not('plan', 'is', null));
+    } catch (e) {
+      logger.warn('Admin stats: usersByPlan failed', { error: e.message });
+    }
+
+    const planDistribution = {};
+    (usersByPlan || []).forEach(user => {
+      if (user?.plan) planDistribution[user.plan] = (planDistribution[user.plan] || 0) + 1;
+    });
+
+    try {
+      listingsBySource = await safeSelect('listings', supabase
+        .from('listings')
+        .select('source_platform')
+        .not('source_platform', 'is', null)
+        .limit(5000));
+    } catch (e) {
+      logger.warn('Admin stats: listingsBySource failed', { error: e.message });
+    }
 
     const sourceDistribution = {};
-    listingsBySource.forEach(listing => {
-      sourceDistribution[listing.source_platform] = (sourceDistribution[listing.source_platform] || 0) + 1;
+    (listingsBySource || []).forEach(listing => {
+      if (listing?.source_platform) {
+        sourceDistribution[listing.source_platform] = (sourceDistribution[listing.source_platform] || 0) + 1;
+      }
     });
 
     return {
       users: {
-        total: totalUsers || 0,
-        recent: recentUsers || 0,
+        total: totalUsers ?? 0,
+        recent: recentUsers ?? 0,
         by_plan: planDistribution
       },
       listings: {
-        total: totalListings || 0,
-        active: activeListings || 0,
+        total: totalListings ?? 0,
+        active: activeListings ?? 0,
         by_source: sourceDistribution
       },
       alerts: {
-        total: totalAlerts || 0,
-        active: activeAlerts || 0
+        total: totalAlerts ?? 0,
+        active: activeAlerts ?? 0
       }
     };
   } catch (error) {
-    logger.error('Error getting admin stats', { error: error.message });
-    throw error;
+    logger.error('Error getting admin stats', { error: error.message, stack: error.stack });
+    return defaults;
   }
 }
 
 function isMissingTableError(error) {
   if (!error) return false;
-  return error.code === '42P01' || /relation .* does not exist/i.test(error.message || '');
+  const msg = error.message || '';
+  return (
+    error.code === '42P01' ||
+    error.code === 'PGRST116' ||
+    /relation .* does not exist/i.test(msg) ||
+    /could not find/i.test(msg)
+  );
 }
 
 function isMissingColumnError(error) {
   if (!error) return false;
-  return error.code === '42703' || /column .* does not exist/i.test(error.message || '');
+  const msg = error.message || '';
+  return (
+    error.code === '42703' ||
+    /column .* does not exist/i.test(msg) ||
+    /undefined column/i.test(msg)
+  );
 }
 
 async function safeCount(table, query) {
@@ -189,16 +209,29 @@ export async function getScraperDashboardStats() {
 
     const runsData = await safeSelect('scraper_runs', supabase
       .from('scraper_runs')
-      .select('source_platform, status')
-      .gte('started_at', thirtyDaysAgo.toISOString()));
+      .select('source_platform, status, total_scraped, total_saved, started_at, finished_at')
+      .gte('started_at', thirtyDaysAgo.toISOString())
+      .order('finished_at', { ascending: false, nullsFirst: false }));
 
     const runsBySource = {};
+    const lastRunBySource = {};
     let totals = { ok: 0, pending: 0, failed: 0 };
 
+    const normalizeSourceRuns = (s) => (['mobile_de', 'mobilede'].includes((s || '').toLowerCase()) ? 'mobile.de' : s);
     (runsData || []).forEach((run) => {
-      const src = run.source_platform || 'unknown';
+      const rawSrc = run.source_platform || 'unknown';
+      const src = normalizeSourceRuns(rawSrc);
       if (!runsBySource[src]) {
         runsBySource[src] = { ok: 0, pending: 0, failed: 0 };
+      }
+      if (!lastRunBySource[src]) {
+        lastRunBySource[src] = {
+          total_scraped: run.total_scraped ?? 0,
+          total_saved: run.total_saved ?? 0,
+          status: (run.status || 'unknown').toLowerCase(),
+          finished_at: run.finished_at,
+          started_at: run.started_at
+        };
       }
       const status = (run.status || '').toLowerCase();
       if (status === 'success') {
@@ -220,6 +253,24 @@ export async function getScraperDashboardStats() {
       .gte('start_time', thirtyDaysAgo.toISOString()));
 
     const normalizeSource = (s) => (['mobile_de', 'mobilede'].includes(s) ? 'mobile.de' : s);
+    const scraperRunSorted = (scraperRunData || []).slice().sort((a, b) => {
+      const aEnd = a.end_time || a.start_time || '';
+      const bEnd = b.end_time || b.start_time || '';
+      return bEnd.localeCompare(aEnd);
+    });
+    scraperRunSorted.forEach((run) => {
+      const src = normalizeSource((run.source || 'unknown').toLowerCase());
+      if (!lastRunBySource[src]) {
+        lastRunBySource[src] = {
+          total_scraped: null,
+          total_saved: null,
+          status: run.end_time == null ? 'running' : (run.error_count || 0) > 0 ? 'failed' : 'success',
+          finished_at: run.end_time,
+          started_at: run.start_time,
+          error_count: run.error_count
+        };
+      }
+    });
     (scraperRunData || []).forEach((run) => {
       const src = normalizeSource((run.source || 'unknown').toLowerCase());
       if (!runsBySource[src]) {
@@ -255,7 +306,7 @@ export async function getScraperDashboardStats() {
     }));
 
     // 3. Raw listings pending (processed_at IS NULL) by source - count per known source
-    const knownSources = ['autoscout24', 'mobile.de', 'mobile_de', 'mobilede', 'leboncoin', 'largus', 'blocket', 'bilweb', 'bytbil'];
+    const knownSources = ['autoscout24', 'mobile.de', 'mobile_de', 'mobilede', 'leboncoin', 'largus', 'lacentrale', 'blocket', 'bilweb', 'bytbil', 'subito', 'gaspedaal', 'coches.net', 'finn', 'otomoto'];
     const rawPendingBySource = {};
     const normalizeRawSource = (s) => (['mobile_de', 'mobilede'].includes(s) ? 'mobile.de' : s);
     for (const src of knownSources) {
@@ -270,8 +321,18 @@ export async function getScraperDashboardStats() {
       }
     }
 
-    // 4. Listings total by source - use count per source (Supabase limits select to 1000 rows)
-    const listingsSources = ['autoscout24', 'mobile.de', 'mobile_de', 'mobilede', 'leboncoin', 'largus', 'blocket', 'bilweb', 'bytbil'];
+    // 4. mobile_de_fetch_queue - URLs en attente + en cours (spécifique mobile.de)
+    const mobiledeQueuePending = await safeCount('mobile_de_fetch_queue', supabase
+      .from('mobile_de_fetch_queue')
+      .select('*', { count: 'exact', head: true })
+      .in('status', ['pending', 'retry']));
+    const mobiledeQueueProcessing = await safeCount('mobile_de_fetch_queue', supabase
+      .from('mobile_de_fetch_queue')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'processing'));
+
+    // 5. Listings total by source - use count per source (Supabase limits select to 1000 rows)
+    const listingsSources = ['autoscout24', 'mobile.de', 'mobile_de', 'mobilede', 'leboncoin', 'largus', 'lacentrale', 'blocket', 'bilweb', 'bytbil', 'subito', 'gaspedaal', 'marktplaats', 'coches.net', 'finn', 'otomoto'];
     const listingsBySource = {};
     const normalizeListingSource = (s) => (['mobile_de', 'mobilede'].includes(s) ? 'mobile.de' : s);
     for (const src of listingsSources) {
@@ -286,33 +347,47 @@ export async function getScraperDashboardStats() {
     }
 
     // Build per-website breakdown (merge all known sources)
+    // Include all known sources so they always appear, even with 0 data
+    const allKnownSourcesForDisplay = ['autoscout24', 'mobile.de', 'leboncoin', 'largus', 'lacentrale', 'blocket', 'bilweb', 'bytbil', 'subito', 'gaspedaal', 'marktplaats', 'coches.net', 'finn', 'otomoto'];
     const allSources = new Set([
+      ...allKnownSourcesForDisplay,
       ...Object.keys(runsBySource),
       ...Object.keys(rawPendingBySource),
       ...Object.keys(listingsBySource),
       ...crons.map((c) => c.source)
     ]);
 
+    const normalizeForLookup = (s) => (['mobile_de', 'mobilede'].includes(s) ? 'mobile.de' : s);
     const byWebsite = Array.from(allSources).map((source) => {
-      const runs = runsBySource[source] || { ok: 0, pending: 0, failed: 0 };
+      const runs = runsBySource[source] || runsBySource[normalizeForLookup(source)] || { ok: 0, pending: 0, failed: 0 };
       const cronsForSource = crons.filter((c) => c.source === source);
+      const lastRun = lastRunBySource[source] || lastRunBySource[normalizeForLookup(source)] || null;
+      const isMobileDe = source === 'mobile.de' || normalizeForLookup(source) === 'mobile.de';
       return {
         source,
         runs_ok: runs.ok,
         runs_pending: runs.pending,
         runs_failed: runs.failed,
         raw_pending: rawPendingBySource[source] || 0,
+        queue_urls_pending: isMobileDe ? mobiledeQueuePending : 0,
+        queue_urls_processing: isMobileDe ? mobiledeQueueProcessing : 0,
         listings_total: listingsBySource[source] || 0,
+        last_run: lastRun,
         crons: cronsForSource
       };
     }).sort((a, b) => a.source.localeCompare(b.source));
+
+    const listingsGrandTotal = await safeCount('listings', supabase
+      .from('listings')
+      .select('*', { count: 'exact', head: true }));
 
     return {
       totals: {
         runs_ok: totals.ok,
         runs_pending: totals.pending,
         runs_failed: totals.failed,
-        runs_total: totals.ok + totals.pending + totals.failed
+        runs_total: totals.ok + totals.pending + totals.failed,
+        listings_total: listingsGrandTotal || 0
       },
       by_website: byWebsite,
       crons

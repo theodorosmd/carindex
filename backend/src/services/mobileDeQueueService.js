@@ -23,6 +23,17 @@ export async function addToQueue(items) {
       continue;
     }
 
+    const { data: existing } = await supabase
+      .from('mobile_de_fetch_queue')
+      .select('id, status')
+      .eq('url', url)
+      .maybeSingle();
+
+    if (existing && ['ok', 'OK', 'done'].includes(existing.status)) {
+      skipped++;
+      continue;
+    }
+
     const { error } = await supabase
       .from('mobile_de_fetch_queue')
       .upsert(

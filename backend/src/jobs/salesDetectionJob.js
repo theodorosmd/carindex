@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import { supabase } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import { markAsSold } from '../services/saleDetector.js';
+import { AGGREGATE_COUNTRIES } from '../config/aggregateCountries.js';
 
 /**
  * Sales detection job
@@ -44,7 +45,7 @@ export async function detectAndMarkSales() {
       .from('listings')
       .select('id, source_platform, source_listing_id, brand, model, price, last_seen, first_seen, created_at, location_country')
       .eq('status', 'active')
-      .in('location_country', ['FR', 'SE']) // Only FR and SE
+      .in('location_country', AGGREGATE_COUNTRIES)
       .lt('last_seen', cutoffDate.toISOString())
       .lt('first_seen', minFirstSeenDate.toISOString())
       .not('price', 'is', null)

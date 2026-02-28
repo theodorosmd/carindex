@@ -7,7 +7,8 @@ import { supabase } from '../config/supabase.js';
 import {
   getPriceComparison,
   findArbitrageOpportunities,
-  findListingsArbitrageOpportunities
+  findListingsArbitrageOpportunities,
+  getTopListingUrls
 } from '../services/arbitrageService.js';
 import { calculateImportCosts, estimateArbitrageMargin } from '../services/importCostCalculator.js';
 import { AGGREGATE_COUNTRIES } from '../config/aggregateCountries.js';
@@ -137,7 +138,7 @@ export async function getListingsArbitrageEndpoint(req, res) {
  */
 export async function getImportCostSimulatorEndpoint(req, res) {
   try {
-    const { purchasePrice, buyCountry, sellCountry, isProfessional = true } = req.query;
+    const { purchasePrice, buyCountry, sellCountry, isProfessional = true, reconditioningEur } = req.query;
 
     if (!purchasePrice || !buyCountry || !sellCountry) {
       return res.status(400).json({
@@ -146,11 +147,17 @@ export async function getImportCostSimulatorEndpoint(req, res) {
       });
     }
 
+    const options = { isProfessional: isProfessional !== 'false' };
+    if (reconditioningEur != null && reconditioningEur !== '') {
+      const val = parseFloat(reconditioningEur);
+      if (!isNaN(val) && val >= 0) options.reconditioningEur = val;
+    }
+
     const costs = calculateImportCosts(
       parseFloat(purchasePrice),
       buyCountry.toUpperCase(),
       sellCountry.toUpperCase(),
-      { isProfessional: isProfessional !== 'false' }
+      options
     );
 
     res.json({
@@ -172,7 +179,7 @@ export async function getImportCostSimulatorEndpoint(req, res) {
  */
 export async function getArbitrageMarginEstimateEndpoint(req, res) {
   try {
-    const { purchasePrice, sellPrice, buyCountry, sellCountry } = req.query;
+    const { purchasePrice, sellPrice, buyCountry, sellCountry, reconditioningEur } = req.query;
 
     if (!purchasePrice || !sellPrice || !buyCountry || !sellCountry) {
       return res.status(400).json({
@@ -181,11 +188,18 @@ export async function getArbitrageMarginEstimateEndpoint(req, res) {
       });
     }
 
+    const options = {};
+    if (reconditioningEur != null && reconditioningEur !== '') {
+      const val = parseFloat(reconditioningEur);
+      if (!isNaN(val) && val >= 0) options.reconditioningEur = val;
+    }
+
     const margin = estimateArbitrageMargin(
       parseFloat(purchasePrice),
       parseFloat(sellPrice),
       buyCountry.toUpperCase(),
-      sellCountry.toUpperCase()
+      sellCountry.toUpperCase(),
+      options
     );
 
     res.json({
@@ -203,7 +217,8 @@ export async function getArbitrageMarginEstimateEndpoint(req, res) {
 }
 
 /**
- * Opportunités auto-détectées (remplies par le job quotidien)
+ * Opportunités auto-détectées (remplies par le job quotidien).
+ * Enriched with exact listing URLs for direct links to car ads.
  */
 export async function getAutoDetectedEndpoint(req, res) {
   try {
@@ -213,15 +228,39 @@ export async function getAutoDetectedEndpoint(req, res) {
       .from('arbitrage_opportunities_detected')
       .select('*')
       .order('net_margin', { ascending: false })
-      .limit(limit);
+      .limit(limit * 2);
 
     if (error) {
       throw new Error(error.message);
     }
 
+    const baseOpportunities = (data || [])
+      .filter((o) => (o.listing_count_buy || 0) >= 3 && (o.net_margin || 0) >= 4000)
+      .slice(0, limit);
+
+    const opportunities = await Promise.all(
+      baseOpportunities.map(async (o) => {
+        let listings = o.top_listings || [];
+        if (listings.length === 0) {
+          try {
+            listings = await getTopListingUrls(
+              o.brand,
+              o.model,
+              o.buy_country,
+              o.sell_country,
+              3
+            );
+          } catch (e) {
+            // Ignore
+          }
+        }
+        return { ...o, listings };
+      })
+    );
+
     res.json({
       success: true,
-      opportunities: data || [],
+      opportunities,
       countryNames: COUNTRY_NAMES
     });
   } catch (error) {

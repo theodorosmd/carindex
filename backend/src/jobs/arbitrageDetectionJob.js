@@ -6,13 +6,17 @@
 import cron from 'node-cron';
 import { supabase } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
-import { findArbitrageOpportunities } from '../services/arbitrageService.js';
+import { findArbitrageOpportunities, getTopListingUrls } from '../services/arbitrageService.js';
 import { AGGREGATE_COUNTRIES } from '../config/aggregateCountries.js';
 
 const MIN_COUNTRIES = 2;
-const MIN_MARGIN_EUR = 1500;
+const MIN_MARGIN_EUR = 4000;
+const MIN_LISTING_COUNT_BUY = 3;
 const MAX_MODELS_TO_SCAN = 80;
 const MAX_OPPORTUNITIES_TO_STORE = 100;
+const MAX_MARGIN_PCT = 120; // Filter outliers (currency bugs often show 400%+)
+const GARBAGE_BRANDS = new Set(['andere', 'other', 'sonstige', 'divers', 'autre']); // Scraper fallbacks
+const EXCLUDED_BRANDS = new Set(['ferrari', 'maserati', 'lotus', 'aston martin', 'aston', 'lamborghini']); // Brands to skip in auto-detection (for now)
 
 /**
  * Get top brand+model combinations with listings in 2+ countries
@@ -51,6 +55,8 @@ async function getModelsWithCrossCountryListings() {
 
   const candidates = [];
   for (const [_, m] of byModel) {
+    const brandLow = (m.brand || '').toLowerCase();
+    if (GARBAGE_BRANDS.has(brandLow) || EXCLUDED_BRANDS.has(brandLow) || GARBAGE_BRANDS.has((m.model || '').toLowerCase())) continue;
     const countries = Array.from(m.countries.keys());
     if (countries.length >= MIN_COUNTRIES) {
       candidates.push({
@@ -90,6 +96,27 @@ export async function runArbitrageDetection() {
         });
 
         for (const opp of result.opportunities || []) {
+          const buyCount = opp.listingCount?.buy || 0;
+          if (buyCount < MIN_LISTING_COUNT_BUY) continue;
+          if ((opp.netMargin || 0) < MIN_MARGIN_EUR) continue; // Only €4000+ margin
+          if ((opp.netMarginPct || 0) > MAX_MARGIN_PCT) continue; // Filter currency/outlier bugs
+          let topListings = [];
+          try {
+            topListings = await getTopListingUrls(
+              m.brand,
+              m.model,
+              opp.buyCountry,
+              opp.sellCountry,
+              3
+            );
+          } catch (e) {
+            logger.warn('Failed to fetch listing URLs for opportunity', {
+              brand: m.brand,
+              model: m.model,
+              error: e?.message
+            });
+          }
+          if (topListings.length === 0) continue; // Only store opportunities with direct links
           allOpportunities.push({
             brand: m.brand,
             model: m.model,
@@ -100,8 +127,9 @@ export async function runArbitrageDetection() {
             sell_median_price: opp.sellMedianPrice,
             net_margin: opp.netMargin,
             net_margin_pct: opp.netMarginPct,
-            listing_count_buy: opp.listingCount?.buy || 0,
-            listing_count_sell: opp.listingCount?.sell || 0
+            listing_count_buy: buyCount,
+            listing_count_sell: opp.listingCount?.sell || 0,
+            top_listings: topListings
           });
         }
       } catch (err) {
@@ -133,7 +161,8 @@ export async function runArbitrageDetection() {
         net_margin: Math.round(o.net_margin),
         net_margin_pct: Math.min(99999.99, Math.round((o.net_margin_pct || 0) * 100) / 100),
         listing_count_buy: o.listing_count_buy || 0,
-        listing_count_sell: o.listing_count_sell || 0
+        listing_count_sell: o.listing_count_sell || 0,
+        top_listings: o.top_listings || []
       })));
 
     if (insertError) {

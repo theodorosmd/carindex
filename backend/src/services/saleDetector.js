@@ -1,15 +1,86 @@
 import { supabase } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
+import { toEUR, AGGREGATE_COUNTRIES } from '../config/aggregateCountries.js';
+
+/** Normalize string for aggregate key (lowercase, trim, empty = '') */
+function norm(s) {
+  return String(s ?? '').trim().toLowerCase().slice(0, 255) || '';
+}
+
+/** Build engine key: version (motorisation) or displacement_power */
+function buildEngineKey(version, displacement, powerHp) {
+  const v = norm(version);
+  if (v) return v;
+  const d = displacement != null ? String(displacement).replace('.', '') : '0';
+  const p = powerHp != null ? String(powerHp) : '0';
+  return `${d}_${p}`;
+}
+
+/**
+ * Update sales_aggregates with a new sale (per brand, model, fuel, trim, engine, country)
+ */
+async function updateSalesAggregate(listing, domDays, priceEur) {
+  const country = String(listing.location_country || '').toUpperCase().slice(0, 2);
+  if (!country || !AGGREGATE_COUNTRIES.includes(country)) return;
+
+  const brand = norm(listing.brand);
+  const model = norm(listing.model);
+  const fuelType = norm(listing.fuel_type);
+  const trimVal = norm(listing.trim);
+  const engine = buildEngineKey(listing.version, listing.displacement, listing.power_hp);
+
+  try {
+    const { data: existing } = await supabase
+      .from('sales_aggregates')
+      .select('total_sales, sum_dom_days, sum_price_eur')
+      .eq('brand', brand)
+      .eq('model', model)
+      .eq('fuel_type', fuelType)
+      .eq('trim', trimVal)
+      .eq('engine', engine)
+      .eq('location_country', country)
+      .maybeSingle();
+
+    const prev = existing || { total_sales: 0, sum_dom_days: 0, sum_price_eur: 0 };
+    const newTotal = (prev.total_sales || 0) + 1;
+    const newSumDom = (Number(prev.sum_dom_days) || 0) + domDays;
+    const newSumPrice = (Number(prev.sum_price_eur) || 0) + priceEur;
+
+    const { error } = await supabase
+      .from('sales_aggregates')
+      .upsert(
+        {
+          brand,
+          model,
+          fuel_type: fuelType,
+          trim: trimVal,
+          engine,
+          location_country: country,
+          total_sales: newTotal,
+          sum_dom_days: newSumDom,
+          sum_price_eur: newSumPrice,
+          last_updated: new Date().toISOString()
+        },
+        { onConflict: 'brand,model,fuel_type,trim,engine,location_country' }
+      );
+
+    if (error) {
+      logger.warn('Failed to update sales_aggregates', { brand, model, country, error: error.message });
+    }
+  } catch (err) {
+    logger.warn('Error updating sales aggregate', { brand: listing.brand, error: err.message });
+  }
+}
 
 /**
  * Mark a listing as sold
  */
 export async function markAsSold(listingId, soldDate = null) {
   try {
-    // Get listing to calculate DOM and get last price
+    // Get listing to calculate DOM and get last price (brand, model, fuel, trim, engine for aggregates)
     const { data: listing, error: fetchError } = await supabase
       .from('listings')
-      .select('id, first_seen, sold_date, status, price, created_at')
+      .select('id, first_seen, sold_date, status, price, created_at, location_country, brand, model, fuel_type, trim, version, displacement, power_hp')
       .eq('id', listingId)
       .single();
 
@@ -76,6 +147,11 @@ export async function markAsSold(listingId, soldDate = null) {
       domDays,
       firstSeen: listing.first_seen
     });
+
+    // Update accumulating average (same brand, model, fuel, trim, engine, country)
+    const country = listing.location_country || updated?.location_country;
+    const priceEur = toEUR(lastPrice, country);
+    await updateSalesAggregate(listing, domDays, priceEur);
 
     return updated;
   } catch (error) {
@@ -180,20 +256,75 @@ export async function detectSales(disappearedListings) {
 }
 
 /**
+ * Get accumulated sales aggregates (per brand, model, fuel, trim, engine, country)
+ * Only returns aggregates for AGGREGATE_COUNTRIES.
+ * Includes a global average across all countries.
+ * Optional filters: brand, model, country
+ */
+export async function getSalesAggregates(filters = {}) {
+  try {
+    let query = supabase
+      .from('sales_aggregates')
+      .select('brand, model, fuel_type, trim, engine, location_country, total_sales, sum_dom_days, sum_price_eur')
+      .in('location_country', AGGREGATE_COUNTRIES);
+
+    if (filters.brand) query = query.ilike('brand', filters.brand);
+    if (filters.model) query = query.ilike('model', filters.model);
+    if (filters.country) query = query.eq('location_country', (filters.country || '').toUpperCase());
+
+    const { data, error } = await query.order('total_sales', { ascending: false });
+
+    if (error) throw new Error(`Failed to fetch sales aggregates: ${error.message}`);
+
+    const rows = (data || []).map(row => ({
+      brand: row.brand,
+      model: row.model,
+      fuelType: row.fuel_type,
+      trim: row.trim,
+      engine: row.engine,
+      country: row.location_country,
+      totalSales: row.total_sales || 0,
+      avgDOM: row.total_sales > 0 ? Math.round((row.sum_dom_days || 0) / row.total_sales) : 0,
+      avgPriceEur: row.total_sales > 0 ? Math.round((row.sum_price_eur || 0) / row.total_sales) : 0
+    }));
+
+    // Global average across all countries (when no country filter)
+    let global = null;
+    if (!filters.country && rows.length > 0) {
+      const totSales = rows.reduce((s, r) => s + r.totalSales, 0);
+      const totDom = rows.reduce((s, r) => s + r.avgDOM * r.totalSales, 0);
+      const totPrice = rows.reduce((s, r) => s + r.avgPriceEur * r.totalSales, 0);
+      global = {
+        country: 'ALL',
+        countryLabel: 'Tous pays',
+        totalSales: totSales,
+        avgDOM: totSales > 0 ? Math.round(totDom / totSales) : 0,
+        avgPriceEur: totSales > 0 ? Math.round(totPrice / totSales) : 0
+      };
+    }
+
+    return { rows, global };
+  } catch (err) {
+    logger.error('Error getting sales aggregates', { error: err.message });
+    return { rows: [], global: null };
+  }
+}
+
+/**
  * Get sales statistics for a model
  */
 export async function getSalesStats(brand, model, year = null, allowedCountries = null) {
   try {
-    // Allowed countries for Market Insights (France and Sweden only)
-    const ALLOWED_COUNTRIES = allowedCountries || ['FR', 'SE'];
-    
     let query = supabase
       .from('listings')
       .select('id, price, sold_date, dom_days, first_seen, location_country')
       .eq('status', 'sold')
-      .in('location_country', ALLOWED_COUNTRIES)
       .ilike('brand', brand)
       .ilike('model', model);
+
+    if (allowedCountries && allowedCountries.length > 0) {
+      query = query.in('location_country', allowedCountries);
+    }
 
     if (year) {
       query = query.eq('year', year);

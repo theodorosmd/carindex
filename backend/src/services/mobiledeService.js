@@ -1,6 +1,8 @@
 import { logger } from '../utils/logger.js';
 import { saveRawListings } from './rawIngestService.js';
 import { processRawListings } from './rawListingsProcessorService.js';
+import { fetchViaScrapeDo, isScrapeDoAvailable, isPageBlocked } from '../utils/scrapeDo.js';
+import * as cheerio from 'cheerio';
 import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 
@@ -62,7 +64,7 @@ export async function runMobileDeScraper(searchUrls, options = {}, progressCallb
             limit: 5000,
             sourcePlatform: SOURCE_PLATFORM
           });
-          results.saved += (processResult.created || 0) + (processResult.updated || 0);
+          results.saved += (processResult.created || 0) + (processResult.updated || 0) + (processResult.sourceAdded || 0);
         }
 
         results.processedUrls.push(searchUrl);
@@ -100,10 +102,28 @@ export async function runMobileDeScraper(searchUrls, options = {}, progressCallb
 
 /**
  * Scrape une URL de recherche mobile.de
+ * mobile.de a une protection anti-bot forte (Datadome, contenu JS). On privilégie scrape.do si disponible.
  */
 async function scrapeMobileDeUrl(browser, url, maxPages = 10) {
-  const page = await browser.newPage();
   const allListings = [];
+
+  // 1. Si scrape.do est dispo : l'utiliser en priorité (mobile.de bloque souvent Puppeteer)
+  if (isScrapeDoAvailable()) {
+    logger.info('mobile.de: using scrape.do (primary - mobile.de blocks Puppeteer often)');
+    for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+      const pageUrl = pageNum === 1
+        ? url
+        : url.includes('?') ? `${url}&pageNumber=${pageNum}` : `${url}?pageNumber=${pageNum}`;
+      const scraped = await scrapeMobileDeSearchViaScraper(pageUrl);
+      if (scraped.length === 0) break;
+      allListings.push(...scraped);
+      logger.info('mobile.de page scraped via scrape.do', { page: pageNum, found: scraped.length });
+    }
+    return allListings;
+  }
+
+  // 2. Fallback Puppeteer
+  const page = await browser.newPage();
 
   try {
     await page.setViewport({ width: 1920, height: 1080 });
@@ -121,8 +141,30 @@ async function scrapeMobileDeUrl(browser, url, maxPages = 10) {
         ? url
         : url.includes('?') ? `${url}&pageNumber=${currentPage}` : `${url}?pageNumber=${currentPage}`;
 
-      await page.goto(pageUrl, { waitUntil: 'networkidle2', timeout: 30000 });
-      await page.waitForTimeout(3000);
+      let gotoOk = false;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          await page.goto(pageUrl, { waitUntil: 'networkidle0', timeout: 60000 });
+          gotoOk = true;
+          break;
+        } catch (e) {
+          logger.warn('mobile.de page.goto retry', { page: currentPage, attempt, error: e.message });
+          if (attempt < 3) await new Promise((r) => setTimeout(r, 2000 * attempt));
+          else { logger.warn('mobile.de page.goto failed after 3 attempts, skipping page', { page: currentPage }); }
+        }
+      }
+      if (!gotoOk) { currentPage++; continue; }
+      await new Promise(r => setTimeout(r, 5000));
+
+      if (await isPageBlocked(page)) {
+        logger.warn('mobile.de page blocked, falling back to scrape.do', { page: currentPage });
+        const scraped = await scrapeMobileDeSearchViaScraper(pageUrl);
+        if (scraped.length === 0) break;
+        allListings.push(...scraped);
+        logger.info('mobile.de page scraped via scrape.do', { page: currentPage, found: scraped.length });
+        currentPage++;
+        continue;
+      }
 
       const pageListings = await page.evaluate(() => {
         const items = [];
@@ -203,6 +245,59 @@ async function scrapeMobileDeUrl(browser, url, maxPages = 10) {
   }
 }
 
+async function scrapeMobileDeSearchViaScraper(pageUrl) {
+  if (!isScrapeDoAvailable()) return [];
+  try {
+    const html = await fetchViaScrapeDo(pageUrl, {
+      render: true,
+      customWait: 6000,
+      geoCode: 'de',
+      superProxy: true
+    });
+    const $ = cheerio.load(html);
+    const listings = [];
+    const seen = new Set();
+
+    // mobile.de utilise www ou suchen ; links: /fahrzeuge/details/ID ou details.html?id=ID
+    $('a[href*="/fahrzeuge/details"], a[href*="details.html"], a[href*="mobile.de"][href*="id="]').each((_, el) => {
+      const href = $(el).attr('href');
+      if (!href) return;
+      const idMatch = href.match(/\/details\/(\d+)/) || href.match(/[?&]id=(\d+)/);
+      if (!idMatch || seen.has(idMatch[1])) return;
+      seen.add(idMatch[1]);
+
+      const card = $(el).closest('[class*="card"], [class*="result"], [class*="listing"], article') || $(el);
+      const text = card.text();
+      const titleEl = card.find('h2, h3, [class*="title"], [class*="Title"]').first();
+      const title = titleEl.text().trim() || $(el).text().trim();
+      const priceMatch = text.match(/(\d{1,3}(?:\.\d{3})*)\s*€/) || text.match(/€\s*(\d{1,3}(?:\.\d{3})*)/);
+      const kmMatch = text.match(/(\d{1,3}(?:\.\d{3})*)\s*km/i);
+      const yearMatch = text.match(/\b(19|20)\d{2}\b/);
+      const parts = title.split(/\s+/);
+
+      let fullUrl = href.startsWith('http') ? href : href.startsWith('/') ? `https://suchen.mobile.de${href}` : `https://suchen.mobile.de/${href}`;
+      if (fullUrl.includes('mobile.de') === false) {
+        fullUrl = `https://suchen.mobile.de${href.startsWith('/') ? href : '/' + href}`;
+      }
+
+      listings.push({
+        url: fullUrl,
+        id: idMatch[1],
+        brand: parts[0] || null,
+        model: parts.slice(1).join(' ') || null,
+        price: priceMatch ? parseInt(priceMatch[1].replace(/\./g, ''), 10) : null,
+        mileage: kmMatch ? parseInt(kmMatch[1].replace(/\./g, ''), 10) : null,
+        year: yearMatch ? parseInt(yearMatch[0], 10) : null,
+        title,
+      });
+    });
+    return listings;
+  } catch (err) {
+    logger.warn('scrape.do search fallback failed for mobile.de', { error: err.message });
+    return [];
+  }
+}
+
 /**
  * Map mobile.de scraper data to our database schema
  * (Utilisé par rawListingsProcessorService et pour l'ingest)
@@ -249,7 +344,7 @@ export function mapMobileDeDataToListing(item, sourcePlatform = 'mobile.de') {
     diesel: 'diesel', benzin: 'petrol', petrol: 'petrol',
     elektro: 'electric', electric: 'electric', hybrid: 'hybrid'
   };
-  const fuelTypeRaw = (item.fuelType || item.kraftstoff || '').toLowerCase();
+  const fuelTypeRaw = (item.fuelType || item.fuel_type || item.kraftstoff || '').toLowerCase();
   const fuelType = fuelTypeMap[fuelTypeRaw] || fuelTypeRaw || null;
 
   const transmissionMap = {
@@ -261,6 +356,19 @@ export function mapMobileDeDataToListing(item, sourcePlatform = 'mobile.de') {
 
   const normalizedBrand = (item.brand || item.marke || item.make || null)?.toLowerCase() || null;
   const normalizedModel = (item.model || null)?.toLowerCase() || null;
+
+  const drivetrainMap = {
+    frontantrieb: 'fwd', allradantrieb: 'awd', hinterradantrieb: 'rwd',
+    allrad: 'awd', '4x4': 'awd'
+  };
+  const features = Array.isArray(item.features) ? item.features : [];
+  let drivetrain = item.drivetrain || item.antrieb || null;
+  if (!drivetrain && features.length) {
+    for (const f of features) {
+      const key = (typeof f === 'string' ? f : '').toLowerCase();
+      if (drivetrainMap[key]) { drivetrain = drivetrainMap[key]; break; }
+    }
+  }
 
   return {
     source_platform: sourcePlatform,
@@ -294,9 +402,11 @@ export function mapMobileDeDataToListing(item, sourcePlatform = 'mobile.de') {
       if (v == null) return null;
       const n = parseFloat(v);
       if (Number.isNaN(n)) return null;
-      // Si > 100, c'est en ccm → convertir en litres
       return n > 100 ? n / 1000 : n;
     })(),
-    category: item.category || item.fahrzeugtyp || null
+    version: item.version || null,
+    trim: item.trim || null,
+    category: item.category || item.vehicle_type || item.fahrzeugtyp || null,
+    drivetrain
   };
 }

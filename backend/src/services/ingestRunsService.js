@@ -133,6 +133,20 @@ export async function createScraperRun(input) {
   }
 }
 
+export async function incrementScraperRunCounters(id) {
+  try {
+    const { error } = await supabase.rpc('increment_scraper_run_counters', {
+      run_uuid: id
+    });
+    if (error) {
+      if (shouldReturnEmpty(error)) return;
+      throw error;
+    }
+  } catch (error) {
+    logger.warn('incrementScraperRunCounters', { id, error: error.message });
+  }
+}
+
 export async function updateScraperRun(id, updates) {
   try {
     const status = normalizeStatus(updates.status);

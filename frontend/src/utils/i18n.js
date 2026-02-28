@@ -143,8 +143,7 @@ export function renderLanguageToggle() {
   const englishLabel = t('language.english')
   const frenchLabel = t('language.french')
   return `
-    <div class="flex items-center space-x-2">
-      <span class="text-xs text-gray-500">${label}</span>
+    <div class="flex items-center">
       <select id="lang-toggle" class="text-xs border border-gray-300 rounded px-2 py-1">
         <option value="en" ${lang === 'en' ? 'selected' : ''}>${englishLabel}</option>
         <option value="fr" ${lang === 'fr' ? 'selected' : ''}>${frenchLabel}</option>

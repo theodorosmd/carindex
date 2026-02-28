@@ -26,6 +26,7 @@ export function renderLandingPage() {
           </div>
           <div class="hidden lg:flex lg:flex-1 lg:justify-end lg:items-center lg:gap-x-4">
             ${renderLanguageToggle()}
+            <a href="#/login" class="text-sm/6 font-semibold text-gray-900 dark:text-white hover:text-blue-600 transition">${tr('Login', 'Connexion')}</a>
             <a href="/demo" class="text-sm/6 font-semibold text-gray-900 dark:text-white hover:text-blue-600 transition">${tr('Demo', 'Démo')}</a>
             <a href="/trial" class="rounded-md bg-indigo-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-xs hover:bg-indigo-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 dark:bg-indigo-500 dark:hover:bg-indigo-400">${tr('Free Trial', 'Essai gratuit')}</a>
           </div>
@@ -48,6 +49,7 @@ export function renderLandingPage() {
             <a href="#faq" class="block px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition">FAQ</a>
             <div class="pt-2 border-t border-gray-200 dark:border-gray-700">
               ${renderLanguageToggle()}
+              <a href="#/login" class="block px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition">${tr('Login', 'Connexion')}</a>
               <a href="/demo" class="block px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition">${tr('Demo', 'Démo')}</a>
               <a href="/trial" class="block px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-center">${tr('Free Trial', 'Essai gratuit')}</a>
             </div>

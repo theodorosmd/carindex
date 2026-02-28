@@ -1,6 +1,8 @@
 import { supabase } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import { saveRawListings } from './rawIngestService.js';
+import { fetchViaScrapeDo, isScrapeDoAvailable, isPageBlocked } from '../utils/scrapeDo.js';
+import * as cheerio from 'cheerio';
 import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 
@@ -107,12 +109,16 @@ async function scrapeBytbilUrl(browser, url, maxPages = 10) {
     await page.setViewport({ width: 1920, height: 1080 });
     await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
 
-    // Wait for listings to load
+    if (await isPageBlocked(page)) {
+      logger.warn('Bytbil page blocked, falling back to scrape.do', { url });
+      await page.close();
+      return scrapeBytbilSearchViaScraper(url, maxPages);
+    }
+
     await page.waitForSelector('.car-card, .vehicle-card, .listing-item', { timeout: 10000 }).catch(() => {
       logger.warn('No listings found on Bytbil page', { url });
     });
 
-    // Extract listings from current page
     const pageListings = await page.evaluate(() => {
       const items = [];
       const cards = document.querySelectorAll('.car-card, .vehicle-card, .listing-item');
@@ -211,10 +217,69 @@ async function fetchBytbilListingDetails(browser, listingUrl) {
     return details;
 
   } catch (error) {
-    logger.warn('Error fetching Bytbil listing details', { url: listingUrl, error: error.message });
-    return null;
-  } finally {
+    logger.warn('Puppeteer failed for Bytbil detail, trying scrape.do', { url: listingUrl, error: error.message });
     await page.close();
+    return fetchBytbilDetailViaScraper(listingUrl);
+  }
+}
+
+async function scrapeBytbilSearchViaScraper(url, maxPages) {
+  if (!isScrapeDoAvailable()) return [];
+  try {
+    const html = await fetchViaScrapeDo(url, { render: true, customWait: 4000, geoCode: 'se' });
+    const $ = cheerio.load(html);
+    const items = [];
+
+    $('.car-card, .vehicle-card, .listing-item').each((_, card) => {
+      const link = $(card).find('a[href*="/bil/"], a[href*="/car/"]');
+      const title = $(card).find('.title, .car-title, h2, h3').first().text().trim();
+      const priceText = $(card).find('.price, .car-price, [data-price]').first().text().trim();
+      const location = $(card).find('.location, .dealer-location, .city').first().text().trim();
+      const image = $(card).find('img').first().attr('src') || $(card).find('img').first().attr('data-src');
+
+      if (link.length && title) {
+        const href = link.attr('href');
+        items.push({
+          url: href?.startsWith('http') ? href : `https://www.bytbil.com${href}`,
+          title, priceText, location, image,
+        });
+      }
+    });
+    return items;
+  } catch (err) {
+    logger.warn('scrape.do search fallback failed for Bytbil', { error: err.message });
+    return [];
+  }
+}
+
+async function fetchBytbilDetailViaScraper(listingUrl) {
+  if (!isScrapeDoAvailable()) return null;
+  try {
+    const html = await fetchViaScrapeDo(listingUrl, { geoCode: 'se' });
+    const $ = cheerio.load(html);
+    const data = {};
+    const specs = {};
+
+    $('.spec-item, .specification, tr').each((_, el) => {
+      const label = $(el).find('.label, td:first-child').first().text().trim();
+      const value = $(el).find('.value, td:last-child').first().text().trim();
+      if (label && value) specs[label.toLowerCase()] = value;
+    });
+
+    data.description = $('.description, .car-description, [data-description]').first().text().trim() || null;
+
+    const images = [];
+    $('.gallery img, .images img, .carousel img, img[src]').each((_, img) => {
+      const src = $(img).attr('src') || $(img).attr('data-src');
+      if (src && !src.includes('logo') && !src.includes('icon')) images.push(src);
+    });
+    data.images = [...new Set(images)];
+    data.sellerType = 'dealer';
+
+    return { ...data, specifications: specs };
+  } catch (err) {
+    logger.warn('scrape.do fallback also failed for Bytbil detail', { url: listingUrl, error: err.message });
+    return null;
   }
 }
 

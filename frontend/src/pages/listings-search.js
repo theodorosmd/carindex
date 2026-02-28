@@ -2003,10 +2003,11 @@ function initializeSearch() {
       cardHTML += '<div class="w-full h-full flex items-center justify-center text-gray-400"><svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg></div>'
     }
     
-    // Source badge
+    // Source badge (+ "X sites" when multi-source)
+    const sourcesCount = (listing.sources && listing.sources.length) || 0
     cardHTML += '<div class="absolute top-2 right-2 flex items-center space-x-1 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-lg text-xs font-medium">'
     cardHTML += '<span>' + sourceIcon + '</span>'
-    cardHTML += '<span class="text-gray-700">' + sourceName + '</span>'
+    cardHTML += '<span class="text-gray-700">' + sourceName + (sourcesCount > 1 ? ' · ' + sourcesCount + ' ' + tr('sites', 'sites') : '') + '</span>'
     cardHTML += '</div>'
     
     // Market price badge with confidence inline
@@ -2200,9 +2201,17 @@ function initializeSearch() {
     modalHTML += '<div class="bg-gray-50 rounded-lg p-3"><div class="text-sm text-gray-600">' + tr('Location', 'Localisation') + '</div><div class="text-lg font-semibold">' + modalLocationDisplay + '</div></div>'
     modalHTML += '</div>'
     
-    modalHTML += '<div class="flex space-x-3">'
-    modalHTML += '<a href="' + listing.url + '" target="_blank" class="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition text-center">' + tr('View original listing', 'Voir l\'annonce originale') + '</a>'
-    modalHTML += '<button class="px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg></button>'
+    const sources = (listing.sources && listing.sources.length > 0 ? listing.sources.filter(function (s) { return s.url }) : null) || (listing.url ? [{ platform: listing.source_platform || listing.source, url: listing.url }] : [])
+    modalHTML += '<div class="flex flex-col space-y-2">'
+    if (sources.length === 1) {
+      modalHTML += '<a href="' + sources[0].url + '" target="_blank" rel="noopener noreferrer" class="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition text-center">' + tr('View original listing', 'Voir l\'annonce originale') + '</a>'
+    } else if (sources.length > 1) {
+      modalHTML += '<div class="text-sm font-medium text-gray-700 mb-1">' + tr('Contact seller', 'Contacter le vendeur') + ' :</div>'
+      sources.forEach(function (s) {
+        modalHTML += '<a href="' + s.url + '" target="_blank" rel="noopener noreferrer" class="flex items-center justify-between px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition text-center"><span>' + getSourceName(s.platform) + '</span><span>→</span></a>'
+      })
+    }
+    modalHTML += '<div class="flex space-x-3"><button class="px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg></button></div>'
     modalHTML += '</div>'
     modalHTML += '</div>'
     modalHTML += '</div>'
@@ -2331,7 +2340,9 @@ function initializeSearch() {
       'leboncoin': '🔵',
       'mobile.de': '🟢',
       'autoscout24': '🟠',
-      'autoscout': '🟠'
+      'autoscout': '🟠',
+      'gaspedaal': '🔴',
+      'marktplaats': '🟠'
     }
     return icons[sourceLower] || '📋'
   }
@@ -2343,7 +2354,20 @@ function initializeSearch() {
       'leboncoin': 'LeBonCoin',
       'mobile.de': 'mobile.de',
       'autoscout24': 'AutoScout24',
-      'autoscout': 'AutoScout24'
+      'autoscout': 'AutoScout24',
+      'gaspedaal': 'Gaspedaal.nl',
+      'marktplaats': 'Marktplaats.nl',
+      'bilweb': 'Bilweb.se',
+      'bytbil': 'Bytbil.com',
+      'blocket': 'Blocket.se',
+      'coches.net': 'Coches.net',
+      'finn': 'FINN.no',
+      'otomoto': 'OtoMoto.pl',
+      '2ememain': '2emain.be',
+      'deuxememain': '2emain.be',
+      'largus': "L'Argus",
+      'lacentrale': 'La Centrale',
+      'subito': 'Subito.it'
     }
     return names[sourceLower] || source
   }

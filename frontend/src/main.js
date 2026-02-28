@@ -13,6 +13,7 @@ import { renderEvaluationsManager } from './pages/evaluations-manager'
 import { renderEvaluationsCompare } from './pages/evaluations-compare'
 import { renderEvaluationDetails } from './pages/evaluation-details'
 import { renderMarketInsights } from './pages/market-insights'
+import { renderArbitrage } from './pages/arbitrage'
 import { renderBatchEvaluations } from './pages/batch-evaluations'
 
 // Auth utility functions
@@ -45,19 +46,23 @@ function route() {
   const path = window.location.pathname
   const hash = window.location.hash
   
+  // When a hash is present, use hash-based routing exclusively
+  // to avoid path-based checks intercepting hash routes
+  const effectivePath = hash ? null : path
+  
   // Auth routes (public)
-  if (hash === '#/login' || path === '/login') {
+  if (hash === '#/login' || effectivePath === '/login') {
     renderLogin()
     return
   }
   
-  if (hash === '#/signup' || path === '/signup') {
+  if (hash === '#/signup' || effectivePath === '/signup') {
     renderSignup()
     return
   }
   
   // Admin dashboard route (protected, admin only)
-  if (hash === '#/admin' || path === '/admin') {
+  if (hash === '#/admin' || effectivePath === '/admin') {
     if (!isAuthenticated()) {
       const redirectPath = hash || path
       window.history.pushState({}, '', '/login?redirect=' + encodeURIComponent(redirectPath))
@@ -69,7 +74,7 @@ function route() {
   }
   
   // Dashboard route (protected)
-  if (hash === '#/dashboard' || path === '/dashboard') {
+  if (hash === '#/dashboard' || effectivePath === '/dashboard') {
     if (!isAuthenticated()) {
       const redirectPath = hash || path
       window.history.pushState({}, '', '/login?redirect=' + encodeURIComponent(redirectPath))
@@ -83,7 +88,7 @@ function route() {
   }
   
   // Stock analysis route (protected)
-  if (hash === '#/stock-analysis' || path === '/stock-analysis') {
+  if (hash === '#/stock-analysis' || effectivePath === '/stock-analysis') {
     if (!isAuthenticated()) {
       const redirectPath = hash || path
       window.history.pushState({}, '', '/login?redirect=' + encodeURIComponent(redirectPath))
@@ -95,7 +100,7 @@ function route() {
   }
   
   // Market insights route (protected)
-  if (hash === '#/market-insights' || hash === '#/insights' || path === '/market-insights' || path === '/insights') {
+  if (hash === '#/market-insights' || hash === '#/insights' || effectivePath === '/market-insights' || effectivePath === '/insights') {
     if (!isAuthenticated()) {
       const redirectPath = hash || path
       window.history.pushState({}, '', '/login?redirect=' + encodeURIComponent(redirectPath))
@@ -105,10 +110,22 @@ function route() {
     renderMarketInsights()
     return
   }
+
+  // Arbitrage véhicule route (protected)
+  if (hash === '#/arbitrage' || effectivePath === '/arbitrage') {
+    if (!isAuthenticated()) {
+      const redirectPath = hash || path
+      window.history.pushState({}, '', '/login?redirect=' + encodeURIComponent(redirectPath))
+      renderLogin()
+      return
+    }
+    renderArbitrage()
+    return
+  }
   
   // Auction margin calculator route (protected)
   // Support both hash routing (#/auction-margin) and pathname routing (/auction-margin-calculator)
-  if (hash === '#/auction-margin' || path === '/auction-margin-calculator') {
+  if (hash === '#/auction-margin' || effectivePath === '/auction-margin-calculator' || effectivePath === '/auction-margin') {
     if (!isAuthenticated()) {
       const redirectPath = hash || path
       window.history.pushState({}, '', '/login?redirect=' + encodeURIComponent(redirectPath))
@@ -120,7 +137,7 @@ function route() {
   }
 
   // Batch evaluations route (protected)
-  if (hash === '#/batch-evaluations' || path === '/batch-evaluations') {
+  if (hash === '#/batch-evaluations' || effectivePath === '/batch-evaluations') {
     if (!isAuthenticated()) {
       window.history.pushState({}, '', '/login?redirect=' + encodeURIComponent(hash || path))
       renderLogin()
@@ -144,7 +161,7 @@ function route() {
   }
 
   // Evaluations manager route (protected)
-  if (hash === '#/evaluations' || path === '/evaluations' || hash === '#/evaluations-manager' || path === '/evaluations-manager') {
+  if (hash === '#/evaluations' || effectivePath === '/evaluations' || hash === '#/evaluations-manager' || effectivePath === '/evaluations-manager') {
     if (!isAuthenticated()) {
       window.history.pushState({}, '', '/login?redirect=' + encodeURIComponent(hash || path))
       renderLogin()
@@ -179,7 +196,7 @@ function route() {
   }
 
   // Evaluation comparison route (protected)
-  if (hash.startsWith('#/evaluations/compare') || path.startsWith('/evaluations/compare')) {
+  if (hash.startsWith('#/evaluations/compare') || (effectivePath && effectivePath.startsWith('/evaluations/compare'))) {
     if (!isAuthenticated()) {
       window.history.pushState({}, '', '/login?redirect=' + encodeURIComponent(hash || path))
       renderLogin()
@@ -200,7 +217,7 @@ function route() {
   }
   
   // Check for listing details page
-  if (path.startsWith('/listing/') || hash.startsWith('#/listing/')) {
+  if ((effectivePath && effectivePath.startsWith('/listing/')) || hash.startsWith('#/listing/')) {
     renderListingDetails()
     return
   }
@@ -218,8 +235,8 @@ function route() {
     return
   }
   
-  // Check pathname
-  if (path === '/search' || path === '/listings' || path.includes('search')) {
+  // Check pathname (only when no hash is present)
+  if (effectivePath === '/search' || effectivePath === '/listings' || (effectivePath && effectivePath.includes('search'))) {
     renderListingsSearch()
     setTimeout(() => {
       const params = new URLSearchParams(window.location.search)
@@ -227,15 +244,14 @@ function route() {
         restoreFiltersFromURL(params)
       }
     }, 300)
-  } else if (path === '/auction-margin-calculator') {
-    // Already handled above, but keep for clarity
+  } else if (effectivePath === '/auction-margin-calculator') {
     if (!isAuthenticated()) {
       window.location.hash = '#/login?redirect=' + encodeURIComponent(path)
       renderLogin()
       return
     }
     renderAuctionMarginCalculator()
-  } else if (path === '/' || path === '/index.html' || path === '') {
+  } else if (effectivePath === '/' || effectivePath === '/index.html' || effectivePath === '') {
     renderLandingPage()
   } else {
     // Default to landing page
@@ -262,6 +278,13 @@ function restoreFiltersFromURL(params) {
       if (checkbox) checkbox.checked = true
     })
   })
+  
+  // Restore country
+  const country = params.get('country')
+  if (country) {
+    const countrySelect = document.getElementById('country-filter')
+    if (countrySelect) countrySelect.value = country
+  }
   
   // Restore ranges
   const ranges = {

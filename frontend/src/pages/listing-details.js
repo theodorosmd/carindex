@@ -130,6 +130,46 @@ async function loadListingDetails(listingId) {
   }
 }
 
+function buildSourceBadgeHtml(listing, sourceIcon, sourceName) {
+  const sources = (listing.sources && listing.sources.length > 0)
+    ? listing.sources
+    : (listing.url ? [{ platform: listing.source_platform || listing.source, url: listing.url }] : [])
+  if (sources.length === 1) {
+    return '<div class="flex items-center space-x-2 mb-6 p-3 bg-gray-50 rounded-lg">' +
+      '<span class="text-xl">' + sourceIcon + '</span>' +
+      '<div><div class="text-sm text-gray-600">' + tr('Source', 'Source') + '</div>' +
+      '<div class="font-medium text-gray-900">' + sourceName + '</div></div></div>'
+  }
+  if (sources.length > 1) {
+    const badges = sources.map(s =>
+      '<span class="inline-flex items-center px-2 py-1 bg-gray-100 rounded text-sm">' +
+      getSourceIcon(s.platform) + ' ' + getSourceName(s.platform) + '</span>'
+    ).join('')
+    return '<div class="mb-6"><div class="text-sm text-gray-600 mb-2">' +
+      tr('Also available on', 'Disponible aussi sur') + '</div>' +
+      '<div class="flex flex-wrap gap-2">' + badges + '</div></div>'
+  }
+  return ''
+}
+
+function buildSourceLinksHtml(listing) {
+  const sources = (listing.sources && listing.sources.length > 0)
+    ? listing.sources.filter(s => s.url)
+    : (listing.url ? [{ platform: listing.source_platform || listing.source, url: listing.url }] : [])
+  if (sources.length === 0) return ''
+  if (sources.length === 1) {
+    return '<a href="' + sources[0].url + '" target="_blank" rel="noopener noreferrer" class="block w-full px-4 sm:px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition text-center text-sm sm:text-base">' +
+      tr('View original listing', "Voir l'annonce originale") + ' →</a>'
+  }
+  const links = sources.map(s =>
+    '<a href="' + s.url + '" target="_blank" rel="noopener noreferrer" class="flex items-center justify-between w-full px-4 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition text-center text-sm">' +
+    '<span>' + getSourceIcon(s.platform) + ' ' + getSourceName(s.platform) + '</span>' +
+    '<span>→</span></a>'
+  ).join('')
+  return '<div class="space-y-2"><div class="text-sm font-medium text-gray-700">' +
+    tr('Contact seller', 'Contacter le vendeur') + ' :</div>' + links + '</div>'
+}
+
 // Extract data from specifications if main fields are empty
 function extractFromSpecifications(listing) {
   // Handle both object and array formats for specifications
@@ -403,20 +443,12 @@ function renderListingContent(listing) {
             <div class="text-sm text-gray-500">Publié ${postedDate}</div>
           </div>
           
-          <!-- Source Badge -->
-          <div class="flex items-center space-x-2 mb-6 p-3 bg-gray-50 rounded-lg">
-            <span class="text-xl">${sourceIcon}</span>
-            <div>
-              <div class="text-sm text-gray-600">Source</div>
-              <div class="font-medium text-gray-900">${sourceName}</div>
-            </div>
-          </div>
+          <!-- Source Badge(s) -->
+          ${buildSourceBadgeHtml(listing, sourceIcon, sourceName)}
           
-          <!-- Actions -->
+          <!-- Actions: Contact seller / View listing(s) -->
           <div class="space-y-3">
-            <a href="${listing.url}" target="_blank" class="block w-full px-4 sm:px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition text-center text-sm sm:text-base">
-              Voir l'annonce originale →
-            </a>
+            ${buildSourceLinksHtml(listing)}
             <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
               <button class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition flex items-center justify-center space-x-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -581,7 +613,12 @@ function getSourceIcon(source) {
   const icons = {
     'leboncoin': '🔵',
     'mobile.de': '🟢',
-    'autoscout24': '🟠'
+    'autoscout24': '🟠',
+    'gaspedaal': '🔴',
+    'marktplaats': '🟠',
+    bilweb: '🟡',
+    bytbil: '🟣',
+    blocket: '🔵'
   }
   return icons[source] || '📋'
 }
@@ -590,9 +627,22 @@ function getSourceName(source) {
   const names = {
     'leboncoin': 'LeBonCoin',
     'mobile.de': 'mobile.de',
-    'autoscout24': 'AutoScout24'
+    'autoscout24': 'AutoScout24',
+    'gaspedaal': 'Gaspedaal.nl',
+    'marktplaats': 'Marktplaats.nl',
+    bilweb: 'Bilweb.se',
+    bytbil: 'Bytbil.com',
+    blocket: 'Blocket.se',
+    'coches.net': 'Coches.net',
+    finn: 'FINN.no',
+    otomoto: 'OtoMoto.pl',
+    '2ememain': '2emain.be',
+    deuxememain: '2emain.be',
+    largus: "L'Argus",
+    lacentrale: 'La Centrale',
+    subito: 'Subito.it'
   }
-  return names[source] || source
+  return names[source] || (source ? String(source).replace(/\./g, '') : '')
 }
 
 function formatDate(dateString) {

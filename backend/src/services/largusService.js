@@ -76,7 +76,7 @@ export async function runLargusScraper(searchUrls, options = {}, progressCallbac
             limit: 5000,
             sourcePlatform: SOURCE_PLATFORM
           });
-          results.saved += (processResult.created || 0) + (processResult.updated || 0);
+          results.saved += (processResult.created || 0) + (processResult.updated || 0) + (processResult.sourceAdded || 0);
         }
 
         results.processedUrls.push(searchUrl);

@@ -52,6 +52,17 @@ Le système de **monitoring des ventes récentes** surveille **TOUTES** les anno
 
 ---
 
+### 🇵🇱 Pologne
+
+#### 7. **OtoMoto.pl** (`otomoto`)
+- **URLs** : `https://www.otomoto.pl/osobowe`
+- **Status** : ✅ Implémenté (via scrape.do + IA)
+- **Configuration** : Via Dashboard Admin → Scrapings automatiques
+- **Pays** : PL uniquement
+- **Note** : Enrichissement IA pour champs manquants (transmission, portes, couleur, etc.)
+
+---
+
 ## 🔍 Comment Vérifier les Sources Actives
 
 ### 1. Vérifier dans la Base de Données

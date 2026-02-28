@@ -9,6 +9,14 @@ import { mapBlocketDataToListing } from './blocketService.js';
 import { mapBilwebDataToListing } from './bilwebService.js';
 import { mapBytbilDataToListing } from './bytbilService.js';
 import { mapLargusDataToListing } from './largusService.js';
+import { mapLaCentraleDataToListing } from './laCentraleService.js';
+import { mapSubitoDataToListing } from './subitoService.js';
+import { mapGaspedaalDataToListing } from './gaspedaalService.js';
+import { mapCochesNetDataToListing } from './cochesnetService.js';
+import { mapMarktplaatsDataToListing } from './marktplaatsService.js';
+import { map2ememainDataToListing } from './deuxememainService.js';
+import { mapFinnDataToListing } from './finnService.js';
+import { mapOtomotoDataToListing } from './otomotoService.js';
 
 const MAPPERS = {
   autoscout24: (item) => mapAutoscout24DataToListing(item, 'autoscout24'),
@@ -19,7 +27,16 @@ const MAPPERS = {
   blocket: mapBlocketDataToListing,
   bilweb: mapBilwebDataToListing,
   bytbil: mapBytbilDataToListing,
-  largus: mapLargusDataToListing
+  largus: mapLargusDataToListing,
+  lacentrale: mapLaCentraleDataToListing,
+  subito: mapSubitoDataToListing,
+  'coches.net': mapCochesNetDataToListing,
+  gaspedaal: mapGaspedaalDataToListing,
+  marktplaats: mapMarktplaatsDataToListing,
+  '2ememain': map2ememainDataToListing,
+  deuxememain: map2ememainDataToListing,
+  finn: mapFinnDataToListing,
+  otomoto: mapOtomotoDataToListing
 };
 
 /**
@@ -77,7 +94,8 @@ export async function processRawListings(options = {}) {
         continue;
       }
 
-      if (row.source_platform === 'largus' && process.env.OPENAI_API_KEY) {
+      const AI_ENRICHABLE = ['largus', 'leboncoin', 'marktplaats', '2ememain', 'finn', 'otomoto'];
+      if (AI_ENRICHABLE.includes(row.source_platform) && process.env.OPENAI_API_KEY) {
         const hasMissing = !listing.transmission || listing.doors == null || !listing.color ||
           listing.power_hp == null || !listing.category || listing.displacement == null;
         if (hasMissing && listing.description) {
@@ -87,7 +105,7 @@ export async function processRawListings(options = {}) {
               if (v != null && (listing[k] == null || listing[k] === '')) listing[k] = v;
             }
           } catch (err) {
-            logger.debug('AI enrichment skipped for Largus', { source_listing_id: row.source_listing_id, error: err.message });
+            logger.debug('AI enrichment skipped', { source_platform: row.source_platform, source_listing_id: row.source_listing_id, error: err.message });
           }
         }
       }
@@ -138,6 +156,7 @@ export async function processRawListings(options = {}) {
     processed: processedIds.length,
     created: result.created,
     updated: result.updated,
+    sourceAdded: result.sourceAdded || 0,
     errors: result.errors
   };
 }

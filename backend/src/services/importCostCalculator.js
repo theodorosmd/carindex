@@ -9,21 +9,25 @@ import {
   isVATRecoverable
 } from '../config/countryTaxRules.js';
 
+/** Default reconditioning/repair cost (EUR) – repairs, tires, detailing before resale */
+const DEFAULT_RECONDITIONING_EUR = 500;
+
 /**
  * Calculer les coûts totaux d'import d'un véhicule
  * @param {number} purchasePriceEur - Prix d'achat en EUR
  * @param {string} buyCountry - Pays d'achat (ex: DE)
  * @param {string} sellCountry - Pays de vente (ex: FR)
- * @param {object} options - { isProfessional, transportCostOverride }
+ * @param {object} options - { isProfessional, transportCostOverride, reconditioningEur }
  * @returns {object} { totalCost, breakdown, netMargin (si sellPrice fourni) }
  */
 export function calculateImportCosts(purchasePriceEur, buyCountry, sellCountry, options = {}) {
-  const { isProfessional = true, transportCostOverride } = options;
+  const { isProfessional = true, transportCostOverride, reconditioningEur } = options;
   const buy = (buyCountry || '').toUpperCase().slice(0, 2);
   const sell = (sellCountry || '').toUpperCase().slice(0, 2);
 
   const transport = transportCostOverride ?? estimateTransportCost(buy, sell);
   const registration = getRegistrationCost(sell);
+  const reconditioning = reconditioningEur ?? DEFAULT_RECONDITIONING_EUR;
 
   // TVA à l'achat (si applicable)
   const vatRateBuy = getVATRate(buy);
@@ -31,12 +35,13 @@ export function calculateImportCosts(purchasePriceEur, buyCountry, sellCountry, 
   const vatRecoverable = isVATRecoverable(buy, sell, isProfessional);
   const vatNetCost = vatRecoverable ? 0 : vatAtPurchase;
 
-  const totalCost = Math.round(transport + registration + vatNetCost);
+  const totalCost = Math.round(transport + registration + reconditioning + vatNetCost);
 
   const breakdown = {
     purchasePrice: Math.round(purchasePriceEur),
     transport,
     registration,
+    reconditioning,
     vatAtPurchase: Math.round(vatAtPurchase),
     vatRecoverable,
     vatNetCost: Math.round(vatNetCost),
@@ -60,7 +65,7 @@ export function calculateImportCosts(purchasePriceEur, buyCountry, sellCountry, 
  * @param {object} options - options pour calculateImportCosts
  */
 export function estimateArbitrageMargin(purchasePriceEur, expectedSellPriceEur, buyCountry, sellCountry, options = {}) {
-  const { totalCost, costToSellCountry } = calculateImportCosts(
+  const { totalCost, costToSellCountry, breakdown } = calculateImportCosts(
     purchasePriceEur,
     buyCountry,
     sellCountry,
@@ -76,6 +81,7 @@ export function estimateArbitrageMargin(purchasePriceEur, expectedSellPriceEur, 
     expectedSellPrice: Math.round(expectedSellPriceEur),
     totalImportCost: totalCost,
     costToSellCountry,
+    reconditioningEur: breakdown?.reconditioning ?? (options.reconditioningEur ?? DEFAULT_RECONDITIONING_EUR),
     grossMargin: Math.round(grossMargin),
     netMargin: Math.round(netMargin),
     netMarginPct: Math.round(netMarginPct * 10) / 10,

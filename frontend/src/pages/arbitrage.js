@@ -8,6 +8,23 @@ const COUNTRY_NAMES = {
   DK: 'Danemark', FI: 'Finlande', SE: 'Suède'
 };
 
+/** External marketplace search URLs by country (buy country = where to find cars) */
+const EXTERNAL_SEARCH_URLS = {
+  DE: (brand, model) => `https://suchen.mobile.de/fahrzeuge/search.html?lang=de&cn=DE&s=Car&vc=Car&q=${encodeURIComponent(brand + ' ' + model)}`,
+  DK: (brand, model) => `https://suchen.mobile.de/fahrzeuge/search.html?lang=de&cn=DK&s=Car&vc=Car&q=${encodeURIComponent(brand + ' ' + model)}`,
+  SE: (brand, model) => `https://www.blocket.se/mobility/search/car?q=${encodeURIComponent(brand + ' ' + model)}`,
+  NO: (brand, model) => `https://www.finn.no/mobility/search/car?q=${encodeURIComponent(brand + ' ' + model)}`,
+  NL: (brand, model) => `https://www.gaspedaal.nl/zoeken?srt=df-a&q=${encodeURIComponent(brand + ' ' + model)}`,
+  BE: (brand, model) => `https://www.2ememain.be/l/autos/?search_term=${encodeURIComponent(brand + ' ' + model)}`,
+  FR: (brand, model) => `https://www.leboncoin.fr/recherche?text=${encodeURIComponent(brand + ' ' + model)}&category=2`,
+  IT: (brand, model) => `https://www.subito.it/annunci-italia/vendita/auto?q=${encodeURIComponent(brand + ' ' + model)}`,
+  ES: (brand, model) => `https://www.coches.net/segunda-mano/coches/?q=${encodeURIComponent(brand + ' ' + model)}`,
+  PL: (brand, model) => `https://www.otomoto.pl/osobowe?search%5Bfilter_enum_make%5D=${encodeURIComponent(brand)}&search%5Bfilter_enum_model%5D=${encodeURIComponent(model)}`,
+  FI: (brand, model) => `https://www.nettiauto.com/?make=${encodeURIComponent(brand)}&model=${encodeURIComponent(model)}`,
+  CH: (brand, model) => `https://suchen.mobile.de/fahrzeuge/search.html?lang=de&cn=CH&s=Car&vc=Car&q=${encodeURIComponent(brand + ' ' + model)}`,
+  LU: (brand, model) => `https://suchen.mobile.de/fahrzeuge/search.html?lang=de&cn=LU&s=Car&vc=Car&q=${encodeURIComponent(brand + ' ' + model)}`,
+};
+
 async function apiGet(path, params = {}, options = {}) {
   const q = new URLSearchParams(params).toString();
   const headers = {};
@@ -53,7 +70,7 @@ export function renderArbitrage() {
       <!-- Simulateur coûts d'import -->
       <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
         <h2 class="text-xl font-bold text-gray-900 mb-4">💰 Simulateur de coûts d'import</h2>
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
           <div>
             <label class="block text-sm font-medium text-gray-600 mb-1">Prix d'achat (€)</label>
             <input type="number" id="sim-price" placeholder="25000" class="w-full px-3 py-2 border rounded-lg">
@@ -69,6 +86,10 @@ export function renderArbitrage() {
             <select id="sim-sell" class="w-full px-3 py-2 border rounded-lg">
               ${Object.entries(COUNTRY_NAMES).map(([c, n]) => `<option value="${c}">${n}</option>`).join('')}
             </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-600 mb-1">Réparations (€)</label>
+            <input type="number" id="sim-reconditioning" placeholder="500" min="0" class="w-full px-3 py-2 border rounded-lg" title="Réparations / réconditionnement estimées avant revente">
           </div>
           <div class="flex items-end">
             <button onclick="window.calcImportCosts()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
@@ -105,7 +126,7 @@ export function renderArbitrage() {
       </div>
 
       <!-- Annonces avec opportunité -->
-      <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
+      <div id="list-listings-section" class="bg-white rounded-xl shadow-lg p-6 mb-6">
         <h2 class="text-xl font-bold text-gray-900 mb-4">🚗 Annonces avec opportunité</h2>
         <p class="text-sm text-gray-600 mb-4">Annonces réelles sous la médiane du pays de vente cible</p>
         <div class="grid grid-cols-1 md:grid-cols-5 gap-2 mb-4 flex-wrap">
@@ -154,13 +175,18 @@ export function renderArbitrage() {
     if (!el) return;
     el.innerHTML = '<p class="text-gray-500">Chargement...</p>';
     try {
-      const r = await apiGet('auto-detected', { limit: 50 });
+      const r = await apiGet('auto-detected', { limit: 50, _: Date.now() });
       const errMsg = r?.error?.message || (typeof r?.error === 'string' ? r.error : r?.error?.code) || 'Erreur API';
       if (!r?.success) { el.innerHTML = `<p class="text-red-600">${errMsg}</p>`; return; }
       if (!r.opportunities?.length) {
         el.innerHTML = '<p class="text-gray-500">Aucune opportunité détectée pour l\'instant. Le job tourne chaque nuit.</p>';
         return;
       }
+    const appBaseUrl = window.location.origin;
+    const buildListingsUrl = (brand, model, buy, sell) => {
+      const p = new URLSearchParams({ brand, model, buy, sell });
+      return `${appBaseUrl}/?${p.toString()}#/arbitrage`;
+    };
     el.innerHTML = `
       <table class="min-w-full divide-y divide-gray-200">
         <thead class="bg-gray-50"><tr>
@@ -170,20 +196,43 @@ export function renderArbitrage() {
           <th class="px-4 py-2 text-right text-xs font-medium text-gray-500">Prix achat</th>
           <th class="px-4 py-2 text-right text-xs font-medium text-gray-500">Prix vente</th>
           <th class="px-4 py-2 text-right text-xs font-medium text-gray-500">Marge nette</th>
+          <th class="px-4 py-2 text-left text-xs font-medium text-gray-500">Liens</th>
         </tr></thead>
         <tbody class="bg-white divide-y">
-          ${r.opportunities.map(o => `
-            <tr class="hover:bg-gray-50 cursor-pointer" data-brand="${(o.brand || '').replace(/"/g, '&quot;')}" data-model="${(o.model || '').replace(/"/g, '&quot;')}" data-buy="${o.buy_country}" data-sell="${o.sell_country}" onclick="window.fillOppFromAuto(this)">
+          ${r.opportunities.map(o => {
+            const brand = (o.brand || '').replace(/"/g, '&quot;');
+            const model = (o.model || '').replace(/"/g, '&quot;');
+            const buy = o.buy_country || '';
+            const sell = o.sell_country || '';
+            const listingsUrl = buildListingsUrl(o.brand, o.model, buy, sell);
+            const listings = o.listings || o.top_listings || [];
+            const exactLinks = listings.length > 0
+              ? listings.slice(0, 3).map((item, i) => {
+                  const url = (typeof item === 'string' ? item : item?.url) || '';
+                  const obj = typeof item === 'object' ? item : {};
+                  const priceStr = obj.priceEur != null ? formatCurrency(obj.priceEur) : '';
+                  const label = obj.trim ? `${obj.trim} ${priceStr}`.trim() : priceStr || 'Voir';
+                  return `<a href="${url.replace(/"/g, '&quot;')}" target="_blank" rel="noopener" class="text-blue-600 hover:underline font-medium" title="Ouvrir l'annonce sur mobile.de / Blocket / …">${label} →</a>`;
+                }).join(' · ')
+              : '';
+            return `
+            <tr class="hover:bg-gray-50 cursor-pointer" data-brand="${brand}" data-model="${model}" data-buy="${buy}" data-sell="${sell}" onclick="window.fillOppFromAuto(this)">
               <td class="px-4 py-2 font-medium">${capitalize(o.brand)} ${capitalize(o.model)}</td>
-              <td class="px-4 py-2">${COUNTRY_NAMES[o.buy_country] || o.buy_country}</td>
-              <td class="px-4 py-2">${COUNTRY_NAMES[o.sell_country] || o.sell_country}</td>
+              <td class="px-4 py-2">${COUNTRY_NAMES[buy] || buy}</td>
+              <td class="px-4 py-2">${COUNTRY_NAMES[sell] || sell}</td>
               <td class="px-4 py-2 text-right">${formatCurrency(o.buy_median_price)}</td>
               <td class="px-4 py-2 text-right">${formatCurrency(o.sell_median_price)}</td>
               <td class="px-4 py-2 text-right font-bold text-green-600">${formatCurrency(o.net_margin)} (${o.net_margin_pct || 0}%)</td>
+              <td class="px-4 py-2" onclick="event.stopPropagation()">
+                ${exactLinks ? `<span class="inline-flex flex-wrap items-center gap-x-2">${exactLinks}</span>` : '<span class="text-gray-400 text-sm">Aucun lien direct</span>'}
+                <span class="text-gray-300 mx-2">|</span>
+                <a href="${listingsUrl}" class="text-gray-500 hover:underline text-sm">Nos annonces</a>
+              </td>
             </tr>
-          `).join('')}
+          `}).join('')}
         </tbody>
       </table>
+      <p class="text-xs text-gray-500 mt-2"><strong>Lien direct</strong> (ex. « €24,900 → ») = ouvre l'annonce exacte sur mobile.de / Blocket. « Nos annonces » = nos résultats avec liens.</p>
     `;
     } catch (err) {
       el.innerHTML = `<p class="text-red-600">Erreur: ${err?.message || 'Connexion impossible'}. Vérifiez que vous êtes connecté.</p>`;
@@ -211,12 +260,34 @@ export function renderArbitrage() {
 
   loadAutoDetected();
 
+  // Auto-load listings from URL params (e.g. ?brand=ferrari&model=f430&buy=SE&sell=BE)
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlBrand = urlParams.get('brand');
+  const urlModel = urlParams.get('model');
+  const urlBuy = urlParams.get('buy');
+  const urlSell = urlParams.get('sell');
+  if (urlBrand && urlModel && urlBuy && urlSell) {
+    const listBrand = document.getElementById('list-brand');
+    const listModel = document.getElementById('list-model');
+    const listBuy = document.getElementById('list-buy');
+    const listSell = document.getElementById('list-sell');
+    if (listBrand) listBrand.value = urlBrand;
+    if (listModel) listModel.value = urlModel;
+    if (listBuy) listBuy.value = urlBuy;
+    if (listSell) listSell.value = urlSell;
+    document.getElementById('list-listings-section')?.scrollIntoView?.({ behavior: 'smooth' });
+    setTimeout(() => window.loadListingsArbitrage?.(), 300);
+  }
+
   window.calcImportCosts = async () => {
     const price = document.getElementById('sim-price').value;
     const buy = document.getElementById('sim-buy').value;
     const sell = document.getElementById('sim-sell').value;
+    const reconditioning = document.getElementById('sim-reconditioning')?.value;
     if (!price || !buy || !sell) return;
-    const r = await apiGet('import-costs', { purchasePrice: price, buyCountry: buy, sellCountry: sell });
+    const params = { purchasePrice: price, buyCountry: buy, sellCountry: sell };
+    if (reconditioning != null && reconditioning !== '') params.reconditioningEur = reconditioning;
+    const r = await apiGet('import-costs', params);
     const el = document.getElementById('sim-result');
     el.classList.remove('hidden');
     el.innerHTML = r.success ? `
@@ -224,6 +295,7 @@ export function renderArbitrage() {
         <p><strong>Prix achat:</strong> ${formatCurrency(r.purchasePrice)}</p>
         <p><strong>Transport:</strong> ${formatCurrency(r.breakdown.transport)}</p>
         <p><strong>Immatriculation:</strong> ${formatCurrency(r.breakdown.registration)}</p>
+        <p><strong>Réparations / réconditionnement:</strong> ${formatCurrency(r.breakdown.reconditioning ?? 500)}</p>
         <p><strong>TVA (${r.breakdown.vatRecoverable ? 'récupérable' : 'nette'}):</strong> ${formatCurrency(r.breakdown.vatNetCost)}</p>
         <p class="pt-2 font-bold text-lg">Coût total import: ${formatCurrency(r.totalCost)}</p>
         <p class="font-bold">Coût au pays de vente: ${formatCurrency(r.costToSellCountry)}</p>

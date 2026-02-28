@@ -1,4 +1,5 @@
 import { addToQueue, acquireNext, releaseItem } from '../services/mobileDeQueueService.js';
+import { incrementScraperRunCounters } from '../services/ingestRunsService.js';
 import { logger } from '../utils/logger.js';
 
 export async function queueAdd(req, res, next) {
@@ -34,13 +35,17 @@ export async function queueAcquire(req, res, next) {
 export async function queueRelease(req, res, next) {
   try {
     const { id } = req.params;
-    const { status, retry_count, next_retry_at, last_error } = req.body || {};
+    const { status, retry_count, next_retry_at, last_error, run_id } = req.body || {};
     if (!id || !status) {
       return res.status(400).json({
         error: { code: 'VALIDATION_ERROR', message: 'Need id (path) and status (body)' }
       });
     }
-    await releaseItem(id, status, {
+    const normStatus = String(status).toLowerCase();
+    if (normStatus === 'ok' && run_id) {
+      await incrementScraperRunCounters(run_id);
+    }
+    await releaseItem(id, normStatus || status, {
       retryCount: retry_count,
       nextRetryAt: next_retry_at,
       lastError: last_error

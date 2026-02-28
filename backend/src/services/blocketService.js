@@ -1,14 +1,19 @@
 import { supabase } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import { saveRawListings } from './rawIngestService.js';
+import { processRawListings } from './rawListingsProcessorService.js';
+import { fetchViaScrapeDo, isScrapeDoAvailable, isPageBlocked } from '../utils/scrapeDo.js';
+import * as cheerio from 'cheerio';
 import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 
 puppeteer.use(StealthPlugin());
 
+const SOURCE_PLATFORM = 'blocket';
+
 /**
- * Run Blocket.se scraper and save results to database
- * Blocket.se is Sweden's largest classified ads platform (similar to Leboncoin)
+ * Run Blocket.se scraper (Puppeteer) et envoie vers Ingest API
+ * Flux : scrape → raw_listings → processRawListings → listings
  */
 export async function runBlocketScraper(searchUrls, options = {}, progressCallback = null) {
   let browser = null;
@@ -20,7 +25,9 @@ export async function runBlocketScraper(searchUrls, options = {}, progressCallba
   };
 
   try {
-    logger.info('Starting Blocket.se scraper', { searchUrls, options });
+    const maxPages = options.maxPages || 10;
+
+    logger.info('Starting Blocket.se scraper (Puppeteer)', { searchUrls, options });
 
     browser = await puppeteer.launch({
       headless: true,
@@ -35,59 +42,56 @@ export async function runBlocketScraper(searchUrls, options = {}, progressCallba
       ]
     });
 
-    for (const searchUrl of searchUrls) {
+    const urls = Array.isArray(searchUrls) ? searchUrls : [searchUrls];
+
+    for (const searchUrl of urls) {
       try {
         logger.info('Scraping Blocket.se URL', { url: searchUrl });
 
-        const listings = await scrapeBlocketUrl(browser, searchUrl, options.maxPages || 10);
+        // Scrape page-by-page, saving each batch to DB immediately
+        await scrapeBlocketUrlStreaming(browser, searchUrl, maxPages, async (pageListings, pageNum) => {
+          if (pageListings.length === 0) return;
 
-        logger.info('Blocket.se scraping completed', {
-          url: searchUrl,
-          listingsFound: listings.length
+          const { saved } = await saveRawListings(pageListings, SOURCE_PLATFORM);
+          const processResult = await processRawListings({
+            limit: pageListings.length + 100,
+            sourcePlatform: SOURCE_PLATFORM
+          });
+
+          results.totalScraped += pageListings.length;
+          results.saved += (processResult.created || 0) + (processResult.updated || 0) + (processResult.sourceAdded || 0);
+
+          logger.info('Blocket.se batch saved', {
+            page: pageNum,
+            batchSize: pageListings.length,
+            totalScraped: results.totalScraped,
+            totalSaved: results.saved
+          });
+
+          if (progressCallback) {
+            await progressCallback({
+              totalScraped: results.totalScraped,
+              totalSaved: results.saved,
+              status: 'RUNNING',
+              processedUrls: results.processedUrls
+            });
+          }
         });
 
-        // Stage 1: Store raw scraped data as-is
-        try {
-          await saveRawListings(listings, 'blocket');
-        } catch (rawErr) {
-          logger.warn('Raw listing save failed', { error: rawErr.message });
-        }
-
-        // Stage 2: Map and save to listings
-        for (const listing of listings) {
-          try {
-            const saved = await saveBlocketListing(listing);
-            if (saved) {
-              results.saved++;
-            }
-            results.totalScraped++;
-          } catch (error) {
-            logger.warn('Error saving Blocket listing', { error: error.message, listing });
-            results.errors++;
-          }
-        }
-
         results.processedUrls.push(searchUrl);
-
-        // Progress callback
-        if (progressCallback) {
-          await progressCallback({
-            totalScraped: results.totalScraped,
-            totalSaved: results.saved,
-            status: 'RUNNING',
-            processedUrls: results.processedUrls
-          });
-        }
-
       } catch (error) {
-        logger.error('Error scraping Blocket URL', { url: searchUrl, error: error.message });
+        logger.error('Error scraping Blocket.se URL', { url: searchUrl, error: error.message });
         results.errors++;
       }
     }
 
     logger.info('Blocket.se scraper completed', results);
-    return results;
-
+    return {
+      runId: null,
+      totalScraped: results.totalScraped,
+      saved: results.saved,
+      processedUrls: results.processedUrls
+    };
   } catch (error) {
     logger.error('Error in Blocket.se scraper', { error: error.message, stack: error.stack });
     throw error;
@@ -99,278 +103,247 @@ export async function runBlocketScraper(searchUrls, options = {}, progressCallba
 }
 
 /**
- * Scrape a single Blocket.se search URL
+ * Scrape Blocket.se page-by-page, calling onPageDone(listings, pageNum) after each page
+ * so data is saved to DB incrementally instead of waiting for all pages.
  */
-async function scrapeBlocketUrl(browser, url, maxPages = 10) {
+async function scrapeBlocketUrlStreaming(browser, url, maxPages, onPageDone) {
   const page = await browser.newPage();
-  const listings = [];
 
   try {
     await page.setViewport({ width: 1920, height: 1080 });
-    
-    // Set user agent and headers to avoid detection
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-    
     await page.setExtraHTTPHeaders({
       'Accept-Language': 'sv-SE,sv;q=0.9,en-US;q=0.8,en;q=0.7',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-      'Accept-Encoding': 'gzip, deflate, br',
-      'Connection': 'keep-alive',
-      'Upgrade-Insecure-Requests': '1',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       'Referer': 'https://www.blocket.se/'
     });
-    
-    logger.info('Navigating to Blocket URL', { url });
-    await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
 
-    // Wait a bit for dynamic content to load
-    await page.waitForTimeout(5000);
-    
-    // Debug: Get page title and URL to verify we're on the right page
-    const pageInfo = await page.evaluate(() => ({
-      title: document.title,
-      url: window.location.href,
-      bodyTextLength: document.body?.textContent?.length || 0
-    }));
-    logger.info('Blocket page loaded', pageInfo);
+    let currentPage = 1;
 
-    // Try multiple selectors for different Blocket.se page formats
-    // New format: /mobility/search/car uses different selectors
-    // Old format: /annonser/ uses .styled__AdCardContainer
-    let listingsFound = false;
-    
-    try {
-      // Try new format selectors first
-      await page.waitForSelector('[data-testid="ad-card"], .ad-card, article[class*="AdCard"], [class*="ListingCard"]', { timeout: 10000 });
-      listingsFound = true;
-    } catch (e) {
-      try {
-        // Try old format selectors
-        await page.waitForSelector('.styled__AdCardContainer, [class*="AdCardContainer"]', { timeout: 5000 });
-        listingsFound = true;
-      } catch (e2) {
-        logger.warn('No listings found on Blocket page - trying to extract anyway', { url });
-      }
-    }
+    while (currentPage <= maxPages) {
+      const pageUrl = currentPage === 1
+        ? url
+        : url.includes('?') ? `${url}&page=${currentPage}` : `${url}?page=${currentPage}`;
 
-    // Extract listings from current page
-    const pageListings = await page.evaluate(() => {
-      const items = [];
-      
-      // Debug: Log page structure
-      const debugInfo = {
-        bodyText: document.body?.textContent?.substring(0, 500),
-        allLinks: document.querySelectorAll('a').length,
-        allDivs: document.querySelectorAll('div').length,
-        allArticles: document.querySelectorAll('article').length,
-        pageTitle: document.title,
-        url: window.location.href,
-        hasBlocketContent: document.body?.textContent?.includes('blocket') || document.body?.textContent?.includes('annons'),
-        hasNoResults: document.body?.textContent?.includes('Inga resultat') || document.body?.textContent?.includes('inga annonser')
-      };
-      console.log('Blocket page structure:', debugInfo);
-      
-      // Try multiple selector strategies for different Blocket formats
-      const selectors = [
-        '[data-testid="ad-card"]',
-        '.ad-card',
-        'article[class*="AdCard"]',
-        '[class*="ListingCard"]',
-        '.styled__AdCardContainer',
-        '[class*="AdCardContainer"]',
-        'a[href*="/annonser/"]',
-        'a[href*="/mobility/"]',
-        'a[href*="/annonser/hela_sverige/fordon/bilar"]',
-        '[class*="SearchResult"]',
-        '[class*="AdItem"]',
-        'div[class*="ad"]',
-        'div[class*="listing"]'
-      ];
-      
-      let cards = [];
-      let usedSelector = null;
-      for (const selector of selectors) {
-        cards = document.querySelectorAll(selector);
-        if (cards.length > 0) {
-          console.log(`Found ${cards.length} cards with selector: ${selector}`);
-          usedSelector = selector;
-          break;
-        }
-      }
-      
-      // If no cards found, try to find ANY links that might be listings
-      if (cards.length === 0) {
-        const allLinks = document.querySelectorAll('a[href*="/annonser/"], a[href*="/mobility/"]');
-        console.log(`Found ${allLinks.length} potential listing links`);
-        if (allLinks.length > 0) {
-          // Return debug info
-          return { debug: debugInfo, listings: [], usedSelector: null, allLinksCount: allLinks.length };
-        }
-      }
-      
-      // If still no cards, return debug info
-      if (cards.length === 0) {
-        return { debug: debugInfo, listings: [], usedSelector: null };
-      }
-
-      cards.forEach((card, index) => {
+      let gotoOk = false;
+      for (let attempt = 1; attempt <= 3; attempt++) {
         try {
-          // Find link - try multiple strategies
-          let link = card.querySelector('a[href*="/annonser/"]') || 
-                     card.querySelector('a[href*="/mobility/"]') ||
-                     card.querySelector('a[href]') ||
-                     (card.tagName === 'A' ? card : null);
-          
-          // If card itself is a link
-          if (!link && card.href) {
-            link = card;
-          }
-          
-          // Find title - try multiple strategies
-          const title = card.querySelector('h2, h3, [data-testid="ad-title"], .ad-title, [class*="Title"], [class*="title"]')?.textContent?.trim() ||
-                       card.querySelector('a')?.textContent?.trim() ||
-                       card.getAttribute('aria-label')?.trim();
-          
-          // Find price - try multiple strategies
-          const priceText = card.querySelector('[data-testid="ad-price"], .ad-price, [class*="Price"], [class*="price"], .price')?.textContent?.trim() ||
-                           card.textContent.match(/[\d\s]+kr/i)?.[0];
-          
-          // Find location
-          const location = card.querySelector('[data-testid="ad-location"], .ad-location, [class*="Location"], [class*="location"]')?.textContent?.trim();
-          
-          // Find image
-          const image = card.querySelector('img')?.src || card.querySelector('img')?.getAttribute('data-src');
-
-          if (link && title) {
-            const href = link.href || link.getAttribute('href');
-            if (href) {
-              items.push({
-                url: href.startsWith('http') ? href : `https://www.blocket.se${href}`,
-                title,
-                priceText,
-                location,
-                image
-              });
-            }
-          }
-        } catch (err) {
-          console.error('Error extracting listing', err);
+          await page.goto(pageUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
+          gotoOk = true;
+          break;
+        } catch (e) {
+          logger.warn('Blocket page.goto retry', { page: currentPage, attempt, error: e.message });
+          if (attempt < 3) await new Promise((r) => setTimeout(r, 2000 * attempt));
+          else { logger.warn('Blocket page.goto failed after 3 attempts, skipping page', { page: currentPage }); }
         }
-      });
+      }
+      if (!gotoOk) { currentPage++; continue; }
+      await new Promise(r => setTimeout(r, 3000));
 
-      return { debug: null, listings: items, usedSelector };
-    });
+      if (await isPageBlocked(page)) {
+        logger.warn('Blocket search page blocked, falling back to scrape.do', { page: currentPage });
+        const scrapedListings = await scrapeBlocketSearchViaScraper(pageUrl);
+        if (scrapedListings.length === 0) break;
+        const enriched = [];
+        for (const item of scrapedListings) {
+          try {
+            const details = await fetchBlocketDetailViaScraper(item.url);
+            enriched.push(details ? { ...item, ...details } : item);
+          } catch { enriched.push(item); }
+        }
+        await onPageDone(enriched, currentPage);
+        currentPage++;
+        continue;
+      }
 
-    // Handle debug response
-    if (pageListings.debug) {
-      logger.warn('Blocket page debug info', {
-        url,
-        debug: pageListings.debug,
-        usedSelector: pageListings.usedSelector,
-        allLinksCount: pageListings.allLinksCount,
-        listingsFound: pageListings.listings?.length || 0
-      });
-      
-      // If we have debug info but no listings, try a different approach
-      if (pageListings.listings.length === 0) {
-        logger.warn('No listings found with selectors, trying alternative approach', { url });
-        // Try to extract from all links on the page
-        const alternativeListings = await page.evaluate(() => {
-          const items = [];
-          const links = document.querySelectorAll('a[href*="/annonser/"], a[href*="/mobility/"]');
-          links.forEach(link => {
-            const href = link.href || link.getAttribute('href');
-            const title = link.textContent?.trim() || link.getAttribute('aria-label') || '';
-            if (href && title && title.length > 5) {
-              items.push({
-                url: href.startsWith('http') ? href : `https://www.blocket.se${href}`,
-                title,
-                priceText: null,
-                location: null,
-                image: null
-              });
-            }
+      if (currentPage === 1) {
+        try {
+          const cookieBtn = await page.$('button[data-testid="accept-cookies"], button[id*="accept"], button[class*="consent"]');
+          if (cookieBtn) {
+            await cookieBtn.click();
+            await new Promise(r => setTimeout(r, 1000));
+          }
+        } catch { /* cookie dialog may not appear */ }
+      }
+
+      const pageListings = await page.evaluate(() => {
+        const items = [];
+        const links = document.querySelectorAll('a.sf-search-ad-link[href*="/mobility/item/"]');
+        const seen = new Set();
+
+        links.forEach((a) => {
+          const href = a.href || a.getAttribute('href');
+          if (!href || seen.has(href)) return;
+
+          const idMatch = href.match(/\/item\/(\d+)/);
+          const sourceListingId = idMatch ? idMatch[1] : null;
+          if (!sourceListingId) return;
+          seen.add(href);
+
+          const card = a.closest('.mobility-search-ad-card-content') || a.closest('div') || a;
+          const text = card.textContent || '';
+          const title = card.querySelector('h2')?.textContent?.trim() || a.textContent?.trim() || '';
+          const priceMatch = text.match(/([\d\s]+)\s*kr/);
+          const yearMatch = text.match(/\b(19|20)\d{2}\b/);
+          const milMatch = text.match(/([\d\s\u00a0]+)\s*mil\b/);
+          const makeModel = title.split(/\s+/);
+
+          items.push({
+            url: href.startsWith('http') ? href : `https://www.blocket.se${href}`,
+            id: sourceListingId,
+            brand: makeModel[0] || null,
+            model: makeModel.slice(1).join(' ') || null,
+            title,
+            price: priceMatch ? parseInt(priceMatch[1].replace(/[\s\u00a0]/g, ''), 10) : null,
+            mileageMil: milMatch ? parseInt(milMatch[1].replace(/[\s\u00a0]/g, ''), 10) : null,
+            year: yearMatch ? parseInt(yearMatch[0], 10) : null
           });
-          return items;
         });
-        
-        if (alternativeListings.length > 0) {
-          logger.info('Found listings using alternative approach', { count: alternativeListings.length });
-          pageListings.listings = alternativeListings;
+
+        return items;
+      });
+
+      const valid = pageListings.filter((i) => i.url && i.id);
+
+      // Fetch detail page for each listing
+      const enriched = [];
+      for (const item of valid) {
+        try {
+          const details = await fetchBlocketListingDetails(browser, item.url);
+          enriched.push(details ? { ...item, ...details } : item);
+        } catch (error) {
+          logger.warn('Error fetching Blocket listing details', { url: item.url, error: error.message });
+          enriched.push(item);
         }
       }
+
+      logger.info('Blocket.se page scraped', { page: currentPage, found: valid.length });
+
+      // Save this page's listings to DB immediately
+      await onPageDone(enriched, currentPage);
+
+      if (valid.length === 0) break;
+      currentPage++;
     }
-
-    const listings = pageListings.listings || pageListings;
-    
-    logger.info('Extracted listings from Blocket page', { 
-      url, 
-      listingsCount: listings.length,
-      usedSelector: pageListings.usedSelector,
-      sampleListings: listings.slice(0, 3).map(l => ({ title: l.title, url: l.url }))
-    });
-
-    // Fetch details for each listing
-    for (const item of listings) {
-      try {
-        const details = await fetchBlocketListingDetails(browser, item.url);
-        if (details) {
-          listings.push({
-            ...item,
-            ...details
-          });
-        }
-      } catch (error) {
-        logger.warn('Error fetching Blocket listing details', { url: item.url, error: error.message });
-        // Still add basic listing
-        listings.push(item);
-      }
-    }
-
-  } catch (error) {
-    logger.error('Error scraping Blocket URL', { url, error: error.message });
   } finally {
     await page.close();
   }
-
-  return listings;
 }
 
 /**
- * Fetch detailed information from a Blocket listing page
+ * Fetch detailed information from a Blocket listing page.
+ * Tries Puppeteer first, falls back to scrape.do if blocked.
  */
 async function fetchBlocketListingDetails(browser, listingUrl) {
+  // Try Puppeteer first
   const page = await browser.newPage();
 
   try {
     await page.goto(listingUrl, { waitUntil: 'networkidle2', timeout: 30000 });
 
+    if (await isPageBlocked(page)) {
+      await page.close();
+      return fetchBlocketDetailViaScraper(listingUrl);
+    }
+
     const details = await page.evaluate(() => {
       const data = {};
 
-      // Extract specifications
+      // 1. JSON-LD: images, seller type, price (as backup)
+      const jsonLdScripts = document.querySelectorAll('script[type="application/ld+json"]');
+      for (const s of jsonLdScripts) {
+        try {
+          const json = JSON.parse(s.textContent);
+          if (json['@type'] === 'Product') {
+            if (Array.isArray(json.image)) {
+              data.images = json.image.map(img =>
+                typeof img === 'string' ? img : img.contentUrl || img.url || ''
+              ).filter(Boolean);
+            }
+            const sellerType = json.offers?.seller?.['@type'];
+            data.sellerType = sellerType === 'Organization' ? 'professional' : 'private';
+            break;
+          }
+        } catch { /* ignore parse errors */ }
+      }
+
+      // Fallback: og:image if JSON-LD had no images
+      if (!data.images || data.images.length === 0) {
+        const ogImg = document.querySelector('meta[property="og:image"]');
+        if (ogImg?.content) data.images = [ogImg.content];
+      }
+
+      // 2. Specifications from <dl> inside section.key-info-section
       const specs = {};
-      const specElements = document.querySelectorAll('[data-testid="ad-spec"], .ad-spec, .spec-item');
-      specElements.forEach(el => {
-        const label = el.querySelector('.label, .spec-label')?.textContent?.trim();
-        const value = el.querySelector('.value, .spec-value')?.textContent?.trim();
-        if (label && value) {
-          specs[label.toLowerCase()] = value;
+      const dl = document.querySelector('section.key-info-section dl, dl.emptycheck');
+      if (dl) {
+        const dts = dl.querySelectorAll('dt');
+        dts.forEach(dt => {
+          const dd = dt.nextElementSibling;
+          if (dd && dd.tagName === 'DD') {
+            const label = dt.textContent.replace(/[^\w\sÅÄÖåäö()-]/g, '').trim();
+            const value = dd.textContent.trim();
+            if (label && value) {
+              specs[label.toLowerCase()] = value;
+            }
+          }
+        });
+      }
+
+      // 3. Description: text after <h2>Beskrivning</h2>
+      const headings = document.querySelectorAll('h2');
+      for (const h of headings) {
+        if (h.textContent.trim() === 'Beskrivning') {
+          let sibling = h.nextElementSibling;
+          while (sibling) {
+            if (sibling.tagName === 'H2' || sibling.tagName === 'SECTION') break;
+            const text = sibling.textContent?.trim();
+            if (text && text.length > 10) {
+              data.description = text;
+              break;
+            }
+            sibling = sibling.nextElementSibling;
+          }
+          break;
         }
-      });
+      }
 
-      // Extract description
-      data.description = document.querySelector('[data-testid="ad-description"], .ad-description, .description')?.textContent?.trim();
+      // 4. Location: text after <h2>Plats</h2>
+      for (const h of headings) {
+        if (h.textContent.trim() === 'Plats') {
+          let sibling = h.nextElementSibling;
+          while (sibling) {
+            if (sibling.tagName === 'H2' || sibling.tagName === 'SECTION') break;
+            const text = sibling.textContent?.trim();
+            if (text && text.length > 2 && !text.includes('cookie')) {
+              data.location = text;
+              break;
+            }
+            sibling = sibling.nextElementSibling;
+          }
+          break;
+        }
+      }
 
-      // Extract images
-      const images = [];
-      document.querySelectorAll('[data-testid="ad-image"], .ad-image img, .gallery img').forEach(img => {
-        if (img.src) images.push(img.src);
-      });
-      data.images = images;
-
-      // Extract seller info
-      data.sellerType = document.querySelector('[data-testid="dealer-badge"]') ? 'dealer' : 'private';
+      // 5. Equipment: list after <h2>Utrustning</h2>
+      for (const h of headings) {
+        if (h.textContent.trim() === 'Utrustning') {
+          let sibling = h.nextElementSibling;
+          const equipment = [];
+          while (sibling) {
+            if (sibling.tagName === 'H2' || sibling.tagName === 'SECTION') break;
+            const items = sibling.querySelectorAll('li, span, div');
+            items.forEach(el => {
+              const t = el.textContent?.trim();
+              if (t && t.length > 1 && t.length < 100) equipment.push(t);
+            });
+            if (equipment.length > 0) break;
+            sibling = sibling.nextElementSibling;
+          }
+          if (equipment.length > 0) specs['utrustning'] = equipment.join(', ');
+          break;
+        }
+      }
 
       return { ...data, specifications: specs };
     });
@@ -378,140 +351,398 @@ async function fetchBlocketListingDetails(browser, listingUrl) {
     return details;
 
   } catch (error) {
-    logger.warn('Error fetching Blocket listing details', { url: listingUrl, error: error.message });
-    return null;
-  } finally {
+    logger.warn('Puppeteer failed for Blocket detail, trying scrape.do', { url: listingUrl, error: error.message });
     await page.close();
+    return fetchBlocketDetailViaScraper(listingUrl);
+  }
+}
+
+async function scrapeBlocketSearchViaScraper(pageUrl) {
+  if (!isScrapeDoAvailable()) return [];
+  try {
+    const html = await fetchViaScrapeDo(pageUrl, { render: true, customWait: 4000, geoCode: 'se' });
+    const $ = cheerio.load(html);
+    const listings = [];
+    const seen = new Set();
+
+    $('a.sf-search-ad-link[href*="/mobility/item/"]').each((_, a) => {
+      const href = $(a).attr('href');
+      const idMatch = href?.match(/\/item\/(\d+)/);
+      if (!idMatch || seen.has(idMatch[1])) return;
+      seen.add(idMatch[1]);
+
+      const card = $(a).closest('.mobility-search-ad-card-content') || $(a).closest('div');
+      const text = card.text() || $(a).text();
+      const title = card.find('h2').first().text().trim() || $(a).text().trim();
+      const priceMatch = text.match(/([\d\s]+)\s*kr/);
+      const yearMatch = text.match(/\b(19|20)\d{2}\b/);
+      const milMatch = text.match(/([\d\s\u00a0]+)\s*mil\b/);
+      const parts = title.split(/\s+/);
+
+      listings.push({
+        url: href.startsWith('http') ? href : `https://www.blocket.se${href}`,
+        id: idMatch[1],
+        brand: parts[0] || null,
+        model: parts.slice(1).join(' ') || null,
+        title,
+        price: priceMatch ? parseInt(priceMatch[1].replace(/[\s\u00a0]/g, ''), 10) : null,
+        mileageMil: milMatch ? parseInt(milMatch[1].replace(/[\s\u00a0]/g, ''), 10) : null,
+        year: yearMatch ? parseInt(yearMatch[0], 10) : null,
+      });
+    });
+    return listings;
+  } catch (err) {
+    logger.warn('scrape.do search fallback failed for Blocket', { error: err.message });
+    return [];
+  }
+}
+
+async function fetchBlocketDetailViaScraper(listingUrl) {
+  if (!isScrapeDoAvailable()) return null;
+
+  try {
+    const html = await fetchViaScrapeDo(listingUrl, { geoCode: 'se' });
+    const $ = cheerio.load(html);
+    const data = {};
+
+    $('script[type="application/ld+json"]').each((_, el) => {
+      try {
+        const json = JSON.parse($(el).html());
+        if (json['@type'] === 'Product') {
+          if (Array.isArray(json.image)) {
+            data.images = json.image.map(img => typeof img === 'string' ? img : img.contentUrl || img.url || '').filter(Boolean);
+          }
+          data.sellerType = json.offers?.seller?.['@type'] === 'Organization' ? 'professional' : 'private';
+        }
+      } catch { /* ignore */ }
+    });
+
+    if (!data.images?.length) {
+      const ogImg = $('meta[property="og:image"]').attr('content');
+      if (ogImg) data.images = [ogImg];
+    }
+
+    const specs = {};
+    const dl = $('section.key-info-section dl, dl.emptycheck');
+    if (dl.length) {
+      dl.find('dt').each((_, dt) => {
+        const dd = $(dt).next('dd');
+        const label = $(dt).text().replace(/[^\w\sÅÄÖåäö()-]/g, '').trim().toLowerCase();
+        const value = dd.text().trim();
+        if (label && value) specs[label] = value;
+      });
+    }
+
+    const headings = $('h2');
+    headings.each((_, h) => {
+      const text = $(h).text().trim();
+      if (text === 'Beskrivning') {
+        const next = $(h).next();
+        const t = next?.text()?.trim();
+        if (t && t.length > 10) data.description = t;
+      }
+      if (text === 'Plats') {
+        const next = $(h).next();
+        const t = next?.text()?.trim();
+        if (t && t.length > 2) data.location = t;
+      }
+      if (text === 'Utrustning') {
+        const equipment = [];
+        $(h).next().find('li, span, div').each((_, el) => {
+          const t = $(el).text().trim();
+          if (t.length > 1 && t.length < 100) equipment.push(t);
+        });
+        if (equipment.length) specs['utrustning'] = equipment.join(', ');
+      }
+    });
+
+    return { ...data, specifications: specs };
+  } catch (err) {
+    logger.warn('scrape.do fallback also failed for Blocket detail', { url: listingUrl, error: err.message });
+    return null;
   }
 }
 
 /**
- * Map Blocket data to listings format and save to database
- * Exported for rawListingsProcessorService
+ * Map Blocket scraper data to our database schema
+ * (Utilisé par rawListingsProcessorService et pour l'ingest)
  */
 export function mapBlocketDataToListing(item) {
-  // Extract brand and model from title
+  const urlMatch =
+    item.url?.match(/\/item\/(\d+)/) ||
+    item.url?.match(/\/ad\/([a-z0-9-]+)/i) ||
+    item.url?.match(/\/annonser\/[^/]+\/(\d+)/) ||
+    item.url?.match(/\/(\d+)(?:\?|$)/);
+  const sourceListingId = urlMatch
+    ? urlMatch[1]
+    : item.id
+      ? String(item.id)
+      : item.url;
+
+  const specs = item.specifications || {};
+
+  // Price
+  let priceValue = 0;
+  if (item.price && typeof item.price === 'object') {
+    priceValue = item.price.value || item.price.amount || item.price.price || 0;
+  } else if (typeof item.price === 'string') {
+    priceValue = parseFloat(item.price.replace(/[^\d.]/g, '')) || 0;
+  } else {
+    priceValue = item.price || 0;
+  }
+  const price = parseFloat(priceValue) || 0;
+
+  // Mileage: detail page "miltal" is "26 600 mil" — extract number, convert mil→km (*10)
+  let mileageRaw = item.mileageMil || specs['miltal'] || 0;
+  if (typeof mileageRaw === 'string') {
+    mileageRaw = parseInt(mileageRaw.replace(/[^\d]/g, ''), 10);
+  }
+  const mileage = (parseInt(mileageRaw) || 0) * 10;
+
+  // Year: detail page key is "modellår"
+  let yearValue = item.year || specs['modellår'] || specs['år'];
+  if (typeof yearValue === 'string') {
+    const m = yearValue.match(/\b(19|20)\d{2}\b/);
+    yearValue = m ? parseInt(m[0], 10) : parseInt(yearValue, 10);
+  }
+  let year = parseInt(yearValue) || null;
+  const currentYear = new Date().getFullYear();
+  if (year && (year < 1900 || year > currentYear + 1)) year = null;
+
+  // Brand & model: prefer detail page specs, fallback to title
+  const specBrand = specs['märke'] || null;
+  const specModel = specs['modell'] || null;
   const titleParts = (item.title || '').split(' ');
-  const brand = titleParts[0] || null;
-  const model = titleParts.slice(1, 3).join(' ') || null;
+  const brand = specBrand || item.brand || titleParts[0] || null;
+  const model = specModel || item.model || titleParts.slice(1, 3).join(' ') || null;
 
-  // Extract year from title or specs
-  const yearMatch = (item.title || '').match(/\b(19|20)\d{2}\b/);
-  const year = yearMatch ? parseInt(yearMatch[0]) : null;
+  // Fuel type: detail page key is "drivmedel"
+  const fuelTypeRaw = (specs['drivmedel'] || specs['bränsle'] || '').toLowerCase();
+  const fuelType = normalizeFuelType(fuelTypeRaw);
 
-  // Extract price (remove spaces and "kr" or "SEK")
-  const priceText = (item.priceText || '').replace(/\s/g, '').replace(/[^\d]/g, '');
-  const price = priceText ? parseFloat(priceText) : null;
+  // Transmission: detail page key is "växellåda"
+  const transmissionRaw = (specs['växellåda'] || '').toLowerCase();
+  const transmission = normalizeTransmission(transmissionRaw);
 
-  // Extract mileage from specifications
-  const mileageText = item.specifications?.['miltal'] || item.specifications?.['mileage'] || '';
-  const mileage = mileageText ? parseInt(mileageText.replace(/\s/g, '').replace(/[^\d]/g, '')) : null;
+  // Power: detail page key is "effekt" — value like "265 Hk"
+  const powerRaw = specs['effekt'] || null;
+  const powerHp = powerRaw ? parseInt(String(powerRaw).replace(/[^\d]/g, ''), 10) || null : null;
 
-  // Extract fuel type
-  const fuelType = item.specifications?.['bränsle'] || item.specifications?.['fuel'] || null;
+  // Location: detail page "Plats" gives "Mejerigatan 2, 41276 Göteborg"
+  // Also available in specs as "bilens plats"
+  const locationStr = item.location || specs['bilens plats'] || '';
+  const { city: locationCity, region: locationRegion } = parseSwedishAddress(locationStr);
 
-  // Extract transmission
-  const transmission = item.specifications?.['växellåda'] || item.specifications?.['transmission'] || null;
+  // Seller type
+  const sellerType = item.sellerType === 'professional' || item.sellerType === 'dealer'
+    ? 'professional'
+    : 'private';
+
+  // Drivetrain: detail page key is "drivhjul"
+  const drivetrainRaw = specs['drivhjul'] || null;
+
+  // Category & doors: "biltyp" can be "Halvkombi 5-dörrar" — split body type from door count
+  const rawCategory = specs['biltyp'] || '';
+  const doorMatch = rawCategory.match(/(\d+)-?dörr/i);
+  const doorsFromCategory = doorMatch ? parseInt(doorMatch[1], 10) : null;
+  const doorsFromSpecs = parseInt(specs['antal dörrar'] || specs['dörrar'], 10) || null;
+  const categoryClean = rawCategory.replace(/\s*\d+-?dörr\w*/i, '').trim() || null;
+  const normalizedCat = normalizeCategory(categoryClean);
+  const doors = doorsFromSpecs || doorsFromCategory || inferDoorsFromCategory(normalizedCat);
+
+  // Version/trim: extract from utrustning first item or known patterns
+  const { version, trim } = extractVersionTrim(specs, model);
 
   return {
-    source_platform: 'blocket',
-    source_listing_id: extractListingIdFromUrl(item.url),
+    source_platform: SOURCE_PLATFORM,
+    source_listing_id: String(sourceListingId),
     brand: normalizeBrand(brand),
     model: normalizeModel(model),
     year,
     mileage,
     price,
     currency: 'SEK',
-    location_city: extractCity(item.location),
-    location_region: extractRegion(item.location),
+    location_city: locationCity,
+    location_region: locationRegion,
     location_country: 'SE',
-    seller_type: item.sellerType || 'private',
-    fuel_type: normalizeFuelType(fuelType),
-    transmission: normalizeTransmission(transmission),
-    url: item.url,
+    seller_type: sellerType,
+    url: item.url || null,
     images: (item.images && item.images.length > 0) ? item.images : (item.image ? [item.image] : []),
-    specifications: item.specifications || {},
-    description: item.description,
-    posted_date: new Date().toISOString()
+    specifications: specs,
+    description: item.description || null,
+    posted_date: new Date(),
+    fuel_type: fuelType,
+    transmission,
+    steering: 'LHD',
+    color: specs['färg'] || null,
+    doors,
+    power_hp: powerHp,
+    displacement: (() => {
+      const v = specs['motorvolym'] || specs['cylindervolym'];
+      if (v == null) return null;
+      const n = parseFloat(String(v).replace(',', '.').replace(/[^\d.]/g, ''));
+      if (Number.isNaN(n)) return null;
+      return n > 100 ? n / 1000 : n;
+    })(),
+    version,
+    trim,
+    category: normalizedCat,
+    drivetrain: normalizeDrivetrain(drivetrainRaw)
   };
 }
 
-/**
- * Save Blocket listing to database
- */
-async function saveBlocketListing(item) {
-  try {
-    const listing = mapBlocketDataToListing(item);
+// Helper functions (same pattern as Bytbil)
 
-    if (!listing.brand || !listing.model || !listing.price) {
-      logger.debug('Skipping Blocket listing - missing required fields', { listing });
-      return false;
-    }
+const SWEDISH_CITY_TO_REGION = {
+  'stockholm': 'Stockholms län', 'solna': 'Stockholms län', 'sundbyberg': 'Stockholms län',
+  'sollentuna': 'Stockholms län', 'järfälla': 'Stockholms län', 'täby': 'Stockholms län',
+  'danderyd': 'Stockholms län', 'nacka': 'Stockholms län', 'lidingö': 'Stockholms län',
+  'huddinge': 'Stockholms län', 'botkyrka': 'Stockholms län', 'haninge': 'Stockholms län',
+  'tyresö': 'Stockholms län', 'värmdö': 'Stockholms län', 'gustavsberg': 'Stockholms län',
+  'vällingby': 'Stockholms län', 'bandhagen': 'Stockholms län', 'kista': 'Stockholms län',
+  'saltsjö-boo': 'Stockholms län', 'segeltorp': 'Stockholms län', 'kungens kurva': 'Stockholms län',
+  'bromma': 'Stockholms län', 'hägersten': 'Stockholms län', 'enskede': 'Stockholms län',
+  'farsta': 'Stockholms län', 'skärholmen': 'Stockholms län', 'älvsjö': 'Stockholms län',
+  'spånga': 'Stockholms län', 'hässelby': 'Stockholms län', 'åkersberga': 'Stockholms län',
+  'märsta': 'Stockholms län', 'sigtuna': 'Stockholms län', 'upplands väsby': 'Stockholms län',
+  'norrtälje': 'Stockholms län', 'södertälje': 'Stockholms län', 'nynäshamn': 'Stockholms län',
+  'vallentuna': 'Stockholms län', 'arlandastad': 'Stockholms län', 'rosersberg': 'Stockholms län',
+  'kungsängen': 'Stockholms län', 'brandbergen': 'Stockholms län', 'handen': 'Stockholms län',
+  'norsborg': 'Stockholms län', 'tullinge': 'Stockholms län', 'tumba': 'Stockholms län',
+  'skogås': 'Stockholms län', 'rydboholm': 'Stockholms län', 'österhaninge': 'Stockholms län',
+  'österskär': 'Stockholms län', 'angered': 'Västra Götalands län',
 
-    // Check if listing already exists
-    const { data: existing } = await supabase
-      .from('listings')
-      .select('id')
-      .eq('source_platform', 'blocket')
-      .eq('source_listing_id', listing.source_listing_id)
-      .single();
+  'göteborg': 'Västra Götalands län', 'mölndal': 'Västra Götalands län',
+  'borås': 'Västra Götalands län', 'trollhättan': 'Västra Götalands län',
+  'uddevalla': 'Västra Götalands län', 'skövde': 'Västra Götalands län',
+  'lidköping': 'Västra Götalands län', 'alingsås': 'Västra Götalands län',
+  'kungsbacka': 'Hallands län', 'kungälv': 'Västra Götalands län',
+  'lerum': 'Västra Götalands län', 'partille': 'Västra Götalands län',
+  'kinna': 'Västra Götalands län', 'svenljunga': 'Västra Götalands län',
+  'askim': 'Västra Götalands län', 'hisings backa': 'Västra Götalands län',
+  'stora höga': 'Västra Götalands län', 'vänersborg': 'Västra Götalands län',
+  'mariestad': 'Västra Götalands län', 'falköping': 'Västra Götalands län',
+  'stenungsund': 'Västra Götalands län', 'strömstad': 'Västra Götalands län',
+  'hisings kärra': 'Västra Götalands län', 'herrljunga': 'Västra Götalands län',
+  'mölnlycke': 'Västra Götalands län', 'sävedalen': 'Västra Götalands län',
+  'västra frölunda': 'Västra Götalands län', 'ytterby': 'Västra Götalands län',
+  'öckerö': 'Västra Götalands län', 'skene': 'Västra Götalands län',
+  'rångedala': 'Västra Götalands län', 'ulricehamn': 'Västra Götalands län',
+  'tranemo': 'Västra Götalands län', 'tidaholm': 'Västra Götalands län',
+  'stenstorp': 'Västra Götalands län', 'vara': 'Västra Götalands län',
+  'vargön': 'Västra Götalands län', 'kungshamn': 'Västra Götalands län',
+  'skee': 'Västra Götalands län', 'karlsborg': 'Västra Götalands län',
+  'målsryd': 'Västra Götalands län', 'torup': 'Västra Götalands län',
+  'åmål': 'Västra Götalands län',
 
-    if (existing) {
-      // Update existing listing
-      const { error } = await supabase
-        .from('listings')
-        .update({
-          ...listing,
-          last_seen: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', existing.id);
+  'malmö': 'Skåne län', 'helsingborg': 'Skåne län', 'lund': 'Skåne län',
+  'kristianstad': 'Skåne län', 'landskrona': 'Skåne län', 'trelleborg': 'Skåne län',
+  'ängelholm': 'Skåne län', 'eslöv': 'Skåne län', 'hässleholm': 'Skåne län',
+  'ystad': 'Skåne län', 'tomelilla': 'Skåne län', 'simrishamn': 'Skåne län',
+  'gärsnäs': 'Skåne län', 'viken': 'Skåne län', 'ödåkra': 'Skåne län',
+  'staffanstorp': 'Skåne län', 'lomma': 'Skåne län', 'höganäs': 'Skåne län',
+  'klippan': 'Skåne län', 'svalöv': 'Skåne län', 'sjöbo': 'Skåne län',
+  'arlöv': 'Skåne län', 'bromölla': 'Skåne län', 'genarp': 'Skåne län',
+  'hasslarp': 'Skåne län', 'hörby': 'Skåne län', 'mörarp': 'Skåne län',
+  'nävlinge': 'Skåne län', 'osby': 'Skåne län', 'svedala': 'Skåne län',
+  'vellinge': 'Skåne län',
 
-      if (error) {
-        logger.error('Error updating Blocket listing', { error: error.message });
-        return false;
-      }
+  'uppsala': 'Uppsala län', 'bålsta': 'Uppsala län', 'knivsta': 'Uppsala län',
+  'enköping': 'Uppsala län', 'tierp': 'Uppsala län',
+  'alunda': 'Uppsala län', 'järlåsa': 'Uppsala län', 'östhammar': 'Uppsala län',
 
-      return true;
-    } else {
-      // Insert new listing
-      const { error } = await supabase
-        .from('listings')
-        .insert({
-          ...listing,
-          status: 'active',
-          first_seen: new Date().toISOString(),
-          last_seen: new Date().toISOString()
-        });
+  'västerås': 'Västmanlands län', 'sala': 'Västmanlands län', 'köping': 'Västmanlands län',
+  'arboga': 'Västmanlands län', 'hallstahammar': 'Västmanlands län',
+  'surahammar': 'Västmanlands län', 'kungsör': 'Västmanlands län',
 
-      if (error) {
-        logger.error('Error inserting Blocket listing', { error: error.message });
-        return false;
-      }
+  'örebro': 'Örebro län', 'hallsberg': 'Örebro län', 'kumla': 'Örebro län',
+  'lindesberg': 'Örebro län', 'karlskoga': 'Örebro län',
 
-      return true;
-    }
-  } catch (error) {
-    logger.error('Error saving Blocket listing', { error: error.message });
-    return false;
+  'linköping': 'Östergötlands län', 'norrköping': 'Östergötlands län',
+  'motala': 'Östergötlands län', 'mjölby': 'Östergötlands län',
+  'mantorp': 'Östergötlands län', 'skänninge': 'Östergötlands län',
+  'åtvidaberg': 'Östergötlands län',
+
+  'jönköping': 'Jönköpings län', 'huskvarna': 'Jönköpings län',
+  'nässjö': 'Jönköpings län', 'vetlanda': 'Jönköpings län',
+  'skillingaryd': 'Jönköpings län', 'tranås': 'Jönköpings län',
+  'gislaved': 'Jönköpings län', 'värnamo': 'Jönköpings län',
+  'eksjö': 'Jönköpings län', 'hillerstorp': 'Jönköpings län',
+  'sävsjö': 'Jönköpings län', 'taberg': 'Jönköpings län',
+
+  'växjö': 'Kronobergs län', 'ljungby': 'Kronobergs län', 'alvesta': 'Kronobergs län',
+  'älmhult': 'Kronobergs län',
+
+  'kalmar': 'Kalmar län', 'nybro': 'Kalmar län', 'oskarshamn': 'Kalmar län',
+  'västervik': 'Kalmar län', 'vimmerby': 'Kalmar län',
+  'borgholm': 'Kalmar län',
+
+  'karlskrona': 'Blekinge län', 'karlshamn': 'Blekinge län',
+  'ronneby': 'Blekinge län', 'olofström': 'Blekinge län', 'sölvesborg': 'Blekinge län',
+  'mörrum': 'Blekinge län',
+
+  'halmstad': 'Hallands län', 'varberg': 'Hallands län',
+  'falkenberg': 'Hallands län', 'laholm': 'Hallands län',
+
+  'karlstad': 'Värmlands län', 'kristinehamn': 'Värmlands län',
+  'arvika': 'Värmlands län', 'hagfors': 'Värmlands län', 'sunne': 'Värmlands län',
+  'edsvalla': 'Värmlands län', 'skattkärr': 'Värmlands län',
+
+  'falun': 'Dalarnas län', 'borlänge': 'Dalarnas län', 'mora': 'Dalarnas län',
+  'ludvika': 'Dalarnas län', 'avesta': 'Dalarnas län', 'leksand': 'Dalarnas län',
+  'rättvik': 'Dalarnas län', 'smedjebacken': 'Dalarnas län', 'säter': 'Dalarnas län',
+  'vansbro': 'Dalarnas län', 'krylbo': 'Dalarnas län',
+
+  'gävle': 'Gävleborgs län', 'sandviken': 'Gävleborgs län',
+  'hudiksvall': 'Gävleborgs län', 'bollnäs': 'Gävleborgs län', 'söderhamn': 'Gävleborgs län',
+  'hofors': 'Gävleborgs län', 'valbo': 'Gävleborgs län',
+
+  'sundsvall': 'Västernorrlands län', 'härnösand': 'Västernorrlands län',
+  'timrå': 'Västernorrlands län', 'örnsköldsvik': 'Västernorrlands län',
+  'kramfors': 'Västernorrlands län', 'sollefteå': 'Västernorrlands län',
+  'ånge': 'Västernorrlands län', 'sundsbruk': 'Västernorrlands län',
+
+  'östersund': 'Jämtlands län', 'sveg': 'Jämtlands län',
+  'bräcke': 'Jämtlands län', 'frösön': 'Jämtlands län',
+
+  'umeå': 'Västerbottens län', 'skellefteå': 'Västerbottens län',
+  'lycksele': 'Västerbottens län', 'dorotea': 'Västerbottens län',
+  'fredrika': 'Västerbottens län', 'moliden': 'Västerbottens län',
+  'vindeln': 'Västerbottens län', 'vännäs': 'Västerbottens län',
+
+  'luleå': 'Norrbottens län', 'piteå': 'Norrbottens län', 'boden': 'Norrbottens län',
+  'kiruna': 'Norrbottens län', 'gällivare': 'Norrbottens län', 'kalix': 'Norrbottens län',
+
+  'nyköping': 'Södermanlands län', 'eskilstuna': 'Södermanlands län',
+  'katrineholm': 'Södermanlands län', 'strängnäs': 'Södermanlands län',
+  'flen': 'Södermanlands län', 'oxelösund': 'Södermanlands län',
+  'björkvik': 'Södermanlands län',
+
+  'visby': 'Gotlands län'
+};
+
+function resolveSwedishRegion(city) {
+  if (!city) return null;
+  return SWEDISH_CITY_TO_REGION[city.toLowerCase()] || null;
+}
+
+function parseSwedishAddress(location) {
+  if (!location) return { city: null, region: null };
+
+  const parts = location.split(',').map(s => s.trim());
+  let cityName = null;
+
+  if (parts.length >= 2) {
+    const afterComma = parts[parts.length - 1];
+    const cityMatch = afterComma.match(/\d{3}\s*\d{2}\s+(.+)/);
+    cityName = cityMatch ? cityMatch[1].trim() : afterComma;
+  } else {
+    const zipCity = location.match(/\d{3}\s*\d{2}\s+(.+)/);
+    cityName = zipCity ? zipCity[1].trim() : location.trim();
   }
-}
 
-// Helper functions
-function extractListingIdFromUrl(url) {
-  const match = url.match(/\/annonser\/[^\/]+\/(\d+)/);
-  return match ? match[1] : url.split('/').pop();
-}
-
-function extractCity(location) {
-  if (!location) return null;
-  return location.split(',')[0]?.trim() || location.trim();
-}
-
-function extractRegion(location) {
-  if (!location) return null;
-  const parts = location.split(',');
-  return parts.length > 1 ? parts[1]?.trim() : null;
+  if (!cityName) return { city: null, region: null };
+  return { city: cityName, region: resolveSwedishRegion(cityName) };
 }
 
 function normalizeBrand(brand) {
@@ -523,7 +754,10 @@ function normalizeBrand(brand) {
     'bmw': 'BMW',
     'vw': 'Volkswagen',
     'volvo': 'Volvo',
-    'saab': 'Saab'
+    'saab': 'Saab',
+    'aston': 'Aston Martin',
+    'land': 'Land Rover',
+    'alfa': 'Alfa Romeo'
   };
   return brandMap[brand.toLowerCase()] || brand.charAt(0).toUpperCase() + brand.slice(1).toLowerCase();
 }
@@ -540,17 +774,137 @@ function normalizeFuelType(fuelType) {
     'diesel': 'diesel',
     'el': 'electric',
     'hybrid': 'hybrid',
-    'plug-in hybrid': 'plug-in hybrid'
+    'hybrid bensin': 'hybrid',
+    'hybrid diesel': 'hybrid',
+    'plug-in bensin': 'plug-in hybrid',
+    'plug-in diesel': 'plug-in hybrid',
+    'plug-in hybrid': 'plug-in hybrid',
+    'etanol': 'ethanol',
+    'etanol (ffv, e85)': 'ethanol',
+    'fordonsgas': 'cng',
+    'fordonsgas (cng)': 'cng'
   };
-  return fuelMap[fuelType.toLowerCase()] || fuelType.toLowerCase();
+  return fuelMap[fuelType] || fuelType || null;
 }
 
 function normalizeTransmission(transmission) {
   if (!transmission) return null;
   const transMap = {
     'manuell': 'manual',
+    'automatisk': 'automatic',
     'automat': 'automatic',
+    'sekventiell': 'sequential',
     'cvt': 'cvt'
   };
-  return transMap[transmission.toLowerCase()] || transmission.toLowerCase();
+  return transMap[transmission] || transmission || null;
+}
+
+function normalizeDrivetrain(drivetrain) {
+  if (!drivetrain) return null;
+  const driveMap = {
+    'framhjulsdrift': 'fwd',
+    'bakhjulsdrift': 'rwd',
+    'fyrhjulsdrift': 'awd',
+    'tvåhjulsdriven': 'fwd',
+    '4x4': 'awd'
+  };
+  return driveMap[drivetrain.toLowerCase()] || drivetrain.toLowerCase() || null;
+}
+
+function normalizeCategory(category) {
+  if (!category) return null;
+  const catMap = {
+    'sedan': 'sedan',
+    'halvkombi': 'hatchback',
+    'kombi': 'estate',
+    'suv': 'suv',
+    'cab': 'convertible',
+    'cabriolet': 'convertible',
+    'coupé': 'coupe',
+    'coupe': 'coupe',
+    'minibuss': 'minivan',
+    'pickup': 'pickup',
+    'transportbil': 'van',
+    'skåpbil': 'van',
+    'småbil': 'hatchback',
+    'sportkupé': 'coupe',
+    'familjebuss': 'mpv'
+  };
+  return catMap[category.toLowerCase()] || category;
+}
+
+function inferDoorsFromCategory(category) {
+  if (!category) return null;
+  const doorMap = {
+    'sedan': 4, 'hatchback': 5, 'estate': 5, 'suv': 5,
+    'coupe': 2, 'convertible': 2, 'minivan': 5, 'mpv': 5,
+    'pickup': 4, 'van': 4
+  };
+  return doorMap[category.toLowerCase()] || null;
+}
+
+const KNOWN_TRIMS = new Set([
+  // Volvo
+  'inscription', 'momentum', 'r-design', 'summum', 'kinetic', 'ocean', 'core', 'pure', 'plus', 'ultra',
+  // Ford
+  'titanium', 'vignale', 'st-line', 'trend', 'active', 'st',
+  // Volkswagen
+  'r-line', 'highline', 'comfortline', 'trendline', 'life', 'elegance', 'style',
+  // Audi
+  'ambition', 'ambiente', 'business', 'premium', 'pro', 's line', 's-line',
+  // Generic
+  'sport', 'luxury', 'executive', 'edition', 'ultimate', 'gt', 'gt-line', 'gt line',
+  // Nissan
+  'tekna', 'acenta', 'n-connecta', 'visia',
+  // Peugeot/Citroën
+  'allure', 'feel', 'shine', 'flair',
+  // Mercedes
+  'amg', 'amg line', 'avantgarde', 'progressive', 'exclusive',
+  // Hyundai/Kia
+  'advance', 'se', 'sel', 'limited', 'platinum',
+  // Seat/Cupra
+  'xcellence', 'desire', 'reference', 'motion',
+  // Special editions
+  'first edition', 'launch edition', 'base',
+  // Skoda
+  'ambition', 'style', 'sportline', 'laurin & klement', 'l&k',
+  // Toyota
+  'comfort', 'executive', 'lounge',
+  // BMW
+  'm sport', 'm-sport', 'xline', 'x-line', 'luxury line', 'sport line',
+  // Renault
+  'zen', 'intens', 'initiale paris', 'iconic', 'techno', 'evolution', 'equilibre',
+  // Opel
+  'elegance', 'gs', 'gs line', 'ultimate',
+  // Dacia
+  'essential', 'expression', 'extreme', 'journey'
+]);
+
+function extractVersionTrim(specs) {
+  const equipment = specs['utrustning'] || '';
+  if (!equipment) return { version: null, trim: null };
+
+  const items = equipment.split(',').map(s => s.trim()).filter(Boolean);
+
+  let trim = null;
+  let version = null;
+
+  // Only exact matches against KNOWN_TRIMS (case-insensitive)
+  for (let i = 0; i < Math.min(items.length, 3); i++) {
+    if (KNOWN_TRIMS.has(items[i].toLowerCase())) {
+      trim = items[i];
+      break;
+    }
+  }
+
+  // Version: drive configuration in first few items
+  for (const item of items.slice(0, 5)) {
+    if (item.match(/^(4motion|4matic|xdrive|quattro|e-hybrid|plug-in)$/i) ||
+        item.match(/^(4Motion\/Fyrhjulsdrift|4Matic)$/i)) {
+      version = item.replace(/\/.*$/, '');
+      break;
+    }
+  }
+
+  return { version, trim };
 }

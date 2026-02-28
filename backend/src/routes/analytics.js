@@ -21,7 +21,8 @@ import {
 import {
   getPredictions,
   exportAsPDF,
-  getRecentSalesMonitoring
+  getRecentSalesMonitoring,
+  getSalesAggregatesEndpoint
 } from '../controllers/priceHistoryController.js';
 
 const router = express.Router();
@@ -67,6 +68,9 @@ router.get('/predictions', getPredictions);
 
 // Get recent sales monitoring (last 30 days - what sold fastest and at what price)
 router.get('/recent-sales', getRecentSalesMonitoring);
+
+// Get accumulated sales averages per country (DOM moyen, prix moyen)
+router.get('/sales-aggregates', getSalesAggregatesEndpoint);
 
 // Export as PDF (returns JSON structure for PDF generation)
 router.get('/export-pdf', exportAsPDF);

@@ -42,31 +42,6 @@ export function renderMarketInsights() {
 
       <!-- Content -->
       <div id="content" class="hidden">
-        <!-- Recent Sales Monitoring -->
-        <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
-          <div class="flex items-center justify-between mb-4">
-            <div>
-              <h2 class="text-2xl font-bold text-gray-900">📊 Monitoring des Ventes Récentes</h2>
-              <p class="text-sm text-gray-600 mt-1">Suivi des annonces vendues dans les 30 derniers jours avec dernier prix</p>
-            </div>
-            <div class="flex items-center space-x-2">
-              <select id="sales-days" onchange="loadRecentSalesMonitoring()" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                <option value="7">${tr('7 days', '7 jours')}</option>
-                <option value="30" selected>${tr('30 days', '30 jours')}</option>
-                <option value="60">${tr('60 days', '60 jours')}</option>
-                <option value="90">${tr('90 days', '90 jours')}</option>
-              </select>
-              <select id="sales-country" onchange="loadRecentSalesMonitoring()" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                <option value="">${tr('All countries', 'Tous pays')}</option>
-                <!-- Will be populated by JS -->
-              </select>
-            </div>
-          </div>
-          <div id="recent-sales-content">
-            <p class="text-gray-500 text-center py-8">${tr('Loading recent sales...', 'Chargement des ventes récentes...')}</p>
-          </div>
-        </div>
-
         <!-- Intelligent Recommendations -->
         <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
           <div class="flex items-center justify-between mb-4">
@@ -374,7 +349,6 @@ export function renderMarketInsights() {
   window.submitWatchlist = submitWatchlist;
   window.closeWatchlistModal = closeWatchlistModal;
   window.loadPredictions = loadPredictions;
-  window.loadRecentSalesMonitoring = loadRecentSalesMonitoring;
 
   // Load filter options and data
   loadFilterOptions().then(() => {
@@ -384,7 +358,6 @@ export function renderMarketInsights() {
     loadProfitability();
     loadRecommendations();
     loadWatchlist();
-    loadRecentSalesMonitoring();
     // Populate profitability country filter
     const profitabilityCountry = document.getElementById('profitability-country');
     if (profitabilityCountry) {
@@ -579,6 +552,7 @@ async function loadFastestSellingModels() {
     // Country names mapping
     const countryNames = {
       'FR': 'France',
+      'SE': 'Suède',
       'DE': 'Allemagne',
       'IT': 'Italie',
       'ES': 'Espagne',
@@ -695,6 +669,7 @@ async function loadStatsByCountry() {
     // Country names mapping
     const countryNames = {
       'FR': 'France',
+      'SE': 'Suède',
       'DE': 'Allemagne',
       'IT': 'Italie',
       'ES': 'Espagne',
@@ -2099,190 +2074,3 @@ async function loadPredictions() {
   }
 }
 
-// Recent Sales Monitoring
-async function loadRecentSalesMonitoring() {
-  const token = getAuthToken();
-  if (!token) return;
-
-  const days = document.getElementById('sales-days')?.value || 30;
-  const country = document.getElementById('sales-country')?.value || '';
-  const container = document.getElementById('recent-sales-content');
-  if (!container) return;
-
-  try {
-    container.innerHTML = '<p class="text-center py-8 text-gray-500">Chargement...</p>';
-
-    const params = new URLSearchParams({ days, limit: 100 });
-    if (country) params.append('country', country);
-
-    const response = await fetch(`/api/v1/analytics/recent-sales?${params.toString()}`, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error('Erreur lors du chargement');
-    }
-
-    const data = await response.json();
-    const sales = data.sales || [];
-    const summary = data.summary || {};
-
-    if (sales.length === 0) {
-      container.innerHTML = '<p class="text-gray-500 text-center py-8">Aucune vente récente trouvée</p>';
-      return;
-    }
-
-    // Summary cards
-    const summaryHTML = `
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div class="bg-blue-50 rounded-lg p-4">
-          <h3 class="text-sm font-medium text-gray-600 mb-1">Total Ventes</h3>
-          <p class="text-2xl font-bold text-blue-600">${summary.totalSales || 0}</p>
-        </div>
-        <div class="bg-green-50 rounded-lg p-4">
-          <h3 class="text-sm font-medium text-gray-600 mb-1">DOM Moyen</h3>
-          <p class="text-2xl font-bold text-green-600">${summary.avgDOM || 0}j</p>
-        </div>
-        <div class="bg-purple-50 rounded-lg p-4">
-          <h3 class="text-sm font-medium text-gray-600 mb-1">Prix Moyen</h3>
-          <p class="text-2xl font-bold text-purple-600">${summary.avgPrice ? formatCurrency(summary.avgPrice) : '-'}</p>
-        </div>
-        <div class="bg-orange-50 rounded-lg p-4">
-          <h3 class="text-sm font-medium text-gray-600 mb-1">Vente la Plus Rapide</h3>
-          <p class="text-2xl font-bold text-orange-600">${summary.fastestSale ? `${summary.fastestSale.dom_days}j` : '-'}</p>
-          ${summary.fastestSale ? `<p class="text-xs text-gray-600 mt-1">${summary.fastestSale.brand} ${summary.fastestSale.model}</p>` : ''}
-        </div>
-      </div>
-    `;
-
-    // Sales table
-    const tableHTML = `
-      <div class="overflow-x-auto mb-6">
-        <table class="min-w-full divide-y divide-gray-200">
-          <thead class="bg-gray-50">
-            <tr>
-              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Modèle</th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">DOM</th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dernier Prix</th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prix Final</th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Évolution</th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vélocité</th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date Vente</th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pays</th>
-            </tr>
-          </thead>
-          <tbody class="bg-white divide-y divide-gray-200">
-            ${sales.map(sale => {
-              const priceChangeColor = sale.priceChange > 0 ? 'text-red-600' : sale.priceChange < 0 ? 'text-green-600' : 'text-gray-600';
-              const velocityColor = sale.velocity > 2 ? 'text-green-600 font-semibold' : sale.velocity > 1 ? 'text-blue-600' : 'text-gray-600';
-              
-              return `
-                <tr class="hover:bg-gray-50">
-                  <td class="px-4 py-3 text-sm font-medium text-gray-900">
-                    ${sale.brand} ${sale.model}${sale.year ? ` ${sale.year}` : ''}
-                  </td>
-                  <td class="px-4 py-3 text-sm text-gray-600">
-                    <span class="px-2 py-1 ${sale.dom_days <= 7 ? 'bg-green-100 text-green-700' : sale.dom_days <= 14 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'} rounded text-xs font-medium">
-                      ${sale.dom_days}j
-                    </span>
-                  </td>
-                  <td class="px-4 py-3 text-sm text-gray-900 font-medium">
-                    ${formatCurrency(sale.lastPriceBeforeSale)}
-                  </td>
-                  <td class="px-4 py-3 text-sm text-gray-900 font-medium">
-                    ${formatCurrency(sale.finalPrice)}
-                  </td>
-                  <td class="px-4 py-3 text-sm ${priceChangeColor}">
-                    ${sale.priceChange !== 0 ? `${sale.priceChange > 0 ? '+' : ''}${formatCurrency(sale.priceChange)} (${sale.priceChangePct > 0 ? '+' : ''}${sale.priceChangePct}%)` : '-'}
-                  </td>
-                  <td class="px-4 py-3 text-sm ${velocityColor}">
-                    ${sale.velocity.toFixed(1)}/mois
-                  </td>
-                  <td class="px-4 py-3 text-sm text-gray-600">
-                    ${sale.soldDateFormatted}
-                  </td>
-                  <td class="px-4 py-3 text-sm">
-                    <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">
-                      ${sale.location_country === 'FR' ? '🇫🇷 France' : sale.location_country === 'SE' ? '🇸🇪 Suède' : sale.location_country}
-                    </span>
-                  </td>
-                </tr>
-              `;
-            }).join('')}
-          </tbody>
-        </table>
-      </div>
-    `;
-
-    // Model statistics
-    const modelStatsHTML = data.modelStats && data.modelStats.length > 0 ? `
-      <div class="mt-6">
-        <h3 class="text-lg font-semibold text-gray-900 mb-4">Statistiques par Modèle</h3>
-        <div class="overflow-x-auto">
-          <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-              <tr>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Modèle</th>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ventes</th>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">DOM Moyen</th>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prix Moyen</th>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vente la Plus Rapide</th>
-              </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
-              ${data.modelStats.slice(0, 20).map(stat => `
-                <tr class="hover:bg-gray-50">
-                  <td class="px-4 py-3 text-sm font-medium text-gray-900">
-                    ${stat.brand} ${stat.model}${stat.year ? ` ${stat.year}` : ''}
-                  </td>
-                  <td class="px-4 py-3 text-sm text-gray-600">${stat.totalSales}</td>
-                  <td class="px-4 py-3 text-sm text-gray-600">${stat.avgDOM}j</td>
-                  <td class="px-4 py-3 text-sm text-gray-900 font-medium">
-                    ${formatCurrency(stat.avgPrice)}
-                  </td>
-                  <td class="px-4 py-3 text-sm">
-                    ${stat.fastestSale ? `
-                      <span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium">
-                        ${stat.fastestSale.dom_days}${tr('d', 'j')}
-                      </span>
-                      <span class="text-xs text-gray-500 ml-2">
-                        ${formatCurrency(stat.fastestSale.lastPriceBeforeSale)}
-                      </span>
-                    ` : '-'}
-                  </td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    ` : '';
-
-    container.innerHTML = summaryHTML + tableHTML + modelStatsHTML;
-
-    // Populate country filter if not already done
-    const countryFilter = document.getElementById('sales-country');
-    if (countryFilter && countryFilter.children.length <= 1) {
-      try {
-        const countryOptions = await fetch('/api/v1/analytics/filter-options', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }).then(r => r.json());
-        
-        if (countryOptions.options?.countries) {
-          countryFilter.innerHTML = '<option value="">' + tr('All countries', 'Tous pays') + '</option>' + 
-            countryOptions.options.countries
-              .filter(c => ['FR', 'SE'].includes(c.code))
-              .map(c => `<option value="${c.code}">${c.name}</option>`).join('');
-        }
-      } catch (err) {
-        console.warn('Error loading country options', err);
-      }
-    }
-
-  } catch (error) {
-    console.error('Error loading recent sales monitoring:', error);
-    container.innerHTML = `<p class="text-red-500 text-center py-8">Erreur: ${error.message}</p>`;
-  }
-}

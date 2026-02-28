@@ -1,8 +1,9 @@
 import { getPriceHistory, getPriceDrops, calculatePriceTrend } from '../services/priceTracker.js';
-import { getSalesStats } from '../services/saleDetector.js';
+import { getSalesStats, getSalesAggregates } from '../services/saleDetector.js';
 import { getTopSellingModels, calculateConversionRate, getMedianSalePrice, calculateSalesVelocity } from '../services/velocityCalculator.js';
 import { supabase } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
+import { toEUR, AGGREGATE_COUNTRIES } from '../config/aggregateCountries.js';
 
 /**
  * Get price history for a listing
@@ -182,10 +183,7 @@ export async function getFastestSellingModels(req, res) {
   try {
     const { limit = 20, days = 30, brand = null, country = null, year = null } = req.query;
 
-    // Ensure country is in allowed list, default to null (will filter to allowed countries)
-    const requestedCountry = country && ALLOWED_COUNTRIES.includes(country.toUpperCase()) 
-      ? country.toUpperCase() 
-      : null;
+    const requestedCountry = country ? country.toUpperCase() : null;
 
     let topModels = await getTopSellingModels(
       parseInt(limit),
@@ -194,14 +192,6 @@ export async function getFastestSellingModels(req, res) {
       year ? parseInt(year) : null
     );
 
-    // Filter results to only include allowed countries if no specific country was requested
-    if (!requestedCountry) {
-      topModels = topModels.filter(model => 
-        model.countries && model.countries.some(c => ALLOWED_COUNTRIES.includes(c))
-      );
-    }
-
-    // Filter by brand if provided (client-side filter for consistency)
     if (brand) {
       topModels = topModels.filter(m => 
         m.brand.toLowerCase() === brand.toLowerCase()
@@ -244,14 +234,14 @@ export async function getFilterOptions(req, res) {
       .from('listings')
       .select('brand')
       .eq('status', 'sold')
+      .in('location_country', AGGREGATE_COUNTRIES)
       .not('brand', 'is', null);
 
-    // Get unique countries from sold listings (only FR and SE)
     const { data: countriesData, error: countriesError } = await supabase
       .from('listings')
       .select('location_country')
       .eq('status', 'sold')
-      .in('location_country', ALLOWED_COUNTRIES)
+      .in('location_country', AGGREGATE_COUNTRIES)
       .not('location_country', 'is', null);
 
     // Get unique years from sold listings
@@ -259,6 +249,7 @@ export async function getFilterOptions(req, res) {
       .from('listings')
       .select('year')
       .eq('status', 'sold')
+      .in('location_country', AGGREGATE_COUNTRIES)
       .not('year', 'is', null)
       .gte('year', 2000) // Only years >= 2000
       .lte('year', new Date().getFullYear() + 1); // Up to next year
@@ -267,17 +258,32 @@ export async function getFilterOptions(req, res) {
       throw new Error('Failed to fetch filter options');
     }
 
-    // Extract unique values and sort
+    // Extract unique values and sort (countries limited to aggregate list)
     const brands = [...new Set((brandsData || []).map(b => b.brand).filter(Boolean))].sort();
-    const countries = [...new Set((countriesData || []).map(c => c.location_country).filter(Boolean))]
-      .filter(c => ALLOWED_COUNTRIES.includes(c))
-      .sort();
-    const years = [...new Set((yearsData || []).map(y => y.year).filter(Boolean))].sort((a, b) => b - a); // Descending
+    const countriesRaw = [...new Set((countriesData || []).map(c => c.location_country).filter(Boolean))];
+    const countries = countriesRaw.filter(c => AGGREGATE_COUNTRIES.includes(c)).sort();
+    const years = [...new Set((yearsData || []).map(y => y.year).filter(Boolean))].sort((a, b) => b - a);
 
-    // Country names mapping (only for allowed countries)
     const countryNames = {
       'FR': 'France',
-      'SE': 'Suède'
+      'SE': 'Suède',
+      'DE': 'Allemagne',
+      'BE': 'Belgique',
+      'NL': 'Pays-Bas',
+      'IT': 'Italie',
+      'ES': 'Espagne',
+      'AT': 'Autriche',
+      'CH': 'Suisse',
+      'LU': 'Luxembourg',
+      'GB': 'Royaume-Uni',
+      'DK': 'Danemark',
+      'NO': 'Norvège',
+      'FI': 'Finlande',
+      'PL': 'Pologne',
+      'PT': 'Portugal',
+      'CZ': 'Tchéquie',
+      'RO': 'Roumanie',
+      'HU': 'Hongrie'
     };
 
     res.json({
@@ -307,15 +313,11 @@ export async function getMarketAnalytics(req, res) {
   try {
     const { brand, model, year } = req.query;
 
-    // Get top models filtered to allowed countries
-    let topModels = await getTopSellingModels(20, 30, null, null);
-    topModels = topModels.filter(model => 
-      model.countries && model.countries.some(c => ALLOWED_COUNTRIES.includes(c))
-    );
+    const topModels = await getTopSellingModels(20, 30, null, null);
 
     const analytics = {
       topSellingModels: topModels,
-      fastestSellingModels: topModels, // Same data, different name for clarity
+      fastestSellingModels: topModels,
       salesStats: brand && model ? await getSalesStats(brand, model, year ? parseInt(year) : null) : null,
       conversionRate: brand && model ? await calculateConversionRate(brand, model) : null,
       medianSalePrice: brand && model ? await getMedianSalePrice(brand, model, year ? parseInt(year) : null) : null
@@ -335,6 +337,31 @@ export async function getMarketAnalytics(req, res) {
 }
 
 /**
+ * Get accumulated sales averages per country (DOM moyen, prix moyen)
+ */
+export async function getSalesAggregatesEndpoint(req, res) {
+  try {
+    const { brand, model, country } = req.query;
+    const filters = {};
+    if (brand) filters.brand = brand;
+    if (model) filters.model = model;
+    if (country) filters.country = country;
+    const { rows, global } = await getSalesAggregates(filters);
+    res.json({
+      success: true,
+      aggregates: rows,
+      global  // Moyenne globale (tous pays confondus)
+    });
+  } catch (error) {
+    logger.error('Error getting sales aggregates', { error: error.message });
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+}
+
+/**
  * Get statistics by country (for comparative charts)
  */
 export async function getStatsByCountry(req, res) {
@@ -343,15 +370,14 @@ export async function getStatsByCountry(req, res) {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - parseInt(days));
 
-    // Get sold listings grouped by country (only FR and SE)
     const { data: soldListings, error } = await supabase
       .from('listings')
       .select('id, brand, model, year, dom_days, price, sold_date, location_country')
       .eq('status', 'sold')
-      .in('location_country', ALLOWED_COUNTRIES)
+      .in('location_country', AGGREGATE_COUNTRIES)
       .gte('sold_date', cutoffDate.toISOString())
       .not('dom_days', 'is', null)
-      .gt('dom_days', 0)
+      .gte('dom_days', 0)
       .not('location_country', 'is', null);
 
     if (error) {
@@ -387,7 +413,7 @@ export async function getStatsByCountry(req, res) {
         stats.domDays.push(listing.dom_days);
       }
       if (listing.price) {
-        stats.prices.push(parseFloat(listing.price));
+        stats.prices.push(toEUR(listing.price, listing.location_country));
       }
       if (listing.brand && listing.model) {
         stats.models.add(`${listing.brand} ${listing.model}`);
@@ -434,9 +460,24 @@ export async function getStatsByCountry(req, res) {
     // Sort by total sales (descending)
     stats.sort((a, b) => b.totalSales - a.totalSales);
 
+    // Global average (tous pays)
+    const totalSales = stats.reduce((s, x) => s + x.totalSales, 0);
+    const global = totalSales > 0 ? {
+      country: 'ALL',
+      countryLabel: 'Tous pays',
+      totalSales,
+      uniqueModels: stats.reduce((s, x) => s + (x.uniqueModels || 0), 0),
+      averageDOM: Math.round(stats.reduce((s, x) => s + x.averageDOM * x.totalSales, 0) / totalSales),
+      medianDOM: Math.round(stats.reduce((s, x) => s + x.medianDOM * x.totalSales, 0) / totalSales),
+      averagePrice: Math.round(stats.reduce((s, x) => s + x.averagePrice * x.totalSales, 0) / totalSales),
+      medianPrice: Math.round(stats.reduce((s, x) => s + x.medianPrice * x.totalSales, 0) / totalSales),
+      velocityPerMonth: Math.round(100 * stats.reduce((s, x) => s + (x.velocityPerMonth || 0) * x.totalSales, 0) / totalSales) / 100
+    } : null;
+
     res.json({
       success: true,
       stats,
+      global,
       period: {
         days: parseInt(days),
         description: days === 7 ? '7 derniers jours' : days === 30 ? '30 derniers jours' : `${days} derniers jours`
@@ -458,10 +499,7 @@ export async function exportFastestSellingModels(req, res) {
   try {
     const { limit = 100, days = 30, brand = null, country = null, year = null, format = 'csv' } = req.query;
 
-    // Ensure country is in allowed list
-    const requestedCountry = country && ALLOWED_COUNTRIES.includes(country.toUpperCase()) 
-      ? country.toUpperCase() 
-      : null;
+    const requestedCountry = country ? country.toUpperCase() : null;
 
     let models = await getTopSellingModels(
       parseInt(limit),
@@ -469,13 +507,6 @@ export async function exportFastestSellingModels(req, res) {
       requestedCountry,
       year ? parseInt(year) : null
     );
-
-    // Filter to only allowed countries if no specific country was requested
-    if (!requestedCountry) {
-      models = models.filter(model => 
-        model.countries && model.countries.some(c => ALLOWED_COUNTRIES.includes(c))
-      );
-    }
 
     // Filter by brand if provided
     if (brand) {
@@ -606,17 +637,15 @@ export async function getModelTrends(req, res) {
     const cutoffDate = new Date();
     cutoffDate.setMonth(cutoffDate.getMonth() - parseInt(months));
 
-    // Get sold listings grouped by month (only FR and SE)
     let query = supabase
       .from('listings')
       .select('id, price, dom_days, sold_date, location_country')
       .eq('status', 'sold')
-      .in('location_country', ALLOWED_COUNTRIES)
       .ilike('brand', brand)
       .ilike('model', model)
       .gte('sold_date', cutoffDate.toISOString())
       .not('dom_days', 'is', null)
-      .gt('dom_days', 0);
+      .gte('dom_days', 0);
 
     if (year) {
       query = query.eq('year', parseInt(year));
@@ -660,7 +689,7 @@ export async function getModelTrends(req, res) {
         monthData.domDays.push(listing.dom_days);
       }
       if (listing.price) {
-        monthData.prices.push(parseFloat(listing.price));
+        monthData.prices.push(toEUR(listing.price, listing.location_country));
       }
     }
 
@@ -754,17 +783,15 @@ export async function getProfitabilityAnalysis(req, res) {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - parseInt(days));
 
-    // Get sold listings with price history to estimate purchase price (only FR and SE)
     let query = supabase
       .from('listings')
       .select('id, brand, model, year, price, sold_date, dom_days, location_country, first_seen')
       .eq('status', 'sold')
-      .in('location_country', ALLOWED_COUNTRIES)
       .gte('sold_date', cutoffDate.toISOString())
       .not('dom_days', 'is', null)
-      .gt('dom_days', 0);
+      .gte('dom_days', 0);
 
-    if (country && ALLOWED_COUNTRIES.includes(country.toUpperCase())) {
+    if (country) {
       query = query.eq('location_country', country.toUpperCase());
     }
 
@@ -796,8 +823,8 @@ export async function getProfitabilityAnalysis(req, res) {
         .limit(1)
         .maybeSingle();
 
-      const purchasePrice = priceHistory?.price || listing.price; // Fallback to sold price if no history
-      const salePrice = parseFloat(listing.price);
+      const purchasePrice = toEUR(priceHistory?.price || listing.price, listing.location_country);
+      const salePrice = toEUR(listing.price, listing.location_country);
       const profit = salePrice - purchasePrice;
       const profitMargin = purchasePrice > 0 ? (profit / purchasePrice) * 100 : 0;
       const roi = purchasePrice > 0 ? (profit / purchasePrice) * 100 : 0;
@@ -969,7 +996,6 @@ export async function getRecommendations(req, res) {
         .from('listings')
         .select('brand, model, year, price, price_drop_pct, dom_days, location_country')
         .eq('status', 'active')
-        .in('location_country', ALLOWED_COUNTRIES)
         .gte('dom_days', 60)
         .gte('price_drop_pct', 10)
         .not('price_drop_pct', 'is', null)
@@ -1056,7 +1082,6 @@ export async function getRecommendations(req, res) {
         .from('listings')
         .select('brand, model, year, price, price_drop_pct, price_drop_amount, dom_days, last_price_drop_date, location_country')
         .eq('status', 'active')
-        .in('location_country', ALLOWED_COUNTRIES)
         .gte('dom_days', 45)
         .gte('price_drop_pct', 15)
         .not('price_drop_pct', 'is', null)
@@ -1140,30 +1165,26 @@ export async function getCompetitionAnalysis(req, res) {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - 90); // Last 90 days
 
-    // Get active listings for this model (competitors) - only FR and SE
     let activeQuery = supabase
       .from('listings')
       .select('id, price, dom_days, location_country, posted_date')
       .eq('status', 'active')
-      .in('location_country', ALLOWED_COUNTRIES)
       .ilike('brand', brand)
       .ilike('model', model);
 
     if (year) {
       activeQuery = activeQuery.eq('year', parseInt(year));
     }
-    if (country && ALLOWED_COUNTRIES.includes(country.toUpperCase())) {
+    if (country) {
       activeQuery = activeQuery.eq('location_country', country.toUpperCase());
     }
 
     const { data: activeListings, error: activeError } = await activeQuery;
 
-    // Get sold listings for this model - only FR and SE
     let soldQuery = supabase
       .from('listings')
       .select('id, price, dom_days, sold_date, location_country')
       .eq('status', 'sold')
-      .in('location_country', ALLOWED_COUNTRIES)
       .ilike('brand', brand)
       .ilike('model', model)
       .gte('sold_date', cutoffDate.toISOString());
@@ -1171,7 +1192,7 @@ export async function getCompetitionAnalysis(req, res) {
     if (year) {
       soldQuery = soldQuery.eq('year', parseInt(year));
     }
-    if (country && ALLOWED_COUNTRIES.includes(country.toUpperCase())) {
+    if (country) {
       soldQuery = soldQuery.eq('location_country', country.toUpperCase());
     }
 
@@ -1200,8 +1221,7 @@ export async function getCompetitionAnalysis(req, res) {
       ? Math.round(soldDOMs.reduce((sum, d) => sum + d, 0) / soldDOMs.length)
       : 0;
 
-    // Calculate price range
-    const prices = (activeListings || []).map(l => parseFloat(l.price || 0)).filter(p => p > 0).sort((a, b) => a - b);
+    const prices = (activeListings || []).map(l => toEUR(l.price, l.location_country)).filter(p => p > 0).sort((a, b) => a - b);
     const priceRange = {
       min: prices[0] || 0,
       max: prices[prices.length - 1] || 0,
@@ -1473,12 +1493,11 @@ export async function getPredictions(req, res) {
       .from('listings')
       .select('id, price, dom_days, sold_date')
       .eq('status', 'sold')
-      .in('location_country', ALLOWED_COUNTRIES)
       .ilike('brand', brand)
       .ilike('model', model)
       .gte('sold_date', cutoffDate.toISOString())
       .not('dom_days', 'is', null)
-      .gt('dom_days', 0);
+      .gte('dom_days', 0);
 
     if (year) {
       trendsQuery = trendsQuery.eq('year', parseInt(year));
@@ -1488,7 +1507,7 @@ export async function getPredictions(req, res) {
     
     let trendDirection = null;
     if (soldListings && soldListings.length > 0) {
-      const prices = soldListings.map(l => parseFloat(l.price || 0)).filter(p => p > 0);
+      const prices = soldListings.map(l => toEUR(l.price, l.location_country)).filter(p => p > 0);
       const recentPrices = prices.slice(-Math.floor(prices.length / 3));
       const olderPrices = prices.slice(0, Math.floor(prices.length * 2 / 3));
       
@@ -1664,15 +1683,13 @@ export async function getRecentSalesMonitoring(req, res) {
         first_seen
       `)
       .eq('status', 'sold')
-      .in('location_country', ALLOWED_COUNTRIES)
       .gte('sold_date', cutoffDate.toISOString())
       .not('dom_days', 'is', null)
-      .gt('dom_days', 0)
+      .gte('dom_days', 0)
       .not('price', 'is', null)
       .gt('price', 0);
 
-    // Apply filters
-    if (country && ALLOWED_COUNTRIES.includes(country.toUpperCase())) {
+    if (country) {
       query = query.eq('location_country', country.toUpperCase());
     }
     if (brand) {
@@ -1700,7 +1717,6 @@ export async function getRecentSalesMonitoring(req, res) {
     const enrichedSales = await Promise.all(
       (sales || []).map(async (sale) => {
         try {
-          // Get last price from price_history before sold_date
           const { data: lastPriceRecord } = await supabase
             .from('price_history')
             .select('price, recorded_at')
@@ -1710,14 +1726,16 @@ export async function getRecentSalesMonitoring(req, res) {
             .limit(1)
             .maybeSingle();
 
-          const lastPriceBeforeSale = lastPriceRecord ? parseFloat(lastPriceRecord.price) : sale.price;
-          const priceChange = sale.price !== lastPriceBeforeSale ? sale.price - lastPriceBeforeSale : 0;
+          const lastPriceBeforeSale = toEUR(lastPriceRecord ? lastPriceRecord.price : sale.price, sale.location_country);
+          const finalPrice = toEUR(sale.price, sale.location_country);
+
+          const priceChange = finalPrice !== lastPriceBeforeSale ? finalPrice - lastPriceBeforeSale : 0;
           const priceChangePct = lastPriceBeforeSale > 0 ? ((priceChange / lastPriceBeforeSale) * 100) : 0;
 
           return {
             ...sale,
             lastPriceBeforeSale: Math.round(lastPriceBeforeSale),
-            finalPrice: Math.round(sale.price),
+            finalPrice: Math.round(finalPrice),
             priceChange: Math.round(priceChange),
             priceChangePct: Math.round(priceChangePct * 10) / 10,
             velocity: sale.dom_days > 0 ? (30 / sale.dom_days) : 0, // Sales per month
@@ -1725,10 +1743,11 @@ export async function getRecentSalesMonitoring(req, res) {
           };
         } catch (err) {
           logger.warn('Error enriching sale data', { saleId: sale.id, error: err.message });
+          const fallbackPrice = toEUR(sale.price, sale.location_country);
           return {
             ...sale,
-            lastPriceBeforeSale: sale.price,
-            finalPrice: sale.price,
+            lastPriceBeforeSale: Math.round(fallbackPrice),
+            finalPrice: Math.round(fallbackPrice),
             priceChange: 0,
             priceChangePct: 0,
             velocity: sale.dom_days > 0 ? (30 / sale.dom_days) : 0,

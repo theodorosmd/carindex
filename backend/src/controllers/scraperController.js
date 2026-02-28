@@ -1,6 +1,8 @@
 import { runAutoScout24Scraper } from '../services/autoscout24Service.js';
 import { runLeBonCoinScraper } from '../services/leboncoinService.js';
 import { runMobileDeScraper } from '../services/mobiledeService.js';
+import { runGaspedaalScraper } from '../services/gaspedaalService.js';
+import { runSubitoScraper } from '../services/subitoService.js';
 import { createScraperRun, updateScraperRun } from '../services/ingestRunsService.js';
 import { logger } from '../utils/logger.js';
 
@@ -36,6 +38,14 @@ export async function runScraper(req, res, next) {
       : ['leboncoin', 'leboncoin.fr'].includes(src) ? 'leboncoin'
       : ['mobile.de', 'mobilede'].includes(src) ? 'mobile.de'
       : ['largus', 'largus.fr', 'argus'].includes(src) ? 'largus'
+      : ['subito', 'subito.it'].includes(src) ? 'subito'
+      : ['lacentrale', 'lacentrale.fr'].includes(src) ? 'lacentrale'
+      : ['gaspedaal', 'gaspedaal.nl'].includes(src) ? 'gaspedaal'
+      : ['marktplaats', 'marktplaats.nl'].includes(src) ? 'marktplaats'
+      : ['coches.net', 'cochesnet'].includes(src) ? 'coches.net'
+      : ['2ememain', 'deuxememain', '2ememain.be'].includes(src) ? '2ememain'
+      : ['finn', 'finn.no'].includes(src) ? 'finn'
+      : ['otomoto', 'otomoto.pl', 'automoto'].includes(src) ? 'otomoto'
       : src;
 
     try {
@@ -104,10 +114,74 @@ export async function runScraper(req, res, next) {
           maxPages: maxResults ? Math.min(Math.ceil(maxResults / 15), 50) : 10
         });
         break;
+
+      case 'subito':
+      case 'subito.it':
+        result = await runSubitoScraper(searchUrls, {
+          maxPages: maxResults ? Math.min(Math.ceil(maxResults / 25), 50) : 15
+        });
+        break;
+
+      case 'lacentrale':
+      case 'lacentrale.fr':
+        const { runLaCentraleScraper } = await import('../services/laCentraleService.js');
+        result = await runLaCentraleScraper(searchUrls, {
+          maxPages: maxResults ? Math.min(Math.ceil(maxResults / 16), 50) : 15
+        });
+        break;
+
+      case 'coches.net':
+      case 'cochesnet':
+        const { runCochesNetScraper } = await import('../services/cochesnetService.js');
+        result = await runCochesNetScraper(searchUrls, {
+          maxPages: maxResults ? Math.min(Math.ceil(maxResults / 30), 50) : 15
+        });
+        break;
+
+      case 'gaspedaal':
+      case 'gaspedaal.nl':
+        result = await runGaspedaalScraper(searchUrls, {
+          maxPages: maxResults ? Math.min(Math.ceil(maxResults / 100), 50) : 15
+        });
+        break;
+
+      case 'marktplaats':
+      case 'marktplaats.nl':
+        const { runMarktplaatsScraper } = await import('../services/marktplaatsService.js');
+        result = await runMarktplaatsScraper(searchUrls, {
+          maxPages: maxResults ? Math.min(Math.ceil(maxResults / 30), 50) : 15
+        });
+        break;
+
+      case '2ememain':
+      case 'deuxememain':
+      case '2ememain.be':
+        const { run2ememainScraper } = await import('../services/deuxememainService.js');
+        result = await run2ememainScraper(searchUrls, {
+          maxPages: maxResults ? Math.min(Math.ceil(maxResults / 30), 50) : 15
+        });
+        break;
+
+      case 'finn':
+      case 'finn.no':
+        const { runFinnScraper } = await import('../services/finnService.js');
+        result = await runFinnScraper(searchUrls, {
+          maxPages: maxResults ? Math.min(Math.ceil(maxResults / 50), 50) : 15
+        });
+        break;
+
+      case 'otomoto':
+      case 'otomoto.pl':
+      case 'automoto':
+        const { runOtomotoScraper } = await import('../services/otomotoService.js');
+        result = await runOtomotoScraper(searchUrls, {
+          maxPages: maxResults ? Math.min(Math.ceil(maxResults / 32), 50) : 15
+        });
+        break;
         
       default:
         return res.status(400).json({
-          error: `Unsupported source: ${source}. Supported sources: autoscout24, leboncoin, mobile.de, blocket, bilweb, bytbil, largus`
+          error: `Unsupported source: ${source}. Supported sources: autoscout24, leboncoin, mobile.de, blocket, bilweb, bytbil, largus, subito, lacentrale, coches.net, gaspedaal, marktplaats, 2ememain, finn, otomoto`
         });
     }
 

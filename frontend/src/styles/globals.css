@@ -82,3 +82,15 @@ html {
   background: #555;
 }
 
+/* Sticky first column for responsive tables */
+.table-sticky-col th:first-child,
+.table-sticky-col td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 10;
+}
+.table-sticky-col thead th:first-child {
+  z-index: 11;
+}
+
+

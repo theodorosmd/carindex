@@ -70,6 +70,8 @@ export async function renderDashboard() {
           </a>
           <div class="flex items-center space-x-2 sm:space-x-4">
             <a href="#/search" class="hidden sm:inline text-gray-600 hover:text-blue-600 transition text-sm sm:text-base">${tr('Search', 'Rechercher')}</a>
+            <a href="#/market-insights" class="hidden sm:inline text-gray-600 hover:text-blue-600 transition text-sm sm:text-base">${tr('Market Insights', 'Market Insights')}</a>
+            <a href="#/arbitrage" class="hidden sm:inline text-gray-600 hover:text-blue-600 transition text-sm sm:text-base">${tr('Arbitrage', 'Arbitrage')}</a>
             <a href="#/auction-margin" class="hidden sm:inline text-gray-600 hover:text-blue-600 transition text-sm sm:text-base">${tr('Margin Calculator', 'Calculateur de Marge')}</a>
             <a href="#/evaluations" class="hidden sm:inline text-gray-600 hover:text-blue-600 transition text-sm sm:text-base">${tr('My Evaluations', 'Mes Évaluations')}</a>
             <span class="hidden sm:inline text-gray-600 text-sm">${user.email}</span>

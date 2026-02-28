@@ -1,6 +1,7 @@
 import { supabase } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import { getSalesStats } from './saleDetector.js';
+import { toEUR, AGGREGATE_COUNTRIES } from '../config/aggregateCountries.js';
 
 /**
  * Calculate average Days On Market for a model
@@ -24,20 +25,22 @@ export async function calculateAverageDOM(brand, model, year = null) {
  */
 export async function calculateSalesVelocity(brand, model, days = 30, allowedCountries = null) {
   try {
-    // Allowed countries for Market Insights (France and Sweden only)
-    const ALLOWED_COUNTRIES = allowedCountries || ['FR', 'SE'];
-    
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
 
-    const { data: sales, error } = await supabase
+    let query = supabase
       .from('listings')
       .select('id, sold_date')
       .eq('status', 'sold')
-      .in('location_country', ALLOWED_COUNTRIES)
       .ilike('brand', brand)
       .ilike('model', model)
       .gte('sold_date', cutoffDate.toISOString());
+
+    if (allowedCountries && allowedCountries.length > 0) {
+      query = query.in('location_country', allowedCountries);
+    }
+
+    const { data: sales, error } = await query;
 
     if (error) {
       throw new Error(`Failed to fetch sales: ${error.message}`);
@@ -61,28 +64,34 @@ export async function calculateSalesVelocity(brand, model, days = 30, allowedCou
 
 /**
  * Get top selling models (fastest selling)
+ * When country is null, fetches from all aggregate countries (FR, DE, NO, FI, DK, NL, BE, LU, ES, IT, CH, PL).
  */
 export async function getTopSellingModels(limit = 20, days = 30, country = null, year = null) {
+  try {
+    return getTopSellingModelsInternal(limit, days, country, year);
+  } catch (error) {
+    logger.error('Error getting top selling models', { error: error.message, limit, days, country, year });
+    throw error;
+  }
+}
+
+async function getTopSellingModelsInternal(limit = 20, days = 30, country = null, year = null) {
   try {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
 
-    // Allowed countries for Market Insights (France and Sweden only)
-    const ALLOWED_COUNTRIES = ['FR', 'SE'];
-
-    // Build query with optional filters (always limit to allowed countries)
     let query = supabase
       .from('listings')
       .select('id, brand, model, year, dom_days, price, sold_date, location_country')
       .eq('status', 'sold')
-      .in('location_country', ALLOWED_COUNTRIES)
       .gte('sold_date', cutoffDate.toISOString())
       .not('dom_days', 'is', null)
-      .gt('dom_days', 0);
+      .gte('dom_days', 0);
 
-    // Filter by country if provided (must be in allowed list)
-    if (country && ALLOWED_COUNTRIES.includes(country.toUpperCase())) {
+    if (country) {
       query = query.eq('location_country', country.toUpperCase());
+    } else {
+      query = query.in('location_country', AGGREGATE_COUNTRIES);
     }
 
     // Filter by year if provided
@@ -129,7 +138,7 @@ export async function getTopSellingModels(limit = 20, days = 30, country = null,
         group.domDays.push(listing.dom_days);
       }
       if (listing.price) {
-        group.prices.push(parseFloat(listing.price));
+        group.prices.push(Math.round(toEUR(listing.price, listing.location_country)));
       }
     }
 
@@ -181,34 +190,36 @@ export async function getTopSellingModels(limit = 20, days = 30, country = null,
  */
 export async function calculateConversionRate(brand, model, days = 90, allowedCountries = null) {
   try {
-    // Allowed countries for Market Insights (France and Sweden only)
-    const ALLOWED_COUNTRIES = allowedCountries || ['FR', 'SE'];
-    
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
 
-    // Get total listings (active + sold) for this model
-    const { data: totalListings, error: totalError } = await supabase
+    let totalQuery = supabase
       .from('listings')
       .select('id, status')
-      .in('location_country', ALLOWED_COUNTRIES)
       .ilike('brand', brand)
       .ilike('model', model)
       .gte('first_seen', cutoffDate.toISOString());
+
+    let soldQuery = supabase
+      .from('listings')
+      .select('id')
+      .eq('status', 'sold')
+      .ilike('brand', brand)
+      .ilike('model', model)
+      .gte('sold_date', cutoffDate.toISOString());
+
+    if (allowedCountries && allowedCountries.length > 0) {
+      totalQuery = totalQuery.in('location_country', allowedCountries);
+      soldQuery = soldQuery.in('location_country', allowedCountries);
+    }
+
+    const { data: totalListings, error: totalError } = await totalQuery;
 
     if (totalError) {
       throw new Error(`Failed to fetch total listings: ${totalError.message}`);
     }
 
-    // Get sold listings
-    const { data: soldListings, error: soldError } = await supabase
-      .from('listings')
-      .select('id')
-      .eq('status', 'sold')
-      .in('location_country', ALLOWED_COUNTRIES)
-      .ilike('brand', brand)
-      .ilike('model', model)
-      .gte('sold_date', cutoffDate.toISOString());
+    const { data: soldListings, error: soldError } = await soldQuery;
 
     if (soldError) {
       throw new Error(`Failed to fetch sold listings: ${soldError.message}`);

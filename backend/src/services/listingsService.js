@@ -1,5 +1,6 @@
 import { supabase } from '../config/supabase.js';
 import { calculateMarketPrice } from './marketPriceService.js';
+import { getListingSources } from './listingSourcesService.js';
 
 export async function searchListingsService(filters, userPlan = null) {
   const {
@@ -191,18 +192,42 @@ export async function searchListingsService(filters, userPlan = null) {
       throw error;
     }
 
+    // Batch fetch sources for all listings (same car on multiple scrapers)
+    const listingIds = (listings || []).map((l) => l.id);
+    let sourcesByListing = new Map();
+    if (listingIds.length > 0) {
+      try {
+        const { data: sourcesRows } = await supabase
+          .from('listing_sources')
+          .select('listing_id, source_platform, url')
+          .in('listing_id', listingIds);
+        if (sourcesRows) {
+          for (const r of sourcesRows) {
+            if (!sourcesByListing.has(r.listing_id)) {
+              sourcesByListing.set(r.listing_id, []);
+            }
+            sourcesByListing.get(r.listing_id).push({ platform: r.source_platform, url: r.url });
+          }
+        }
+      } catch {
+        // listing_sources table may not exist
+      }
+    }
+
     // Optimize: Batch market price calculations for better performance
     // Only calculate market price for premium users (pro or plus plans)
     const isPremium = userPlan === 'pro' || userPlan === 'plus';
     const marketPriceCache = new Map();
-    
+
     const enrichedListings = await Promise.all(
       (listings || []).map(async (listing) => {
+        const sources = sourcesByListing.get(listing.id) || [];
+        const base = { ...listing, sources };
         if (isPremium) {
           try {
             // Create cache key to avoid duplicate calculations
             const cacheKey = `${listing.brand}-${listing.model}-${listing.year}-${listing.location_country || 'FR'}`;
-            
+
             if (!marketPriceCache.has(cacheKey)) {
               const marketPrice = await calculateMarketPrice({
                 brand: listing.brand,
@@ -215,21 +240,20 @@ export async function searchListingsService(filters, userPlan = null) {
               });
               marketPriceCache.set(cacheKey, marketPrice);
             }
-            
+
             const marketPrice = marketPriceCache.get(cacheKey);
             return {
-              ...listing,
+              ...base,
               market_price: marketPrice.market_price,
               confidence_index: marketPrice.confidence_index,
               comparables_count: marketPrice.comparables_count
             };
           } catch (error) {
-            return listing;
+            return base;
           }
         } else {
-          // Non-premium users: no market price or confidence index
           return {
-            ...listing,
+            ...base,
             market_price: null,
             confidence_index: null,
             comparables_count: null
@@ -266,9 +290,26 @@ export async function getListingByIdService(listingId, userPlan = null) {
       return null;
     }
 
+    // Fetch all source links (same car on bilweb, autoscout24, etc.)
+    let sources = [];
+    try {
+      sources = await getListingSources(listingId);
+    } catch {
+      // listing_sources table may not exist if migration not run
+    }
+
+    const baseListing = {
+      ...listing,
+      sources: sources.map((s) => ({
+        platform: s.source_platform,
+        url: s.url,
+        source_listing_id: s.source_listing_id
+      }))
+    };
+
     // Only calculate market price for premium users (pro or plus plans)
     const isPremium = userPlan === 'pro' || userPlan === 'plus';
-    
+
     if (isPremium) {
       try {
         const marketPrice = await calculateMarketPrice({
@@ -280,20 +321,19 @@ export async function getListingByIdService(listingId, userPlan = null) {
           fuel_type: listing.fuel_type,
           transmission: listing.transmission
         });
-        
+
         return {
-          ...listing,
+          ...baseListing,
           market_price: marketPrice.market_price,
           confidence_index: marketPrice.confidence_index,
           comparables_count: marketPrice.comparables_count
         };
       } catch (error) {
-        return listing;
+        return baseListing;
       }
     } else {
-      // Non-premium users: no market price or confidence index
       return {
-        ...listing,
+        ...baseListing,
         market_price: null,
         confidence_index: null,
         comparables_count: null

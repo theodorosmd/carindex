@@ -80,7 +80,7 @@ export async function renderAdminDashboard() {
               <div class="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
                 <span class="text-white font-bold text-lg sm:text-xl">C</span>
               </div>
-              <span class="text-lg sm:text-xl md:text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">Carindex Admin</span>
+              <span class="text-lg sm:text-xl md:text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">Carindex</span>
             </a>
           </div>
           
@@ -89,9 +89,9 @@ export async function renderAdminDashboard() {
             <a href="#/search" class="text-gray-600 hover:text-blue-600 transition text-sm lg:text-base">${tr('Search', 'Rechercher')}</a>
             <a href="#/dashboard" class="text-gray-600 hover:text-blue-600 transition text-sm lg:text-base">${tr('Dashboard', 'Dashboard')}</a>
             <a href="#/market-insights" class="text-gray-600 hover:text-blue-600 transition text-sm lg:text-base">${tr('Market Insights', 'Market Insights')}</a>
+            <a href="#/arbitrage" class="text-gray-600 hover:text-blue-600 transition text-sm lg:text-base">Arbitrage</a>
             <a href="#/evaluations" class="text-gray-600 hover:text-blue-600 transition text-sm lg:text-base">${tr('Evaluations', 'Évaluations')}</a>
             <a href="#/auction-margin" class="text-gray-600 hover:text-blue-600 transition text-sm lg:text-base">${tr('Calculator', 'Calculateur')}</a>
-            <span class="text-gray-600 text-xs lg:text-sm truncate max-w-[120px] lg:max-w-none">${user.email}</span>
             <span class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-semibold whitespace-nowrap">ADMIN</span>
             ${renderLanguageToggle()}
             <button onclick="window.logout()" class="px-3 lg:px-4 py-2 text-gray-600 hover:text-blue-600 transition text-sm lg:text-base whitespace-nowrap">${tr('Logout', 'Déconnexion')}</button>
@@ -117,10 +117,10 @@ export async function renderAdminDashboard() {
             <a href="#/search" class="text-gray-600 hover:text-blue-600 transition text-base py-2">${tr('Search', 'Rechercher')}</a>
             <a href="#/dashboard" class="text-gray-600 hover:text-blue-600 transition text-base py-2">${tr('Dashboard', 'Dashboard')}</a>
             <a href="#/market-insights" class="text-gray-600 hover:text-blue-600 transition text-base py-2">${tr('Market Insights', 'Market Insights')}</a>
+            <a href="#/arbitrage" class="text-gray-600 hover:text-blue-600 transition text-base py-2">Arbitrage</a>
             <a href="#/evaluations" class="text-gray-600 hover:text-blue-600 transition text-base py-2">${tr('Evaluations', 'Évaluations')}</a>
             <a href="#/auction-margin" class="text-gray-600 hover:text-blue-600 transition text-base py-2">${tr('Calculator', 'Calculateur')}</a>
             <div class="pt-2 border-t border-gray-200">
-              <div class="text-xs text-gray-500 mb-2">${user.email}</div>
               <button onclick="window.logout()" class="w-full text-left px-0 py-2 text-gray-600 hover:text-blue-600 transition text-base">Déconnexion</button>
             </div>
           </div>
@@ -293,7 +293,7 @@ export async function renderAdminDashboard() {
             <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-4 sm:mb-6">Contrôle des scrapers</h2>
             <p class="text-sm text-gray-600 mb-6">Déclenchez manuellement le scraping pour mettre à jour les données</p>
             
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               <!-- AutoScout24 -->
               <div class="border border-gray-200 rounded-lg p-4">
                 <div class="flex items-center justify-between mb-3">
@@ -366,6 +366,44 @@ export async function renderAdminDashboard() {
                 </div>
                 <div id="largus-status" class="mt-3 text-xs"></div>
               </div>
+
+              <!-- Gaspedaal.nl -->
+              <div class="border border-gray-200 rounded-lg p-4">
+                <div class="flex items-center justify-between mb-3">
+                  <h3 class="font-semibold text-gray-900">Gaspedaal.nl</h3>
+                  <span class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-medium">Pays-Bas</span>
+                </div>
+                <p class="text-xs text-gray-500 mb-3">Scrape les annonces depuis gaspedaal.nl</p>
+                <div class="space-y-2">
+                  <input type="url" id="gaspedaal-url" placeholder="https://www.gaspedaal.nl/zoeken?srt=df-a" 
+                         value="https://www.gaspedaal.nl/zoeken?srt=df-a" 
+                         class="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500">
+                  <button onclick="triggerScraper('gaspedaal', 'gaspedaal-url')" 
+                          class="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm font-medium">
+                    Lancer le scraper
+                  </button>
+                </div>
+                <div id="gaspedaal-status" class="mt-3 text-xs"></div>
+              </div>
+
+              <!-- Marktplaats.nl -->
+              <div class="border border-gray-200 rounded-lg p-4">
+                <div class="flex items-center justify-between mb-3">
+                  <h3 class="font-semibold text-gray-900">Marktplaats.nl</h3>
+                  <span class="px-2 py-1 bg-orange-100 text-orange-700 rounded text-xs font-medium">Pays-Bas</span>
+                </div>
+                <p class="text-xs text-gray-500 mb-3">Scrape les annonces auto Te koop depuis marktplaats.nl</p>
+                <div class="space-y-2">
+                  <input type="url" id="marktplaats-url" placeholder="https://www.marktplaats.nl/l/auto-s/#f:10882" 
+                         value="https://www.marktplaats.nl/l/auto-s/#f:10882" 
+                         class="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500">
+                  <button onclick="triggerScraper('marktplaats', 'marktplaats-url')" 
+                          class="w-full px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition text-sm font-medium">
+                    Lancer le scraper
+                  </button>
+                </div>
+                <div id="marktplaats-status" class="mt-3 text-xs"></div>
+              </div>
             </div>
 
             <!-- Scraping History -->
@@ -426,7 +464,7 @@ export async function renderAdminDashboard() {
               </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
               <input type="date" id="runs-started-from" class="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
               <input type="date" id="runs-started-to" class="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
               <select id="runs-status" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
@@ -466,7 +504,7 @@ export async function renderAdminDashboard() {
               </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
               <input type="text" id="export-listings-source" placeholder="Source (ex: autoscout24)" class="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
               <select id="export-listings-status" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
                 <option value="">Tous statuts</option>
@@ -482,14 +520,14 @@ export async function renderAdminDashboard() {
               <input type="text" id="export-listings-brand" placeholder="Marque" class="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
               <input type="text" id="export-listings-model" placeholder="Modèle" class="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
               <input type="number" id="export-listings-min-price" placeholder="Prix min" class="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
               <input type="number" id="export-listings-max-price" placeholder="Prix max" class="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
               <input type="number" id="export-listings-min-year" placeholder="Année min" class="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <input type="number" id="export-listings-max-year" placeholder="Année max" class="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
               <input type="date" id="export-listings-posted-from" class="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
               <input type="date" id="export-listings-posted-to" class="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
@@ -534,10 +572,21 @@ export async function renderAdminDashboard() {
                   <option value="leboncoin">LeBonCoin</option>
                   <option value="largus">L'Argus (occasion.largus.fr)</option>
                 </optgroup>
-                <optgroup label="🇸🇪 Suède">
+                <optgroup label="🇧🇪 Belgique">
+                  <option value="2ememain">2ememain.be</option>
+                </optgroup>
+                <optgroup label="🇳🇱 Pays-Bas">
+                  <option value="gaspedaal">Gaspedaal.nl</option>
+                  <option value="marktplaats">Marktplaats.nl</option>
+                </optgroup>
+                <optgroup label="🇸🇪 Suède / 🇳🇴 Norvège">
                   <option value="blocket">Blocket.se</option>
                   <option value="bilweb">Bilweb.se</option>
                   <option value="bytbil">Bytbil.com</option>
+                  <option value="finn">FINN.no</option>
+                </optgroup>
+                <optgroup label="🇵🇱 Pologne">
+                  <option value="otomoto">OtoMoto.pl</option>
                 </optgroup>
               </select>
             </div>
@@ -750,7 +799,19 @@ async function loadAdminData() {
         return
       }
       
-      const errorData = await response.json().catch(() => ({}))
+      const text = await response.text()
+      let errorData = {}
+      try {
+        errorData = JSON.parse(text)
+      } catch {
+        // Backend may return HTML (e.g. proxy error when backend not running)
+        if (response.status === 500) {
+          throw new Error(
+            'Le serveur a renvoyé une erreur 500. ' +
+            'Vérifiez que le backend tourne sur le port 3001 (npm run dev:backend) et consultez la console du backend.'
+          )
+        }
+      }
       console.error('❌ Admin stats error:', errorData)
       
       if (response.status === 403) {
@@ -758,7 +819,7 @@ async function loadAdminData() {
         window.location.hash = '#/dashboard'
         return
       }
-      const msg = errorData.error?.message || errorData.message || `Erreur ${response.status}`
+      const msg = errorData.error?.message || errorData.error?.details || errorData.message || `Erreur ${response.status}`
       throw new Error(msg)
     }
 
@@ -806,9 +867,15 @@ async function loadAdminData() {
           'largus': 'L\'Argus',
           'blocket': 'Blocket.se',
           'bilweb': 'Bilweb.se',
-          'bytbil': 'Bytbil.com'
+          'bytbil': 'Bytbil.com',
+          'finn': 'FINN.no',
+          'otomoto': 'OtoMoto.pl',
+          'gaspedaal': 'Gaspedaal.nl',
+          'marktplaats': 'Marktplaats.nl',
+          '2ememain': '2ememain.be'
         }
-        const percentage = ((count / stats.listings.total) * 100).toFixed(1)
+        const total = stats.listings?.total || 1
+        const percentage = total > 0 ? ((count / total) * 100).toFixed(1) : '0'
         return `
           <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 bg-gray-50 rounded-lg">
             <div class="flex items-center space-x-3">
@@ -1197,7 +1264,9 @@ function updateScrapingHistory() {
       'largus': 'L\'Argus',
       'blocket': 'Blocket.se',
       'bilweb': 'Bilweb.se',
-      'bytbil': 'Bytbil.com'
+      'bytbil': 'Bytbil.com',
+      'gaspedaal': 'Gaspedaal.nl',
+      '2ememain': '2ememain.be'
     }
     
     const getBadgeClass = (source) => {
@@ -1208,6 +1277,11 @@ function updateScrapingHistory() {
       if (source === 'blocket') return 'bg-yellow-100 text-yellow-700'
       if (source === 'bilweb') return 'bg-orange-100 text-orange-700'
       if (source === 'bytbil') return 'bg-pink-100 text-pink-700'
+      if (source === 'finn') return 'bg-cyan-100 text-cyan-700'
+      if (source === 'otomoto') return 'bg-indigo-100 text-indigo-700'
+      if (source === 'gaspedaal') return 'bg-red-100 text-red-700'
+      if (source === 'marktplaats') return 'bg-orange-100 text-orange-700'
+      if (source === '2ememain') return 'bg-teal-100 text-teal-700'
       return 'bg-gray-100 text-gray-700'
     }
     
@@ -1238,9 +1312,15 @@ const SOURCE_NAMES = {
   'mobilede': 'mobile.de',
   'leboncoin': 'LeBonCoin',
   'largus': "L'Argus",
+  'lacentrale': 'lacentrale',
   'blocket': 'Blocket.se',
   'bilweb': 'Bilweb.se',
-  'bytbil': 'Bytbil.com'
+  'bytbil': 'Bytbil.com',
+  'finn': 'FINN.no',
+  'otomoto': 'OtoMoto.pl',
+  'subito': 'Subito.it',
+  'gaspedaal': 'Gaspedaal.nl',
+  'marktplaats': 'Marktplaats.nl'
 }
 
 async function loadScraperDashboard() {
@@ -1292,87 +1372,191 @@ function renderScraperDashboard(data) {
   const completionColor = parseFloat(completionRate) >= 95 ? 'text-green-600' : parseFloat(completionRate) >= 80 ? 'text-amber-600' : 'text-red-600'
 
   let html = `
-    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-      <div class="bg-green-50 border border-green-200 rounded-lg p-4">
-        <div class="text-sm font-medium text-green-800">Runs OK</div>
-        <div class="text-2xl font-bold text-green-900">${(t.runs_ok || 0).toLocaleString('fr-FR')}</div>
-        <div class="text-xs text-green-600 mt-1">Succès (30 derniers jours)</div>
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
+      <div class="bg-green-50 border border-green-200 rounded-lg p-3 sm:p-4">
+        <div class="text-xs sm:text-sm font-medium text-green-800">Runs OK</div>
+        <div class="text-xl sm:text-2xl font-bold text-green-900">${(t.runs_ok || 0).toLocaleString('fr-FR')}</div>
+        <div class="text-xs text-green-600 mt-1 hidden sm:block">Succès (30 derniers jours)</div>
       </div>
-      <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <div class="text-sm font-medium text-blue-800">En cours</div>
-        <div class="text-2xl font-bold text-blue-900">${(t.runs_pending || 0).toLocaleString('fr-FR')}</div>
-        <div class="text-xs text-blue-600 mt-1">Running</div>
+      <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4">
+        <div class="text-xs sm:text-sm font-medium text-blue-800">En cours</div>
+        <div class="text-xl sm:text-2xl font-bold text-blue-900">${(t.runs_pending || 0).toLocaleString('fr-FR')}</div>
+        <div class="text-xs text-blue-600 mt-1 hidden sm:block">Running</div>
       </div>
-      <div class="bg-red-50 border border-red-200 rounded-lg p-4">
-        <div class="text-sm font-medium text-red-800">Échecs</div>
-        <div class="text-2xl font-bold text-red-900">${(t.runs_failed || 0).toLocaleString('fr-FR')}</div>
-        <div class="text-xs text-red-600 mt-1">Failed</div>
+      <div class="bg-red-50 border border-red-200 rounded-lg p-3 sm:p-4">
+        <div class="text-xs sm:text-sm font-medium text-red-800">Échecs</div>
+        <div class="text-xl sm:text-2xl font-bold text-red-900">${(t.runs_failed || 0).toLocaleString('fr-FR')}</div>
+        <div class="text-xs text-red-600 mt-1 hidden sm:block">Failed</div>
       </div>
-      <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
-        <div class="text-sm font-medium text-gray-800">Total runs</div>
-        <div class="text-2xl font-bold text-gray-900">${(t.runs_total || 0).toLocaleString('fr-FR')}</div>
-        <div class="text-xs text-gray-600 mt-1">30 derniers jours</div>
+      <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 sm:p-4">
+        <div class="text-xs sm:text-sm font-medium text-gray-800">Total runs</div>
+        <div class="text-xl sm:text-2xl font-bold text-gray-900">${(t.runs_total || 0).toLocaleString('fr-FR')}</div>
+        <div class="text-xs text-gray-600 mt-1 hidden sm:block">30 derniers jours</div>
       </div>
-      <div class="bg-white border border-gray-200 rounded-lg p-4">
-        <div class="text-sm font-medium text-gray-800">Taux complétion</div>
-        <div class="text-2xl font-bold ${completionColor}">${completionRate}%</div>
-        <div class="text-xs text-gray-600 mt-1">OK / total</div>
+      <div class="bg-white border border-gray-200 rounded-lg p-3 sm:p-4 col-span-2 sm:col-span-1">
+        <div class="text-xs sm:text-sm font-medium text-gray-800">Taux complétion</div>
+        <div class="text-xl sm:text-2xl font-bold ${completionColor}">${completionRate}%</div>
+        <div class="text-xs text-gray-600 mt-1 hidden sm:block">OK / total</div>
       </div>
     </div>
 
     <div class="mb-6">
       <h3 class="font-semibold text-gray-900 mb-3">Par site</h3>
-      <p class="text-xs text-gray-500 mb-2">Runs = exécutions du scraper. Listings = annonces en base (résultat cumulé des runs).</p>
-      <div class="overflow-x-auto -mx-2">
-        <table class="min-w-full divide-y divide-gray-200 text-sm">
-          <thead class="bg-gray-50">
-            <tr>
-              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Site</th>
-              <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase" title="Runs réussis">Runs OK</th>
-              <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">En cours</th>
-              <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Échecs</th>
-              <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Raw en attente</th>
-              <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase" title="Annonces en base">Listings</th>
-            </tr>
-          </thead>
-          <tbody class="bg-white divide-y divide-gray-200">
+      <p class="text-xs text-gray-500 mb-2">Runs = exécutions du scraper. Listings = annonces en base (résultat cumulé). Queue URLs = en attente (+ en cours pendant 2_collect_details).</p>
+      <div class="sm:hidden space-y-3">
   `
 
+  function formatQueueUrls(row) {
+    const pending = row.queue_urls_pending || 0
+    const processing = row.queue_urls_processing || 0
+    if (processing > 0 && pending > 0) return pending.toLocaleString('fr-FR') + ' <span class="text-blue-600">(' + processing + ' en cours)</span>'
+    if (processing > 0) return '<span class="text-blue-600">' + processing + ' en cours</span>'
+    return pending.toLocaleString('fr-FR')
+  }
+
+  let mobileCardsHtml = ''
+  let tableRowsHtml = ''
+
   if (by_website && by_website.length > 0) {
-    let totals = { ok: 0, pending: 0, failed: 0, raw_pending: 0, listings: 0 }
+    let listingsSum = 0
+    let totals = { ok: 0, pending: 0, failed: 0, raw_pending: 0, queue_urls: 0, queue_processing: 0, listings: 0 }
     by_website.forEach((row) => {
       totals.ok += row.runs_ok || 0
       totals.pending += row.runs_pending || 0
       totals.failed += row.runs_failed || 0
       totals.raw_pending += row.raw_pending || 0
-      totals.listings += row.listings_total || 0
+      totals.queue_urls += row.queue_urls_pending || 0
+      totals.queue_processing += row.queue_urls_processing || 0
+      listingsSum += row.listings_total || 0
       const name = SOURCE_NAMES[row.source] || row.source
-      html += `
+      const lr = row.last_run
+      let lastRunText = '—'
+      if (lr) {
+        const date = lr.finished_at || lr.started_at
+        const dateStr = date ? new Date(date).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''
+        const status = (lr.status || '').toLowerCase()
+        if (status === 'success') {
+          lastRunText = lr.total_saved != null
+            ? (lr.total_saved || 0).toLocaleString('fr-FR') + ' sauvegardées'
+            : 'OK ' + dateStr
+          if (lr.total_scraped != null && lr.total_scraped !== lr.total_saved) {
+            lastRunText = (lr.total_scraped || 0).toLocaleString('fr-FR') + ' scrapées, ' + lastRunText
+          }
+        } else if (status === 'failed') {
+          lastRunText = lr.error_count != null ? lr.error_count + ' erreurs' : 'Échec'
+        } else if (status === 'running') {
+          lastRunText = 'En cours'
+        } else {
+          lastRunText = dateStr ? '— ' + dateStr : '—'
+        }
+        if (dateStr && lastRunText !== 'En cours' && !lastRunText.startsWith('—')) lastRunText += ' (' + dateStr + ')'
+      }
+
+      mobileCardsHtml += `
+        <div class="border border-gray-200 rounded-lg p-3 bg-white">
+          <div class="flex items-center justify-between mb-2">
+            <span class="font-semibold text-gray-900 text-sm">${name}</span>
+            <span class="text-xs text-gray-500 font-medium">${(row.listings_total || 0).toLocaleString('fr-FR')} listings</span>
+          </div>
+          <div class="grid grid-cols-3 gap-2 mb-2">
+            <div class="text-center p-1.5 rounded ${row.runs_ok > 0 ? 'bg-green-50' : 'bg-gray-50'}">
+              <div class="text-xs text-gray-500">OK</div>
+              <div class="font-bold text-sm ${row.runs_ok > 0 ? 'text-green-700' : 'text-gray-400'}">${row.runs_ok}</div>
+            </div>
+            <div class="text-center p-1.5 rounded ${row.runs_pending > 0 ? 'bg-blue-50' : 'bg-gray-50'}">
+              <div class="text-xs text-gray-500">En cours</div>
+              <div class="font-bold text-sm ${row.runs_pending > 0 ? 'text-blue-700' : 'text-gray-400'}">${row.runs_pending}</div>
+            </div>
+            <div class="text-center p-1.5 rounded ${row.runs_failed > 0 ? 'bg-red-50' : 'bg-gray-50'}">
+              <div class="text-xs text-gray-500">Échecs</div>
+              <div class="font-bold text-sm ${row.runs_failed > 0 ? 'text-red-700' : 'text-gray-400'}">${row.runs_failed}</div>
+            </div>
+          </div>
+          <div class="flex items-center justify-between text-xs text-gray-500 border-t border-gray-100 pt-2">
+            <span>Dernier: ${lastRunText}</span>
+            ${(row.queue_urls_pending || row.queue_urls_processing) ? '<span>Queue: ' + formatQueueUrls(row) + '</span>' : ''}
+          </div>
+        </div>
+      `
+
+      tableRowsHtml += `
         <tr class="hover:bg-gray-50">
-          <td class="px-4 py-2 font-medium text-gray-900">${name}</td>
-          <td class="px-4 py-2 text-right"><span class="px-2 py-1 rounded ${row.runs_ok > 0 ? 'bg-green-100 text-green-800' : 'text-gray-400'}">${row.runs_ok}</span></td>
-          <td class="px-4 py-2 text-right"><span class="px-2 py-1 rounded ${row.runs_pending > 0 ? 'bg-blue-100 text-blue-800' : 'text-gray-400'}">${row.runs_pending}</span></td>
-          <td class="px-4 py-2 text-right"><span class="px-2 py-1 rounded ${row.runs_failed > 0 ? 'bg-red-100 text-red-800' : 'text-gray-400'}">${row.runs_failed}</span></td>
-          <td class="px-4 py-2 text-right">${(row.raw_pending || 0).toLocaleString('fr-FR')}</td>
-          <td class="px-4 py-2 text-right">${(row.listings_total || 0).toLocaleString('fr-FR')}</td>
+          <td class="px-3 sm:px-4 py-2 font-medium text-gray-900 bg-white whitespace-nowrap">${name}</td>
+          <td class="px-3 sm:px-4 py-2 text-right whitespace-nowrap"><span class="px-2 py-1 rounded ${row.runs_ok > 0 ? 'bg-green-100 text-green-800' : 'text-gray-400'}">${row.runs_ok}</span></td>
+          <td class="px-3 sm:px-4 py-2 text-right whitespace-nowrap"><span class="px-2 py-1 rounded ${row.runs_pending > 0 ? 'bg-blue-100 text-blue-800' : 'text-gray-400'}">${row.runs_pending}</span></td>
+          <td class="px-3 sm:px-4 py-2 text-right whitespace-nowrap"><span class="px-2 py-1 rounded ${row.runs_failed > 0 ? 'bg-red-100 text-red-800' : 'text-gray-400'}">${row.runs_failed}</span></td>
+          <td class="px-3 sm:px-4 py-2 text-right text-xs text-gray-600 whitespace-nowrap" title="${lr?.finished_at || lr?.started_at || ''}">${lastRunText}</td>
+          <td class="px-3 sm:px-4 py-2 text-right whitespace-nowrap">${(row.raw_pending || 0).toLocaleString('fr-FR')}</td>
+          <td class="px-3 sm:px-4 py-2 text-right whitespace-nowrap">${formatQueueUrls(row)}</td>
+          <td class="px-3 sm:px-4 py-2 text-right whitespace-nowrap">${(row.listings_total || 0).toLocaleString('fr-FR')}</td>
         </tr>
       `
     })
-    html += `
+    totals.listings = t.listings_total || listingsSum
+
+    mobileCardsHtml += `
+      <div class="border-2 border-gray-300 rounded-lg p-3 bg-gray-50">
+        <div class="flex items-center justify-between mb-2">
+          <span class="font-bold text-gray-900 text-sm">Total</span>
+          <span class="text-xs font-bold text-gray-700">${totals.listings.toLocaleString('fr-FR')} listings</span>
+        </div>
+        <div class="grid grid-cols-3 gap-2">
+          <div class="text-center p-1.5 rounded bg-green-50">
+            <div class="text-xs text-gray-500">OK</div>
+            <div class="font-bold text-sm text-green-700">${totals.ok.toLocaleString('fr-FR')}</div>
+          </div>
+          <div class="text-center p-1.5 rounded bg-blue-50">
+            <div class="text-xs text-gray-500">En cours</div>
+            <div class="font-bold text-sm text-blue-700">${totals.pending.toLocaleString('fr-FR')}</div>
+          </div>
+          <div class="text-center p-1.5 rounded bg-red-50">
+            <div class="text-xs text-gray-500">Échecs</div>
+            <div class="font-bold text-sm text-red-700">${totals.failed.toLocaleString('fr-FR')}</div>
+          </div>
+        </div>
+        ${totals.queue_urls > 0 || totals.queue_processing > 0 ? '<div class="text-xs text-gray-500 border-t border-gray-200 pt-2 mt-2">Queue: ' + (totals.queue_processing > 0 ? totals.queue_urls.toLocaleString('fr-FR') + ' (' + totals.queue_processing + ' en cours)' : totals.queue_urls.toLocaleString('fr-FR')) + '</div>' : ''}
+      </div>
+    `
+
+    tableRowsHtml += `
         <tr class="bg-gray-100 font-semibold border-t-2 border-gray-300">
-          <td class="px-4 py-2 text-gray-900">Total</td>
-          <td class="px-4 py-2 text-right">${totals.ok.toLocaleString('fr-FR')}</td>
-          <td class="px-4 py-2 text-right">${totals.pending.toLocaleString('fr-FR')}</td>
-          <td class="px-4 py-2 text-right">${totals.failed.toLocaleString('fr-FR')}</td>
-          <td class="px-4 py-2 text-right">${totals.raw_pending.toLocaleString('fr-FR')}</td>
-          <td class="px-4 py-2 text-right">${totals.listings.toLocaleString('fr-FR')}</td>
+          <td class="px-3 sm:px-4 py-2 text-gray-900 bg-gray-100 whitespace-nowrap">Total</td>
+          <td class="px-3 sm:px-4 py-2 text-right">${totals.ok.toLocaleString('fr-FR')}</td>
+          <td class="px-3 sm:px-4 py-2 text-right">${totals.pending.toLocaleString('fr-FR')}</td>
+          <td class="px-3 sm:px-4 py-2 text-right">${totals.failed.toLocaleString('fr-FR')}</td>
+          <td class="px-3 sm:px-4 py-2 text-right"></td>
+          <td class="px-3 sm:px-4 py-2 text-right">${totals.raw_pending.toLocaleString('fr-FR')}</td>
+          <td class="px-3 sm:px-4 py-2 text-right">${totals.queue_processing > 0 ? totals.queue_urls.toLocaleString('fr-FR') + ' (' + totals.queue_processing + ' en cours)' : totals.queue_urls.toLocaleString('fr-FR')}</td>
+          <td class="px-3 sm:px-4 py-2 text-right">${totals.listings.toLocaleString('fr-FR')}</td>
         </tr>
       `
   } else {
-    html += '<tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">Aucune donnée</td></tr>'
+    mobileCardsHtml += '<div class="text-center text-gray-500 py-8">Aucune donnée</div>'
+    tableRowsHtml += '<tr><td colspan="8" class="px-4 py-8 text-center text-gray-500">Aucune donnée</td></tr>'
   }
 
-  html += '</tbody></table></div></div>'
+  html += mobileCardsHtml
+  html += `</div>
+      <div class="hidden sm:block overflow-x-auto rounded-lg border border-gray-200">
+        <table class="min-w-full divide-y divide-gray-200 text-sm table-sticky-col">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-3 sm:px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase bg-gray-50 whitespace-nowrap">Site</th>
+              <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap" title="Runs réussis">Runs OK</th>
+              <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">En cours</th>
+              <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Échecs</th>
+              <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Dernier run</th>
+              <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Raw en attente</th>
+              <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap" title="URLs mobile.de à enrichir">Queue URLs</th>
+              <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap" title="Annonces en base">Listings</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-200">
+            ${tableRowsHtml}
+          </tbody>
+        </table>
+      </div>
+    </div>`
 
   if (crons && crons.length > 0) {
     html += `
@@ -1854,7 +2038,7 @@ function renderFastestModelsWidget(models) {
           </div>
           <div class="flex-1 min-w-0">
             <div class="font-semibold text-gray-900 text-sm sm:text-base">${capitalize(model.brand)} ${capitalize(model.model)}</div>
-            <div class="text-xs text-gray-500">${model.salesCount} ventes • ${new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(model.medianPrice || 0)}</div>
+            <div class="text-xs text-gray-500">${model.salesCount} ventes • ${new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(model.medianPrice || 0)}${model.countries && model.countries.length ? ' • ' + model.countries.map(c => ({ FR: 'France', SE: 'Suède', DE: 'Allemagne' }[c] || c)).join(', ') : ''}</div>
           </div>
         </div>
         <div class="flex items-center space-x-2">
@@ -1909,7 +2093,11 @@ function renderAutoScrapers(scrapers) {
     'largus': 'L\'Argus',
     'blocket': 'Blocket.se',
     'bilweb': 'Bilweb.se',
-    'bytbil': 'Bytbil.com'
+    'bytbil': 'Bytbil.com',
+    'finn': 'FINN.no',
+    'otomoto': 'OtoMoto.pl',
+    'gaspedaal': 'Gaspedaal.nl',
+    '2ememain': '2ememain.be'
   }
 
   const sourceColors = {
@@ -1919,7 +2107,12 @@ function renderAutoScrapers(scrapers) {
     'largus': { bg: 'bg-amber-100', text: 'text-amber-700', border: 'border-amber-200' },
     'blocket': { bg: 'bg-yellow-100', text: 'text-yellow-700', border: 'border-yellow-200' },
     'bilweb': { bg: 'bg-orange-100', text: 'text-orange-700', border: 'border-orange-200' },
-    'bytbil': { bg: 'bg-pink-100', text: 'text-pink-700', border: 'border-pink-200' }
+    'bytbil': { bg: 'bg-pink-100', text: 'text-pink-700', border: 'border-pink-200' },
+    'finn': { bg: 'bg-cyan-100', text: 'text-cyan-700', border: 'border-cyan-200' },
+    'otomoto': { bg: 'bg-indigo-100', text: 'text-indigo-700', border: 'border-indigo-200' },
+    'gaspedaal': { bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-200' },
+    'marktplaats': { bg: 'bg-orange-100', text: 'text-orange-700', border: 'border-orange-200' },
+    '2ememain': { bg: 'bg-teal-100', text: 'text-teal-700', border: 'border-teal-200' }
   }
 
   container.innerHTML = scrapers.map(scraper => {

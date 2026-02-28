@@ -14,7 +14,7 @@ export async function getStats(req, res, next) {
       stats
     });
   } catch (error) {
-    logger.error('Error in admin stats route', { error: error.message });
+    logger.error('Error in admin stats route', { error: error.message, stack: error.stack });
     next(error);
   }
 }

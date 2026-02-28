@@ -22,6 +22,7 @@
     "migrate:032:api": "node src/scripts/run-migration-032-api.js",
     "migrate:033:api": "node src/scripts/run-migration-033-api.js",
     "migrate:034:api": "node src/scripts/run-migration-034-api.js",
+    "migrate:035:api": "node src/scripts/run-migration-035-api.js",
     "backfill:sales-aggregates": "node src/scripts/backfill-sales-aggregates.js",
     "arbitrage:detect": "node src/scripts/run-arbitrage-detection.js",
     "verify:sources": "node src/scripts/verify-listing-sources-backfill.js",

@@ -24,7 +24,9 @@ CREATE TABLE IF NOT EXISTS mobile_de_fetch_queue (
 
 CREATE INDEX IF NOT EXISTS idx_mobilede_queue_status ON mobile_de_fetch_queue(status);
 CREATE INDEX IF NOT EXISTS idx_mobilede_queue_next_retry ON mobile_de_fetch_queue(next_retry_at) WHERE status IN ('pending', 'retry');
-CREATE INDEX IF NOT EXISTS idx_mobilede_queue_available ON mobile_de_fetch_queue(created_at) WHERE status IN ('pending', 'retry') AND (next_retry_at IS NULL OR next_retry_at <= NOW());
+-- next_retry_at <= NOW() ne peut pas être dans l'index (NOW() n'est pas IMMUTABLE).
+-- L'appli filtre next_retry_at à l'exécution.
+CREATE INDEX IF NOT EXISTS idx_mobilede_queue_available ON mobile_de_fetch_queue(created_at) WHERE status IN ('pending', 'retry');
 
 COMMENT ON TABLE mobile_de_fetch_queue IS 'Queue de URLs mobile.de à enrichir (remplace Django Car). 1_collect_results ajoute, 2_collect_details consomme.';
 

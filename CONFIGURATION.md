@@ -45,6 +45,9 @@ SMTP_FROM=noreply@carindex.com
 FRONTEND_URL=https://app.carindex.com
 MARKETING_URL=https://carindex.com
 
+# Frontend build: base URL for in-app links (e.g. arbitrage "Nos annonces")
+# In frontend/.env or Vercel: VITE_APP_URL=https://app.carindex.com
+
 # Feature Flags
 ENABLE_API=true
 ENABLE_WEBHOOKS=true
