@@ -25,6 +25,10 @@ const UNLIMITED_OPTIONS = {
   maxPages: 9999
 };
 
+// Retries on transient failures (timeout, network, rate limit). 2 = 1 initial + 2 retries = 3 attempts
+const SCRAPER_RETRIES = Math.max(1, parseInt(process.env.SCRAPER_RETRIES || '3', 10));
+const RETRY_DELAY_MS = parseInt(process.env.SCRAPER_RETRY_DELAY_MS || '15000', 10);
+
 async function runSourceScraper(source, searchUrls) {
   const urls = Array.isArray(searchUrls) ? searchUrls : [searchUrls];
   const opts = {
@@ -107,12 +111,33 @@ const SOURCE_LABELS = {
   '2ememain': '2emain.be'
 };
 
+/** Errors that are worth retrying (transient) */
+function isRetryableError(err) {
+  const msg = (err?.message || '').toLowerCase();
+  return (
+    msg.includes('timeout') ||
+    msg.includes('econnreset') ||
+    msg.includes('econnrefused') ||
+    msg.includes('network') ||
+    msg.includes('429') ||
+    msg.includes('502') ||
+    msg.includes('503') ||
+    msg.includes('504') ||
+    msg.includes('navigation') ||
+    msg.includes('target closed') ||
+    msg.includes('browser') ||
+    msg.includes('chromium') ||
+    msg.includes('libglib')
+  );
+}
+
 /**
- * Run a single source scraper with run tracking
+ * Run a single source scraper with run tracking and retries
  */
 async function runOneSource([source, searchUrls], index, total) {
   const label = SOURCE_LABELS[source] || source;
   let runId = null;
+  let lastError = null;
 
   console.log(`[${index + 1}/${total}] 🏃 Démarrage ${label}...`);
 
@@ -126,41 +151,51 @@ async function runOneSource([source, searchUrls], index, total) {
     logger.warn('Could not create scraper run (table may be missing)', { error: runErr.message });
   }
 
-  try {
-    const result = await runSourceScraper(source, searchUrls);
-    const scraped = result?.totalScraped || 0;
-    const saved = result?.saved || 0;
+  for (let attempt = 1; attempt <= SCRAPER_RETRIES; attempt++) {
+    try {
+      const result = await runSourceScraper(source, searchUrls);
+      const scraped = result?.totalScraped || 0;
+      const saved = result?.saved || 0;
 
-    if (runId) {
-      try {
-        await updateScraperRun(runId, {
-          status: 'success',
-          total_scraped: scraped,
-          total_saved: saved,
-          total_failed: result?.errors || 0
-        });
-      } catch (upErr) {
-        logger.warn('Could not update scraper run', { error: upErr.message });
+      if (runId) {
+        try {
+          await updateScraperRun(runId, {
+            status: 'success',
+            total_scraped: scraped,
+            total_saved: saved,
+            total_failed: result?.errors || 0
+          });
+        } catch (upErr) {
+          logger.warn('Could not update scraper run', { error: upErr.message });
+        }
+      }
+
+      console.log(`   ✅ ${label}: ${scraped} scrapées, ${saved} sauvegardées`);
+      return { name: label, source, scraped, saved, status: 'success' };
+    } catch (err) {
+      lastError = err;
+      if (attempt < SCRAPER_RETRIES && isRetryableError(err)) {
+        console.log(`   ⏳ ${label}: échec, retry ${attempt}/${SCRAPER_RETRIES} dans ${RETRY_DELAY_MS / 1000}s`);
+        await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+      } else {
+        break;
       }
     }
-
-    console.log(`   ✅ ${label}: ${scraped} scrapées, ${saved} sauvegardées`);
-    return { name: label, source, scraped, saved, status: 'success' };
-  } catch (err) {
-    if (runId) {
-      try {
-        await updateScraperRun(runId, {
-          status: 'failed',
-          error_message: err.message
-        });
-      } catch (upErr) {
-        logger.warn('Could not update scraper run', { error: upErr.message });
-      }
-    }
-    logger.error('Scraper failed', { name: label, source, error: err.message });
-    console.log(`   ❌ ${label}: ${err.message}`);
-    return { name: label, source, scraped: 0, saved: 0, status: 'error', error: err.message };
   }
+
+  if (runId) {
+    try {
+      await updateScraperRun(runId, {
+        status: 'failed',
+        error_message: lastError?.message || 'Unknown error'
+      });
+    } catch (upErr) {
+      logger.warn('Could not update scraper run', { error: upErr.message });
+    }
+  }
+  logger.error('Scraper failed', { name: label, source, error: lastError?.message });
+  console.log(`   ❌ ${label}: ${lastError?.message}`);
+  return { name: label, source, scraped: 0, saved: 0, status: 'error', error: lastError?.message };
 }
 
 /**

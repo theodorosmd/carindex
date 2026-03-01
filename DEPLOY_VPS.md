@@ -248,6 +248,17 @@ Puppeteer utilise Chromium embarqué qui peut manquer de libs sur le VPS. **Solu
 bash scripts/fix-puppeteer-deps-vps.sh
 ```
 
+### Échecs répétés (ÉCHECS dans le dashboard)
+
+Les scrapers réessayent automatiquement 3 fois en cas d’erreur transitoire (timeout, réseau, rate limit). Pour voir les messages d’erreur exacts :
+
+```bash
+cd backend
+node src/scripts/check-failed-runs.js
+```
+
+Variables utiles : `SCRAPER_RETRIES=3`, `SCRAPER_RETRY_DELAY_MS=15000`.
+
 ---
 
 ## 9. Sécurité et maintenance
