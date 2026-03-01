@@ -10,6 +10,8 @@ module.exports = {
     {
       name: 'carindex-scraper',
       script: 'src/start.js',
+      cwd: __dirname,
+      node_args: '-r dotenv/config',
       env: { NODE_ENV: 'production' },
       max_memory_restart: '2G',
       restart_delay: 5000,
