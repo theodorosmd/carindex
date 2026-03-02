@@ -17,10 +17,11 @@ const arg = process.argv[2];
 if (arg === '--seed') {
   // Valeurs connues (à ajuster si besoin) — permet d'afficher le % même si scrape.do échoue
   const KNOWN_TOTALS = {
+    autoscout24: 2_132_000,  // Europe multi-pays (BE, DE, IT, AT, NL, ES, FR, LU)
     bytbil: 82_011,
     leboncoin: 733_444,
     blocket: 134_998,
-    'mobile.de': 1_418_365,  // "1.418.365 Angebote" sur mobile.de
+    'mobile.de': 1_418_365,
     gaspedaal: 65_000,
     marktplaats: 15_000,
   };

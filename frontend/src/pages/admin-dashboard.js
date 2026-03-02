@@ -1471,7 +1471,11 @@ function renderScraperDashboard(data) {
     })
     by_website.forEach((row) => {
       const siteTotal = row.site_total_available || 0
-      const pctScraped = siteTotal > 0 ? ((row.listings_total || 0) / siteTotal * 100).toFixed(1) : null
+      let pctScraped = null
+      if (siteTotal > 0) {
+        const raw = (row.listings_total || 0) / siteTotal * 100
+        pctScraped = Math.min(raw, 100).toFixed(1)  // cap 100% (site_total peut être sous-estimé)
+      }
       const pctShare = listingsSum > 0 ? ((row.listings_total || 0) / listingsSum * 100).toFixed(1) : '0'
       const name = SOURCE_NAMES[row.source] || row.source
       const lr = row.last_run
