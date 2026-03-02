@@ -36,14 +36,20 @@ Sans ça, Railway et le VPS exécuteraient tous deux le scraping.
 | **Hetzner CCX23** (recommandé) | **4 dédiés** | **16 GB** | **6–8** | **~€24/mo** |
 | Hetzner CCX33 | 8 dédiés | 32 GB | 10–12 | ~€48/mo |
 
-### Dépendances système (Puppeteer)
+### Dépendances système (Chromium pour Puppeteer)
+
+Sans Chromium système, les scrapers échouent avec `libglib-2.0.so.0: cannot open shared object file`.
 
 ```bash
 sudo apt update
 sudo apt install -y chromium-browser fonts-liberation libasound2 libatk-bridge2.0-0 libatk1.0-0 libcups2 libdbus-1-3 libdrm2 libgbm1 libglib2.0-0 libgtk-3-0 libnspr4 libnss3 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 xdg-utils
 ```
 
-Sur Ubuntu 24.04 : remplacer `libglib2.0-0` par `libglib2.0-0t64` si nécessaire.
+Si `chromium-browser` n'existe pas (Ubuntu 24.04) : utiliser `chromium` et mettre dans `.env` :
+
+```env
+PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+```
 
 ### Node.js 20+
 
@@ -102,6 +108,21 @@ ENABLE_ARBITRAGE_DETECTION=false
 ENABLE_DJANGO_IMPORT=false
 ENABLE_RAW_LISTINGS_PROCESSOR=true
 ENABLE_SALES_DETECTION=true
+```
+
+**Focus sur 6 sources** (blocket, leboncoin, autoscout24, largus, lacentrale, mobile.de) :
+
+```env
+ENABLE_SUPABASE_BYTBIL_IMPORT=false
+# FOCUSED_SOURCES=blocket,leboncoin,autoscout24,largus,lacentrale,mobile.de (défaut)
+# Migration 20260302110000 désactive les auto_scrapers hors focus
+```
+
+**Accélérer mobile.de** (scraping parallèle, dédié serveur) :
+
+```env
+MOBILEDE_MAX_PAGES=200          # pages de recherche par run (défaut 100)
+MOBILEDE_CONCURRENT_PAGES=8     # pages scrapées en parallèle (défaut 5)
 ```
 
 ### Lancement avec PM2

@@ -21,7 +21,7 @@ export async function runMobileDeScraper(searchUrls, options = {}, progressCallb
   };
 
   try {
-    const maxPages = options.maxPages || 10;
+    const maxPages = options.maxPages ?? parseInt(process.env.MOBILEDE_MAX_PAGES || '100', 10);
 
     logger.info('Starting mobile.de scraper (Puppeteer)', { searchUrls, options });
 
@@ -105,13 +105,28 @@ async function scrapeMobileDeUrl(browser, url, maxPages = 10) {
 
   // 1. Si scrape.do est dispo : l'utiliser en priorité (mobile.de bloque souvent Puppeteer)
   if (isScrapeDoAvailable()) {
-    logger.info('mobile.de: using scrape.do (primary - mobile.de blocks Puppeteer often)');
-    for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
-      const pageUrl = buildMobileDePageUrl(url, pageNum);
-      const scraped = await scrapeMobileDeSearchViaScraper(pageUrl);
-      if (scraped.length === 0) break;
-      allListings.push(...scraped);
-      logger.info('mobile.de page scraped via scrape.do', { page: pageNum, found: scraped.length });
+    const concurrency = parseInt(process.env.MOBILEDE_CONCURRENT_PAGES || '5', 10) || 1;
+    logger.info('mobile.de: using scrape.do (parallel)', { concurrency, maxPages });
+    // Scraper les pages par lots parallèles (ex: 5 pages en même temps)
+    for (let start = 1; start <= maxPages; start += concurrency) {
+      const pageNums = [];
+      for (let i = 0; i < concurrency && start + i <= maxPages; i++) {
+        pageNums.push(start + i);
+      }
+      const batchResults = await Promise.all(
+        pageNums.map((pageNum) => scrapeMobileDeSearchViaScraper(buildMobileDePageUrl(url, pageNum)))
+      );
+      let hadEmpty = false;
+      for (let i = 0; i < batchResults.length; i++) {
+        const scraped = batchResults[i];
+        if (scraped.length === 0) hadEmpty = true;
+        allListings.push(...scraped);
+        if (scraped.length > 0) {
+          logger.info('mobile.de page scraped via scrape.do', { page: pageNums[i], found: scraped.length });
+        }
+      }
+      if (hadEmpty && batchResults[0]?.length === 0) break;
+      if (pageNums.length < concurrency) break;
     }
     return allListings;
   }
