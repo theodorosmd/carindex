@@ -99,6 +99,7 @@ const SOURCE_CONFIG = {
     url: 'https://www.blocket.se/mobility/search/car',
     geoCode: 'se',
     patterns: [
+      /(\d[\d\s]*)\s*resultat/i,  // "134 998 resultat"
       /(\d[\d\s]*)\s*(?:annonser|bilar)/i,
       /(?:resultat|annonser)\s*[:\s]*(\d[\d\s]*)/i,
     ]
