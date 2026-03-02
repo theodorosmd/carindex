@@ -348,7 +348,16 @@ export async function getScraperDashboardStats() {
       .select('*', { count: 'exact', head: true })
       .eq('status', 'processing'));
 
-    // 5. Listings total by source - use count per source (Supabase limits select to 1000 rows)
+    // 5. Site totals (total vehicles available on each marketplace, for % scraped)
+    const siteTotalsData = await safeSelect('source_site_totals', supabase
+      .from('source_site_totals')
+      .select('source_platform, total_available'));
+    const siteTotalsBySource = {};
+    (siteTotalsData || []).forEach((row) => {
+      siteTotalsBySource[row.source_platform] = row.total_available ?? 0;
+    });
+
+    // 6. Listings total by source - use count per source (Supabase limits select to 1000 rows)
     const listingsSources = ['autoscout24', 'mobile.de', 'mobile_de', 'mobilede', 'leboncoin', 'largus', 'lacentrale', 'blocket', 'bilweb', 'bytbil', 'subito', 'gaspedaal', 'marktplaats', 'coches.net', 'finn', 'otomoto'];
     const listingsBySource = {};
     const normalizeListingSource = (s) => (['mobile_de', 'mobilede'].includes(s) ? 'mobile.de' : s);
@@ -390,6 +399,7 @@ export async function getScraperDashboardStats() {
         queue_urls_pending: isMobileDe ? mobiledeQueuePending : 0,
         queue_urls_processing: isMobileDe ? mobiledeQueueProcessing : 0,
         listings_total: listingsBySource[source] || 0,
+        site_total_available: siteTotalsBySource[source] || null,
         last_run: lastRun,
         last_success: lastSuccess,
         crons: cronsForSource

@@ -4,6 +4,20 @@ import { saveRawListings } from './rawIngestService.js';
 import { fetchViaScrapeDo, isScrapeDoAvailable, isPageBlocked } from '../utils/scrapeDo.js';
 import * as cheerio from 'cheerio';
 import { launchBrowser } from '../utils/puppeteerLaunch.js';
+import { fetchAndPersistSiteTotal } from './sourceSiteTotalsService.js';
+
+/** Extract total from Bytbil HTML. Button shows "Sök 82 011 fordon". */
+function parseSiteTotalFromHtml(html) {
+  const match = html.match(/([\d\s]+)\s*fordon/i);
+  if (!match) return null;
+  const n = parseInt(match[1].replace(/\s/g, ''), 10);
+  return isNaN(n) ? null : n;
+}
+
+/** Fetch Bytbil site total (delegates to sourceSiteTotalsService). */
+export async function fetchAndPersistBytbilSiteTotal() {
+  return fetchAndPersistSiteTotal('bytbil');
+}
 
 /**
  * Run Bytbil.com scraper and save results to database
@@ -96,6 +110,23 @@ async function scrapeBytbilUrl(browser, url, maxPages = 10) {
   try {
     await page.setViewport({ width: 1920, height: 1080 });
     await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+
+    // Extract site total (e.g. "Sök 82 011 fordon") and persist
+    try {
+      const html = await page.content();
+      const total = parseSiteTotalFromHtml(html);
+      if (total != null && total > 0) {
+        await supabase
+          .from('source_site_totals')
+          .upsert(
+            { source_platform: 'bytbil', total_available: total, last_updated: new Date().toISOString() },
+            { onConflict: 'source_platform' }
+          );
+        logger.info('Bytbil site total persisted from page', { total });
+      }
+    } catch (e) {
+      logger.debug('Could not extract Bytbil site total', { error: e?.message });
+    }
 
     if (await isPageBlocked(page)) {
       logger.warn('Bytbil page blocked, falling back to scrape.do', { url });
@@ -215,6 +246,16 @@ async function scrapeBytbilSearchViaScraper(url, maxPages) {
   if (!isScrapeDoAvailable()) return [];
   try {
     const html = await fetchViaScrapeDo(url, { render: true, customWait: 4000, geoCode: 'se' });
+    const total = parseSiteTotalFromHtml(html);
+    if (total != null && total > 0) {
+      await supabase
+        .from('source_site_totals')
+        .upsert(
+          { source_platform: 'bytbil', total_available: total, last_updated: new Date().toISOString() },
+          { onConflict: 'source_platform' }
+        );
+      logger.info('Bytbil site total persisted from scrape.do', { total });
+    }
     const $ = cheerio.load(html);
     const items = [];
 

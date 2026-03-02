@@ -1468,6 +1468,11 @@ function renderScraperDashboard(data) {
       totals.queue_urls += row.queue_urls_pending || 0
       totals.queue_processing += row.queue_urls_processing || 0
       listingsSum += row.listings_total || 0
+    })
+    by_website.forEach((row) => {
+      const siteTotal = row.site_total_available || 0
+      const pctScraped = siteTotal > 0 ? ((row.listings_total || 0) / siteTotal * 100).toFixed(1) : null
+      const pctShare = listingsSum > 0 ? ((row.listings_total || 0) / listingsSum * 100).toFixed(1) : '0'
       const name = SOURCE_NAMES[row.source] || row.source
       const lr = row.last_run
       const ls = row.last_success
@@ -1508,7 +1513,7 @@ function renderScraperDashboard(data) {
         <div class="border border-gray-200 rounded-lg p-3 bg-white min-w-0">
           <div class="flex items-center justify-between gap-2 mb-2">
             <span class="font-semibold text-gray-900 text-sm truncate">${name}</span>
-            <span class="text-xs text-gray-500 font-medium">${(row.listings_total || 0).toLocaleString('fr-FR')} listings</span>
+            <span class="text-xs text-gray-500 font-medium">${(row.listings_total || 0).toLocaleString('fr-FR')} listings${pctScraped != null ? ` <span class="text-blue-600 font-semibold" title="scrapé / total sur le site">(${pctScraped}% scrapé)</span>` : pctShare !== '0' ? ` <span class="text-gray-500">(${pctShare}% base)</span>` : ''}</span>
           </div>
           <div class="grid grid-cols-3 gap-2 mb-2">
             <div class="text-center p-1.5 rounded ${row.runs_ok > 0 ? 'bg-green-50' : 'bg-gray-50'}">
@@ -1542,6 +1547,7 @@ function renderScraperDashboard(data) {
           <td class="px-3 sm:px-4 py-2 text-right text-xs text-green-600 whitespace-nowrap" title="${ls?.finished_at || ls?.started_at || ''}">${lastSuccessText}</td>
           <td class="px-3 sm:px-4 py-2 text-right whitespace-nowrap">${(row.raw_pending || 0).toLocaleString('fr-FR')}</td>
           <td class="px-3 sm:px-4 py-2 text-right whitespace-nowrap">${formatQueueUrls(row)}</td>
+          <td class="px-3 sm:px-4 py-2 text-right whitespace-nowrap font-medium" title="${pctScraped != null ? 'scrapé / total sur le site' : 'part de notre base'}">${pctScraped != null ? pctScraped + '%' : '—'}</td>
           <td class="px-3 sm:px-4 py-2 text-right whitespace-nowrap">${(row.listings_total || 0).toLocaleString('fr-FR')}</td>
         </tr>
       `
@@ -1582,12 +1588,13 @@ function renderScraperDashboard(data) {
           <td class="px-3 sm:px-4 py-2 text-right"></td>
           <td class="px-3 sm:px-4 py-2 text-right">${totals.raw_pending.toLocaleString('fr-FR')}</td>
           <td class="px-3 sm:px-4 py-2 text-right">${totals.queue_processing > 0 ? totals.queue_urls.toLocaleString('fr-FR') + ' (' + totals.queue_processing + ' en cours)' : totals.queue_urls.toLocaleString('fr-FR')}</td>
+          <td class="px-3 sm:px-4 py-2 text-right font-medium">—</td>
           <td class="px-3 sm:px-4 py-2 text-right">${totals.listings.toLocaleString('fr-FR')}</td>
         </tr>
       `
   } else {
     mobileCardsHtml += '<div class="text-center text-gray-500 py-8">Aucune donnée</div>'
-    tableRowsHtml += '<tr><td colspan="9" class="px-4 py-8 text-center text-gray-500">Aucune donnée</td></tr>'
+    tableRowsHtml += '<tr><td colspan="10" class="px-4 py-8 text-center text-gray-500">Aucune donnée</td></tr>'
   }
 
   html += mobileCardsHtml
@@ -1604,6 +1611,7 @@ function renderScraperDashboard(data) {
               <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap" title="Dernier run réussi">Dernier succès</th>
               <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Raw en attente</th>
               <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap" title="URLs mobile.de à enrichir">Queue URLs</th>
+              <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap" title="% scrapé par rapport au total sur le site">% scrapé</th>
               <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap" title="Annonces en base">Listings</th>
             </tr>
           </thead>

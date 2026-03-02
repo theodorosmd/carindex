@@ -4,6 +4,7 @@ import { logger } from '../utils/logger.js';
 import { mapDjangoCarToListing } from './djangoImportJob.js';
 import { upsertListingsBatch } from '../services/ingestService.js';
 import { createScraperRun, updateScraperRun } from '../services/ingestRunsService.js';
+import { fetchAndPersistBytbilSiteTotal } from '../services/bytbilService.js';
 
 const BATCH_SIZE = 500;
 const DEFAULT_CRON = '0 3 * * *'; // 3 AM daily
@@ -88,6 +89,9 @@ export async function runSupabaseBytbilImportOnce() {
     }
 
     logger.info('Supabase Bytbil import completed', { totalImported });
+
+    // Refresh site total (82 011 fordon) for % scraped in dashboard
+    fetchAndPersistBytbilSiteTotal().catch((e) => logger.warn('Bytbil site total refresh failed', { error: e.message }));
 
     if (runId) {
       await updateScraperRun(runId, {

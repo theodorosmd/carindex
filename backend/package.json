@@ -35,6 +35,7 @@
     "test:ingest": "node src/scripts/test-ingest-flow.js",
     "test:queue": "node src/scripts/test-queue-add.js",
     "import:bytbil": "node src/scripts/run-supabase-bytbil-import.js",
+    "refresh:site-totals": "node src/scripts/refresh-bytbil-site-total.js",
     "scrape:all": "node src/scripts/run-all-scrapers-full.js",
     "seed:scrapers": "node src/scripts/seed-auto-scrapers.js",
     "stagger:crons": "node src/scripts/stagger-scraper-crons.js",
