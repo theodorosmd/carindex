@@ -15,7 +15,15 @@ export async function getStats(req, res, next) {
     });
   } catch (error) {
     logger.error('Error in admin stats route', { error: error.message, stack: error.stack });
-    next(error);
+    // Return 200 with empty stats instead of 500 - admin UI stays usable
+    res.json({
+      success: true,
+      stats: {
+        users: { total: 0, recent: 0, by_plan: {} },
+        listings: { total: 0, active: 0, by_source: {} },
+        alerts: { total: 0, active: 0 }
+      }
+    });
   }
 }
 

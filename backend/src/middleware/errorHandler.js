@@ -58,6 +58,9 @@ export function errorHandler(err, req, res, next) {
     message = 'Une erreur interne est survenue. Veuillez réessayer plus tard.';
   }
 
+  // Log full error to console for debugging (always)
+  console.error('[500]', req.method, req.url, err.message);
+
   res.status(statusCode).json({
     error: {
       code,

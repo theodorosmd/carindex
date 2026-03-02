@@ -41,6 +41,15 @@ export function setupRoutes(app) {
     });
   });
 
+  // Backend identity (for debugging - which server is responding?)
+  app.get('/api/v1/health/target', (req, res) => {
+    res.json({
+      port: process.env.PORT || 3000,
+      env: process.env.NODE_ENV || 'development',
+      pid: process.pid
+    });
+  });
+
   // DB connectivity check (for debugging 500s - development only)
   app.get('/api/v1/health/db', async (req, res) => {
     try {

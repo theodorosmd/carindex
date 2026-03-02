@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import path from 'path'
 
 // VITE_API_TARGET: use VPS (e.g. http://91.99.61.232:3000) or keep default localhost:3001
-const apiTarget = process.env.VITE_API_TARGET || 'http://localhost:3001'
+const apiTarget = process.env.VITE_API_TARGET || 'http://127.0.0.1:3001'
 
 export default defineConfig({
   appType: 'spa', // Ensure SPA fallback: serve index.html for all non-file routes (e.g. /admin)
@@ -18,6 +18,12 @@ export default defineConfig({
       '/api': {
         target: apiTarget,
         changeOrigin: true,
+        secure: false,
+        configure: (proxy) => {
+          proxy.on('error', (err, req, res) => {
+            console.error('[Vite proxy error]', err.message)
+          })
+        },
       }
     }
   },

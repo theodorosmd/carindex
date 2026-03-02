@@ -522,12 +522,13 @@ export async function exportFastestSellingModels(req, res) {
 
     if (format === 'csv') {
       // Generate CSV
-      const headers = ['Rank', 'Brand', 'Model', 'Year', 'Sales Count', 'Average DOM (days)', 'Median DOM (days)', 'Median Price (EUR)', 'Velocity/Month', 'Countries'];
+      const headers = ['Rank', 'Brand', 'Model', 'Year', 'Version/Trim', 'Sales Count', 'Average DOM (days)', 'Median DOM (days)', 'Median Price (EUR)', 'Velocity/Month', 'Countries'];
       const rows = modelsWithRanking.map(m => [
         m.rank,
         m.brand,
         m.model,
         m.year || '',
+        m.variant || '',
         m.salesCount,
         m.averageDOM,
         m.medianDOM,

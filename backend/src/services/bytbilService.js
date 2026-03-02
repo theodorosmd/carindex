@@ -240,7 +240,12 @@ async function scrapeBytbilSearchViaScraper(url, maxPages) {
   }
 }
 
-async function fetchBytbilDetailViaScraper(listingUrl) {
+/**
+ * Fetch Bytbil listing detail via scrape.do (for year enrichment, etc.)
+ * @param {string} listingUrl
+ * @returns {Promise<{specifications: Object, description?: string, images?: string[]}|null>}
+ */
+export async function fetchBytbilDetailViaScraper(listingUrl) {
   if (!isScrapeDoAvailable()) return null;
   try {
     const html = await fetchViaScrapeDo(listingUrl, { geoCode: 'se' });

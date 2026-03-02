@@ -52,7 +52,7 @@ function normalizeListing(input) {
     source_listing_id: input.source_listing_id,
     brand: input.brand,
     model: input.model,
-    year: rawYear ?? 2000,
+    year: rawYear ?? null,
     mileage: rawMileage ?? 0,
     price: parseNumber(input.price),
     currency: input.currency || 'EUR',

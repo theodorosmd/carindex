@@ -6,6 +6,8 @@
   "main": "src/server.js",
   "scripts": {
     "dev": "node --watch src/server.js",
+    "dev:backend": "PORT=3001 node --watch src/server.js",
+    "dev:backend:api": "PORT=3001 NODE_ENV=development ENABLE_CRON_JOBS=false ENABLE_CONTINUOUS_SCRAPING=false ENABLE_SUPABASE_BYTBIL_IMPORT=false ENABLE_MOBILEDE_IMPORT=false ENABLE_IMAGE_BACKFILL=false RUN_SUPABASE_BYTBIL_IMPORT_ON_STARTUP=false node --watch src/server.js",
     "start": "node src/start.js",
     "test": "node --test",
     "setup:supabase": "node src/scripts/setup-supabase.js",

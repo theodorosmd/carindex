@@ -279,9 +279,32 @@ export async function renderAdminDashboard() {
           <div class="bg-white rounded-lg sm:rounded-xl shadow-lg p-4 sm:p-6 mb-6 sm:mb-8">
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6 gap-2">
               <h2 class="text-lg sm:text-xl font-bold text-gray-900">⚡ Modèles qui se Vendent le Plus Vite</h2>
-              <a href="#/market-insights" class="text-blue-600 hover:text-blue-700 text-sm font-medium">
-                Voir tous les insights →
-              </a>
+              <div class="flex flex-wrap items-center gap-2">
+                <select id="fastest-models-country" onchange="loadFastestModelsWidget()" class="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="">Tous pays</option>
+                  <option value="FR">France</option>
+                  <option value="DE">Allemagne</option>
+                  <option value="SE">Suède</option>
+                  <option value="NO">Norvège</option>
+                  <option value="FI">Finlande</option>
+                  <option value="DK">Danemark</option>
+                  <option value="NL">Pays-Bas</option>
+                  <option value="BE">Belgique</option>
+                  <option value="ES">Espagne</option>
+                  <option value="IT">Italie</option>
+                  <option value="CH">Suisse</option>
+                  <option value="PL">Pologne</option>
+                </select>
+                <select id="fastest-models-period" onchange="loadFastestModelsWidget()" class="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="30">1 mois</option>
+                  <option value="90">3 mois</option>
+                  <option value="180">6 mois</option>
+                  <option value="365">1 an</option>
+                </select>
+                <a href="#/market-insights" class="text-blue-600 hover:text-blue-700 text-sm font-medium">
+                  Voir tous les insights →
+                </a>
+              </div>
             </div>
             <div id="fastest-models-widget" class="space-y-3">
               <div class="text-center py-8 text-gray-500">
@@ -820,12 +843,14 @@ async function loadAdminData() {
         errorData = JSON.parse(text)
       } catch {
         // Backend may return HTML (e.g. proxy error when backend not running)
-        if (response.status === 500) {
-          throw new Error(
-            'Le serveur a renvoyé une erreur 500. ' +
-            'Vérifiez que le backend tourne sur le port 3001 (npm run dev:backend) et consultez la console du backend.'
-          )
-        }
+      }
+      if (response.status === 500) {
+        const details = errorData?.error?.details || errorData?.error?.message
+        throw new Error(
+          details
+            ? `Erreur 500: ${details}`
+            : 'Le serveur a renvoyé une erreur 500. Vérifiez que le backend tourne sur le port 3001 (npm run dev:backend:api) et consultez la console du backend.'
+        )
       }
       console.error('❌ Admin stats error:', errorData)
       
@@ -1445,6 +1470,7 @@ function renderScraperDashboard(data) {
       listingsSum += row.listings_total || 0
       const name = SOURCE_NAMES[row.source] || row.source
       const lr = row.last_run
+      const ls = row.last_success
       let lastRunText = '—'
       if (lr) {
         const date = lr.finished_at || lr.started_at
@@ -1465,6 +1491,17 @@ function renderScraperDashboard(data) {
           lastRunText = dateStr ? '— ' + dateStr : '—'
         }
         if (dateStr && lastRunText !== 'En cours' && !lastRunText.startsWith('—')) lastRunText += ' (' + dateStr + ')'
+      }
+      let lastSuccessText = '—'
+      if (ls) {
+        const dateStr = (ls.finished_at || ls.started_at) ? new Date(ls.finished_at || ls.started_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''
+        lastSuccessText = ls.total_saved != null
+          ? (ls.total_saved || 0).toLocaleString('fr-FR') + ' sauvegardées'
+          : 'OK'
+        if (ls.total_scraped != null && ls.total_scraped !== ls.total_saved) {
+          lastSuccessText = (ls.total_scraped || 0).toLocaleString('fr-FR') + ' scrapées, ' + lastSuccessText
+        }
+        if (dateStr) lastSuccessText += ' (' + dateStr + ')'
       }
 
       mobileCardsHtml += `
@@ -1487,8 +1524,9 @@ function renderScraperDashboard(data) {
               <div class="font-bold text-sm ${row.runs_failed > 0 ? 'text-red-700' : 'text-gray-400'}">${row.runs_failed}</div>
             </div>
           </div>
-          <div class="flex items-center justify-between text-xs text-gray-500 border-t border-gray-100 pt-2">
+          <div class="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs text-gray-500 border-t border-gray-100 pt-2">
             <span>Dernier: ${lastRunText}</span>
+            ${ls && lastSuccessText !== '—' ? '<span class="text-green-600">Dernier OK: ' + lastSuccessText + '</span>' : ''}
             ${(row.queue_urls_pending || row.queue_urls_processing) ? '<span>Queue: ' + formatQueueUrls(row) + '</span>' : ''}
           </div>
         </div>
@@ -1501,6 +1539,7 @@ function renderScraperDashboard(data) {
           <td class="px-3 sm:px-4 py-2 text-right whitespace-nowrap"><span class="px-2 py-1 rounded ${row.runs_pending > 0 ? 'bg-blue-100 text-blue-800' : 'text-gray-400'}">${row.runs_pending}</span></td>
           <td class="px-3 sm:px-4 py-2 text-right whitespace-nowrap"><span class="px-2 py-1 rounded ${row.runs_failed > 0 ? 'bg-red-100 text-red-800' : 'text-gray-400'}">${row.runs_failed}</span></td>
           <td class="px-3 sm:px-4 py-2 text-right text-xs text-gray-600 whitespace-nowrap" title="${lr?.finished_at || lr?.started_at || ''}">${lastRunText}</td>
+          <td class="px-3 sm:px-4 py-2 text-right text-xs text-green-600 whitespace-nowrap" title="${ls?.finished_at || ls?.started_at || ''}">${lastSuccessText}</td>
           <td class="px-3 sm:px-4 py-2 text-right whitespace-nowrap">${(row.raw_pending || 0).toLocaleString('fr-FR')}</td>
           <td class="px-3 sm:px-4 py-2 text-right whitespace-nowrap">${formatQueueUrls(row)}</td>
           <td class="px-3 sm:px-4 py-2 text-right whitespace-nowrap">${(row.listings_total || 0).toLocaleString('fr-FR')}</td>
@@ -1540,6 +1579,7 @@ function renderScraperDashboard(data) {
           <td class="px-3 sm:px-4 py-2 text-right">${totals.pending.toLocaleString('fr-FR')}</td>
           <td class="px-3 sm:px-4 py-2 text-right">${totals.failed.toLocaleString('fr-FR')}</td>
           <td class="px-3 sm:px-4 py-2 text-right"></td>
+          <td class="px-3 sm:px-4 py-2 text-right"></td>
           <td class="px-3 sm:px-4 py-2 text-right">${totals.raw_pending.toLocaleString('fr-FR')}</td>
           <td class="px-3 sm:px-4 py-2 text-right">${totals.queue_processing > 0 ? totals.queue_urls.toLocaleString('fr-FR') + ' (' + totals.queue_processing + ' en cours)' : totals.queue_urls.toLocaleString('fr-FR')}</td>
           <td class="px-3 sm:px-4 py-2 text-right">${totals.listings.toLocaleString('fr-FR')}</td>
@@ -1547,7 +1587,7 @@ function renderScraperDashboard(data) {
       `
   } else {
     mobileCardsHtml += '<div class="text-center text-gray-500 py-8">Aucune donnée</div>'
-    tableRowsHtml += '<tr><td colspan="8" class="px-4 py-8 text-center text-gray-500">Aucune donnée</td></tr>'
+    tableRowsHtml += '<tr><td colspan="9" class="px-4 py-8 text-center text-gray-500">Aucune donnée</td></tr>'
   }
 
   html += mobileCardsHtml
@@ -1561,6 +1601,7 @@ function renderScraperDashboard(data) {
               <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">En cours</th>
               <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Échecs</th>
               <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Dernier run</th>
+              <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap" title="Dernier run réussi">Dernier succès</th>
               <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Raw en attente</th>
               <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap" title="URLs mobile.de à enrichir">Queue URLs</th>
               <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap" title="Annonces en base">Listings</th>
@@ -1992,8 +2033,16 @@ async function loadFastestModelsWidget() {
   const token = getAuthToken()
   if (!token) return
 
+  const daysEl = document.getElementById('fastest-models-period')
+  const countryEl = document.getElementById('fastest-models-country')
+  const days = daysEl ? parseInt(daysEl.value, 10) || 30 : 30
+  const country = countryEl ? countryEl.value || '' : ''
+
   try {
-    const response = await fetch('/api/v1/analytics/fastest-selling-models?limit=5&days=30', {
+    container.innerHTML = '<div class="text-center py-4 text-gray-500"><div class="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div><p class="mt-2 text-sm">Chargement...</p></div>'
+    const params = new URLSearchParams({ limit: '5', days: days.toString() })
+    if (country) params.append('country', country)
+    const response = await fetch(`/api/v1/analytics/fastest-selling-models?${params.toString()}`, {
       headers: {
         'Authorization': `Bearer ${token}`
       }
@@ -2004,7 +2053,14 @@ async function loadFastestModelsWidget() {
     }
 
     const data = await response.json()
-    renderFastestModelsWidget(data.models || [])
+    let models = data.models || []
+    models = [...models].sort((a, b) => {
+      const velA = Number(a.velocityPerMonth) ?? 0
+      const velB = Number(b.velocityPerMonth) ?? 0
+      if (velB !== velA) return velB - velA
+      return (b.salesCount ?? 0) - (a.salesCount ?? 0)
+    })
+    renderFastestModelsWidget(models)
   } catch (error) {
     console.error('Error loading fastest models:', error)
     container.innerHTML = `
@@ -2015,6 +2071,8 @@ async function loadFastestModelsWidget() {
     `
   }
 }
+
+window.loadFastestModelsWidget = loadFastestModelsWidget
 
 function renderFastestModelsWidget(models) {
   const container = document.getElementById('fastest-models-widget')
@@ -2052,13 +2110,14 @@ function renderFastestModelsWidget(models) {
             ${index + 1}
           </div>
           <div class="flex-1 min-w-0">
-            <div class="font-semibold text-gray-900 text-sm sm:text-base">${capitalize(model.brand)} ${capitalize(model.model)}</div>
+            <div class="font-semibold text-gray-900 text-sm sm:text-base">${capitalize(model.brand)} ${capitalize(model.model)}${model.year && model.year !== 2000 ? ` ${model.year}` : ''}</div>
+            ${model.variant ? `<div class="text-xs text-gray-600">${model.variant}</div>` : ''}
             <div class="text-xs text-gray-500">${model.salesCount} ventes • ${new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(model.medianPrice || 0)}${model.countries && model.countries.length ? ' • ' + model.countries.map(c => ({ FR: 'France', SE: 'Suède', DE: 'Allemagne' }[c] || c)).join(', ') : ''}</div>
           </div>
         </div>
         <div class="flex items-center space-x-2">
-          <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${domBg} ${domColor}">
-            ⚡ ${model.averageDOM}j
+          <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${domBg} ${domColor}" title="${model.averageDOM === 0 ? 'Vente le jour même ou annonce suivie moins d\'1 jour' : ''}">
+            ⚡ ${model.averageDOM === 0 ? '< 1j' : model.averageDOM + 'j'}
           </span>
         </div>
       </div>

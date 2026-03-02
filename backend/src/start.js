@@ -2,6 +2,16 @@ import http from 'node:http';
 
 const PORT = process.env.PORT || 3000;
 
+// Éviter les crashs silencieux : promesses rejetées non gérées
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[start] unhandledRejection — le processus continue', { reason, promise });
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('[start] uncaughtException:', err.message);
+  console.error(err.stack);
+});
+
 let handler = null;
 let startupError = null;
 

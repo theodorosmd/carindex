@@ -100,7 +100,8 @@ export async function markAsSold(listingId, soldDate = null) {
     const soldDateValue = soldDate || new Date().toISOString();
     const firstSeen = listing.first_seen ? new Date(listing.first_seen) : new Date(listing.created_at);
     const soldDateObj = new Date(soldDateValue);
-    const domDays = Math.floor((soldDateObj - firstSeen) / (1000 * 60 * 60 * 24));
+    let domDays = Math.floor((soldDateObj - firstSeen) / (1000 * 60 * 60 * 24));
+    if (domDays < 0) domDays = 0; // Clamp: first_seen > sold_date can happen with timezone skew
 
     // Get last price from price_history (most recent before sold_date)
     let lastPrice = listing.price; // Fallback to current price

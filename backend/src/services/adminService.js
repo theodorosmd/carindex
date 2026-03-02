@@ -215,6 +215,7 @@ export async function getScraperDashboardStats() {
 
     const runsBySource = {};
     const lastRunBySource = {};
+    const lastSuccessBySource = {};
     let totals = { ok: 0, pending: 0, failed: 0 };
 
     const normalizeSourceRuns = (s) => (['mobile_de', 'mobilede'].includes((s || '').toLowerCase()) ? 'mobile.de' : s);
@@ -229,6 +230,14 @@ export async function getScraperDashboardStats() {
           total_scraped: run.total_scraped ?? 0,
           total_saved: run.total_saved ?? 0,
           status: (run.status || 'unknown').toLowerCase(),
+          finished_at: run.finished_at,
+          started_at: run.started_at
+        };
+      }
+      if ((run.status || '').toLowerCase() === 'success' && !lastSuccessBySource[src]) {
+        lastSuccessBySource[src] = {
+          total_scraped: run.total_scraped ?? 0,
+          total_saved: run.total_saved ?? 0,
           finished_at: run.finished_at,
           started_at: run.started_at
         };
@@ -268,6 +277,14 @@ export async function getScraperDashboardStats() {
           finished_at: run.end_time,
           started_at: run.start_time,
           error_count: run.error_count
+        };
+      }
+      if (run.end_time != null && (run.error_count || 0) === 0 && !lastSuccessBySource[src]) {
+        lastSuccessBySource[src] = {
+          total_scraped: null,
+          total_saved: null,
+          finished_at: run.end_time,
+          started_at: run.start_time
         };
       }
     });
@@ -362,6 +379,7 @@ export async function getScraperDashboardStats() {
       const runs = runsBySource[source] || runsBySource[normalizeForLookup(source)] || { ok: 0, pending: 0, failed: 0 };
       const cronsForSource = crons.filter((c) => c.source === source);
       const lastRun = lastRunBySource[source] || lastRunBySource[normalizeForLookup(source)] || null;
+      const lastSuccess = lastSuccessBySource[source] || lastSuccessBySource[normalizeForLookup(source)] || null;
       const isMobileDe = source === 'mobile.de' || normalizeForLookup(source) === 'mobile.de';
       return {
         source,
@@ -373,6 +391,7 @@ export async function getScraperDashboardStats() {
         queue_urls_processing: isMobileDe ? mobiledeQueueProcessing : 0,
         listings_total: listingsBySource[source] || 0,
         last_run: lastRun,
+        last_success: lastSuccess,
         crons: cronsForSource
       };
     }).sort((a, b) => a.source.localeCompare(b.source));
@@ -394,7 +413,12 @@ export async function getScraperDashboardStats() {
     };
   } catch (error) {
     logger.error('Error getting scraper dashboard stats', { error: error.message });
-    throw error;
+    // Return partial data instead of throwing - admin UI stays usable
+    return {
+      totals: { runs_ok: 0, runs_pending: 0, runs_failed: 0, runs_total: 0, listings_total: 0 },
+      by_website: [],
+      crons: []
+    };
   }
 }
 

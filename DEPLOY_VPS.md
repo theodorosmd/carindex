@@ -241,7 +241,11 @@ Puppeteer utilise Chromium embarqué qui peut manquer de libs sur le VPS. **Solu
    ```
    (ou `/usr/bin/chromium` selon le résultat de `which`)
 
-3. `pm2 restart carindex-scraper`
+3. `pm2 restart carindex-scraper --update-env`
+
+**Diagnostic** : `cd backend && node src/scripts/check-puppeteer-env.js` pour vérifier la config.
+
+`ecosystem.config.cjs` et `puppeteerLaunch.js` forcent Chromium système sur Linux ; si les échecs persistent, exécuter le diagnostic ci-dessus.
 
 **Alternative** (si Chromium système pose problème) :
 ```bash

@@ -239,7 +239,12 @@ async function runAllScrapersFull() {
   } catch (error) {
     console.error('❌ Erreur fatale:', error.message);
     logger.error('runAllScrapersFull failed', { error: error.message, stack: error.stack });
-    process.exit(1);
+    // En mode CLI (script direct) : exit pour signaler l'échec
+    // En mode importé (scraping continu) : rethrow pour que le job continue la boucle
+    if (process.argv[1]?.includes('run-all-scrapers-full')) {
+      process.exit(1);
+    }
+    throw error;
   }
 }
 

@@ -177,9 +177,32 @@ export async function renderDashboard() {
           <div class="bg-white rounded-lg sm:rounded-xl shadow-lg p-4 sm:p-6 mb-6 sm:mb-8">
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6 gap-2">
               <h2 class="text-lg sm:text-xl font-bold text-gray-900">⚡ ${tr('Fastest-selling models', 'Modèles qui se Vendent le Plus Vite')}</h2>
-              <a href="#/market-insights" class="text-blue-600 hover:text-blue-700 text-sm font-medium">
-                ${tr('View all insights →', 'Voir tous les insights →')}
-              </a>
+              <div class="flex flex-wrap items-center gap-2">
+                <select id="fastest-models-country" onchange="loadFastestModelsWidget()" class="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="">${tr('All countries', 'Tous pays')}</option>
+                  <option value="FR">France</option>
+                  <option value="DE">Allemagne</option>
+                  <option value="SE">Suède</option>
+                  <option value="NO">Norvège</option>
+                  <option value="FI">Finlande</option>
+                  <option value="DK">Danemark</option>
+                  <option value="NL">Pays-Bas</option>
+                  <option value="BE">Belgique</option>
+                  <option value="ES">Espagne</option>
+                  <option value="IT">Italie</option>
+                  <option value="CH">Suisse</option>
+                  <option value="PL">Pologne</option>
+                </select>
+                <select id="fastest-models-period" onchange="loadFastestModelsWidget()" class="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="30">${tr('1 month', '1 mois')}</option>
+                  <option value="90">${tr('3 months', '3 mois')}</option>
+                  <option value="180">${tr('6 months', '6 mois')}</option>
+                  <option value="365">${tr('1 year', '1 an')}</option>
+                </select>
+                <a href="#/market-insights" class="text-blue-600 hover:text-blue-700 text-sm font-medium">
+                  ${tr('View all insights →', 'Voir tous les insights →')}
+                </a>
+              </div>
             </div>
             <div id="fastest-models-widget" class="space-y-3">
               <div class="text-center py-8 text-gray-500">
@@ -295,16 +318,7 @@ async function loadDashboardData() {
     }
 
     // Load fastest selling models widget
-    const fastestModelsResponse = await fetch('/api/v1/analytics/fastest-selling-models?limit=5&days=30', {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    })
-
-    if (fastestModelsResponse.ok) {
-      const fastestData = await fastestModelsResponse.json()
-      renderFastestModelsWidget(fastestData.models || [])
-    }
+    await loadFastestModelsWidget()
 
     // Hide loading, show content
     loadingState.classList.add('hidden')
@@ -353,6 +367,49 @@ function renderRecentSearches(searches) {
   }).join('')
 }
 
+async function loadFastestModelsWidget() {
+  const container = document.getElementById('fastest-models-widget')
+  if (!container) return
+
+  const token = getAuthToken()
+  if (!token) return
+
+  const daysEl = document.getElementById('fastest-models-period')
+  const countryEl = document.getElementById('fastest-models-country')
+  const days = daysEl ? parseInt(daysEl.value, 10) || 30 : 30
+  const country = countryEl ? countryEl.value || '' : ''
+
+  try {
+    container.innerHTML = '<div class="text-center py-4 text-gray-500"><div class="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div><p class="mt-2 text-sm">' + tr('Loading...', 'Chargement...') + '</p></div>'
+    const params = new URLSearchParams({ limit: '5', days: days.toString() })
+    if (country) params.append('country', country)
+    const response = await fetch(`/api/v1/analytics/fastest-selling-models?${params.toString()}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+
+    if (response.ok) {
+      const data = await response.json()
+      let models = data.models || []
+      models = [...models].sort((a, b) => {
+        const velA = Number(a.velocityPerMonth) ?? 0
+        const velB = Number(b.velocityPerMonth) ?? 0
+        if (velB !== velA) return velB - velA
+        return (b.salesCount ?? 0) - (a.salesCount ?? 0)
+      })
+      renderFastestModelsWidget(models)
+    } else {
+      renderFastestModelsWidget([])
+    }
+  } catch (error) {
+    console.error('Error loading fastest models:', error)
+    renderFastestModelsWidget([])
+  }
+}
+
+window.loadFastestModelsWidget = loadFastestModelsWidget
+
 function renderFastestModelsWidget(models) {
   const container = document.getElementById('fastest-models-widget')
   if (!container) return
@@ -389,13 +446,14 @@ function renderFastestModelsWidget(models) {
             ${index + 1}
           </div>
           <div class="flex-1 min-w-0">
-            <div class="font-semibold text-gray-900 text-sm sm:text-base">${capitalize(model.brand)} ${capitalize(model.model)}</div>
+            <div class="font-semibold text-gray-900 text-sm sm:text-base">${capitalize(model.brand)} ${capitalize(model.model)}${model.year && model.year !== 2000 ? ' ' + model.year : ''}</div>
+            ${model.variant ? `<div class="text-xs text-gray-600">${model.variant}</div>` : ''}
             <div class="text-xs text-gray-500">${model.salesCount} ${tr('sales', 'ventes')} • ${formatCurrency(model.medianPrice || 0, 'EUR')}</div>
           </div>
         </div>
         <div class="flex items-center space-x-2">
-          <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${domBg} ${domColor}">
-            ⚡ ${model.averageDOM}j
+          <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${domBg} ${domColor}" title="${model.averageDOM === 0 ? (tr('Same-day sale or listing tracked for less than 1 day', 'Vente le jour même ou annonce suivie moins d\'1 jour')) : ''}">
+            ⚡ ${model.averageDOM === 0 ? '< 1j' : model.averageDOM + 'j'}
           </span>
         </div>
       </div>

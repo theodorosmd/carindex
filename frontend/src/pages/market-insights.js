@@ -134,6 +134,7 @@ export function renderMarketInsights() {
           </div>
           <p class="mt-4 text-sm text-gray-500">
             ⚡ DOM = ${tr('Days On Market (days on the market). The lower the DOM, the faster the model sells.', 'Days On Market (jours sur le marché). Plus le DOM est bas, plus le modèle se vend vite.')}
+            ${tr('"< 1 day" = same-day sale or listing tracked for less than 1 day.', '"< 1 jour" = vente le jour même ou annonce suivie moins d\'1 jour.')}
           </p>
         </div>
 
@@ -542,12 +543,23 @@ async function loadFastestSellingModels() {
     }
 
     const data = await response.json();
-    const models = data.models || [];
+    let models = data.models || [];
 
     if (models.length === 0) {
       tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-8 text-center text-gray-500">Aucun modèle trouvé pour cette période</td></tr>';
       return;
     }
+
+    // Sort by velocity/month (primary), then DOM, then sales - ensures correct ranking regardless of backend
+    models = [...models].sort((a, b) => {
+      const velA = Number(a.velocityPerMonth) ?? 0;
+      const velB = Number(b.velocityPerMonth) ?? 0;
+      const velDiff = velB - velA;
+      if (velDiff !== 0) return velDiff;
+      const domDiff = (a.averageDOM ?? 0) - (b.averageDOM ?? 0);
+      if (domDiff !== 0) return domDiff;
+      return (b.salesCount ?? 0) - (a.salesCount ?? 0);
+    }).map((model, index) => ({ ...model, rank: index + 1 }));
 
     // Country names mapping
     const countryNames = {
@@ -594,7 +606,8 @@ async function loadFastestSellingModels() {
           <td class="px-4 py-3 text-sm font-medium text-gray-900">
             <div class="flex flex-col">
               <span class="font-semibold">${capitalize(model.brand)} ${capitalize(model.model)}</span>
-              ${model.year ? `<span class="text-xs text-gray-500">${model.year}</span>` : ''}
+              ${model.year && model.year !== 2000 ? `<span class="text-xs text-gray-500">${model.year}</span>` : ''}
+              ${model.variant ? `<span class="text-xs text-gray-600 mt-0.5">${model.variant}</span>` : ''}
             </div>
           </td>
           <td class="px-4 py-3 text-sm text-gray-600">
@@ -602,8 +615,8 @@ async function loadFastestSellingModels() {
           </td>
           <td class="px-4 py-3 text-sm text-gray-600">${model.salesCount}</td>
           <td class="px-4 py-3 text-sm">
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${domBg} ${domColor}">
-              ⚡ ${model.averageDOM} jours
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${domBg} ${domColor}" title="${model.averageDOM === 0 ? tr('Same-day sale or listing tracked for less than 1 day', 'Vente le jour même ou annonce suivie moins d\'1 jour') : ''}">
+              ⚡ ${model.averageDOM === 0 ? '< 1 jour' : model.averageDOM + ' jours'}
             </span>
           </td>
           <td class="px-4 py-3 text-sm text-gray-600">${formatCurrency(model.medianPrice || 0)}</td>

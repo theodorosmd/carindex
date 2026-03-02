@@ -82,7 +82,7 @@ async function getTopSellingModelsInternal(limit = 20, days = 30, country = null
 
     let query = supabase
       .from('listings')
-      .select('id, brand, model, year, dom_days, price, sold_date, location_country')
+      .select('id, brand, model, year, version, trim, dom_days, price, sold_date, location_country')
       .eq('status', 'sold')
       .gte('sold_date', cutoffDate.toISOString())
       .not('dom_days', 'is', null)
@@ -115,17 +115,20 @@ async function getTopSellingModelsInternal(limit = 20, days = 30, country = null
       return [];
     }
 
-    // Group by brand + model + year
+    // Group by brand + model + year + version/trim (version exacte)
     const modelGroups = new Map();
 
     for (const listing of soldListings) {
-      const key = `${listing.brand}|${listing.model}|${listing.year || 'all'}`;
+      const versionKey = [listing.version, listing.trim].filter(Boolean).join('|') || '';
+      const key = `${listing.brand}|${listing.model}|${listing.year || 'all'}|${versionKey}`;
       
       if (!modelGroups.has(key)) {
         modelGroups.set(key, {
           brand: listing.brand,
           model: listing.model,
           year: listing.year,
+          version: listing.version,
+          trim: listing.trim,
           sales: [],
           domDays: [],
           prices: []
@@ -134,7 +137,7 @@ async function getTopSellingModelsInternal(limit = 20, days = 30, country = null
 
       const group = modelGroups.get(key);
       group.sales.push(listing);
-      if (listing.dom_days) {
+      if (listing.dom_days != null && listing.dom_days >= 0) {
         group.domDays.push(listing.dom_days);
       }
       if (listing.price) {
@@ -162,10 +165,16 @@ async function getTopSellingModelsInternal(limit = 20, days = 30, country = null
       // Get unique countries for this model group
       const countries = [...new Set(group.sales.map(s => s.location_country).filter(c => c))];
 
+      // Version exacte: version ou trim, le plus informatif
+      const variant = [group.version, group.trim].filter(Boolean).join(' ').trim() || null;
+
       return {
         brand: group.brand,
         model: group.model,
-        year: group.year,
+        year: group.year === 2000 ? null : group.year, // 2000 = erroneous default, treat as unknown
+        version: group.version || null,
+        trim: group.trim || null,
+        variant, // version + trim combinés pour affichage
         salesCount: group.sales.length,
         averageDOM,
         medianDOM,
@@ -175,8 +184,22 @@ async function getTopSellingModelsInternal(limit = 20, days = 30, country = null
       };
     });
 
-    // Sort by average DOM (fastest = lowest DOM)
-    models.sort((a, b) => a.averageDOM - b.averageDOM);
+    // Sort by velocity/month (sales per month = "fastest selling" by volume), then DOM, then sales count
+    // Use explicit Number() and tie-breakers for deterministic ordering
+    models.sort((a, b) => {
+      const velA = Number(a.velocityPerMonth) ?? 0;
+      const velB = Number(b.velocityPerMonth) ?? 0;
+      const velDiff = velB - velA; // higher velocity first
+      if (velDiff !== 0) return velDiff;
+      const domDiff = (a.averageDOM ?? 0) - (b.averageDOM ?? 0); // lower DOM first
+      if (domDiff !== 0) return domDiff;
+      const salesDiff = (b.salesCount ?? 0) - (a.salesCount ?? 0); // more sales first
+      if (salesDiff !== 0) return salesDiff;
+      // Quaternary: alphabetical by brand+model+year+variant for full determinism
+      const keyA = `${(a.brand || '').toLowerCase()}|${(a.model || '').toLowerCase()}|${a.year ?? ''}|${(a.variant || '').toLowerCase()}`;
+      const keyB = `${(b.brand || '').toLowerCase()}|${(b.model || '').toLowerCase()}|${b.year ?? ''}|${(b.variant || '').toLowerCase()}`;
+      return keyA.localeCompare(keyB);
+    });
 
     return models.slice(0, limit);
   } catch (error) {
