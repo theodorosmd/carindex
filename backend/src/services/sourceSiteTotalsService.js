@@ -35,6 +35,7 @@ const SOURCE_CONFIG = {
     url: 'https://suchen.mobile.de/fahrzeuge/search.html?isSearchRequest=true&s=Car&vc=Car',
     geoCode: 'de',
     patterns: [
+      /(\d[\d\s,.]*)\s*Angebote/i,  // "1.418.365 Angebote"
       /(\d[\d\s,.]*)\s*(?:Fahrzeuge|Fahrzeug)/i,
       /(?:insgesamt|total|gesamt)\s*[:\s]*(\d[\d\s,.]*)/i,
     ]

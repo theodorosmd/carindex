@@ -19,7 +19,8 @@ if (arg === '--seed') {
   const KNOWN_TOTALS = {
     bytbil: 82_011,
     leboncoin: 733_444,
-    blocket: 134_998,  // "134 998 resultat" sur blocket.se
+    blocket: 134_998,
+    'mobile.de': 1_418_365,  // "1.418.365 Angebote" sur mobile.de
     gaspedaal: 65_000,
     marktplaats: 15_000,
   };
