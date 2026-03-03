@@ -24,7 +24,7 @@ export async function fetchViaScrapeDo(targetUrl, {
   customWait = 5000,
   geoCode = null,
   superProxy = true,
-  retries = 2,
+  retries = 3,
   timeout = 90000,
 } = {}) {
   const token = getToken();
@@ -37,6 +37,7 @@ export async function fetchViaScrapeDo(targetUrl, {
     super: String(superProxy),
     device: 'desktop',
     timeout: String(timeout),
+    sessionId: String(Math.floor(Math.random() * 1_000_000)),
   });
 
   if (geoCode) params.set('geoCode', geoCode);
@@ -51,10 +52,10 @@ export async function fetchViaScrapeDo(targetUrl, {
     try {
       const resp = await fetch(apiUrl, { headers: { Accept: 'text/html' } });
 
-      if (!resp.ok) {
+        if (!resp.ok) {
         const body = await resp.text().catch(() => '');
         if (attempt < retries && [429, 502, 503, 504].includes(resp.status)) {
-          const waitMs = resp.status === 429 ? 15000 * attempt : 5000 * attempt;
+          const waitMs = resp.status === 429 ? 20000 * attempt : 8000 * attempt;
           logger.warn('scrape.do transient error, retrying', { status: resp.status, attempt, waitMs, url: targetUrl });
           await new Promise(r => setTimeout(r, waitMs));
           continue;

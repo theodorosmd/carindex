@@ -22,10 +22,14 @@ export async function runMobileDeScraper(searchUrls, options = {}, progressCallb
 
   try {
     const maxPages = options.maxPages ?? parseInt(process.env.MOBILEDE_MAX_PAGES || '100', 10);
+    const useScrapeDo = isScrapeDoAvailable();
 
-    logger.info('Starting mobile.de scraper (Puppeteer)', { searchUrls, options });
+    logger.info('Starting mobile.de scraper', { searchUrls, options, useScrapeDo });
 
-    browser = await launchBrowser();
+    // Only launch browser when needed (Puppeteer fallback). Scrape.do path doesn't need it.
+    if (!useScrapeDo) {
+      browser = await launchBrowser();
+    }
 
     const urls = Array.isArray(searchUrls) ? searchUrls : [searchUrls];
 
@@ -33,7 +37,7 @@ export async function runMobileDeScraper(searchUrls, options = {}, progressCallb
       try {
         logger.info('Scraping mobile.de URL', { url: searchUrl });
 
-        const listings = await scrapeMobileDeUrl(browser, searchUrl, maxPages);
+        const listings = await scrapeMobileDeUrl(browser, searchUrl, maxPages, useScrapeDo);
 
         logger.info('mobile.de scraping completed', {
           url: searchUrl,
@@ -100,14 +104,15 @@ function buildMobileDePageUrl(baseUrl, pageNum) {
  * Scrape une URL de recherche mobile.de
  * mobile.de a une protection anti-bot forte (Datadome, contenu JS). On privilégie scrape.do si disponible.
  */
-async function scrapeMobileDeUrl(browser, url, maxPages = 10) {
+async function scrapeMobileDeUrl(browser, url, maxPages = 10, useScrapeDo = null) {
   const allListings = [];
+  const useScraper = useScrapeDo ?? isScrapeDoAvailable();
 
   // 1. Si scrape.do est dispo : l'utiliser en priorité (mobile.de bloque souvent Puppeteer)
-  if (isScrapeDoAvailable()) {
+  if (useScraper) {
     const concurrency = parseInt(process.env.MOBILEDE_CONCURRENT_PAGES || '5', 10) || 1;
-    logger.info('mobile.de: using scrape.do (parallel)', { concurrency, maxPages });
-    // Scraper les pages par lots parallèles (ex: 5 pages en même temps)
+    const batchDelayMs = parseInt(process.env.MOBILEDE_BATCH_DELAY_MS || '2500', 10) || 0;
+    logger.info('mobile.de: using scrape.do (parallel)', { concurrency, maxPages, batchDelayMs });
     for (let start = 1; start <= maxPages; start += concurrency) {
       const pageNums = [];
       for (let i = 0; i < concurrency && start + i <= maxPages; i++) {
@@ -118,8 +123,14 @@ async function scrapeMobileDeUrl(browser, url, maxPages = 10) {
       );
       let hadEmpty = false;
       for (let i = 0; i < batchResults.length; i++) {
-        const scraped = batchResults[i];
+        let scraped = batchResults[i];
         if (scraped.length === 0) hadEmpty = true;
+        // Retry empty page once (rate limit may return empty)
+        if (scraped.length === 0 && start > 1 && batchResults.some((s) => s.length > 0)) {
+          logger.warn('mobile.de: empty page, retrying after delay', { page: pageNums[i] });
+          await new Promise((r) => setTimeout(r, 5000));
+          scraped = await scrapeMobileDeSearchViaScraper(buildMobileDePageUrl(url, pageNums[i]));
+        }
         allListings.push(...scraped);
         if (scraped.length > 0) {
           logger.info('mobile.de page scraped via scrape.do', { page: pageNums[i], found: scraped.length });
@@ -127,6 +138,9 @@ async function scrapeMobileDeUrl(browser, url, maxPages = 10) {
       }
       if (hadEmpty && batchResults[0]?.length === 0) break;
       if (pageNums.length < concurrency) break;
+      if (batchDelayMs > 0 && start + concurrency <= maxPages) {
+        await new Promise((r) => setTimeout(r, batchDelayMs));
+      }
     }
     return allListings;
   }
@@ -252,64 +266,125 @@ async function scrapeMobileDeUrl(browser, url, maxPages = 10) {
   }
 }
 
-async function scrapeMobileDeSearchViaScraper(pageUrl) {
-  if (!isScrapeDoAvailable()) return [];
+const BASE_URL = 'https://suchen.mobile.de';
+
+/**
+ * Extract listings from window.__INITIAL_STATE__ (Oleg approach - structured JSON, no render needed).
+ * Path: search.srp.data.searchResults.items
+ */
+function extractFromInitialState(html) {
+  const idx = html.indexOf('window.__INITIAL_STATE__');
+  if (idx === -1) return null;
+  const start = html.indexOf('=', idx) + 1;
+  const end = html.indexOf('window.__PUBLIC_CONFIG__', start);
+  const jsonStr = (end > start ? html.slice(start, end) : html.slice(start)).trim().replace(/;\s*$/, '');
+  if (!jsonStr || jsonStr.length < 100) return null;
   try {
-    const html = await fetchViaScrapeDo(pageUrl, {
-      render: true,
-      customWait: 8000,
-      geoCode: 'de',
-      superProxy: true
-    });
-    const $ = cheerio.load(html);
+    const state = JSON.parse(jsonStr);
+    const items = state?.search?.srp?.data?.searchResults?.items;
+    if (!Array.isArray(items)) return null;
     const listings = [];
     const seen = new Set();
-
-    // Selectors: /fahrzeuge/details/ID, details.html?id=, datenblatt, listing cards
-    const linkSelectors = [
-      'a[href*="/fahrzeuge/details/"]',
-      'a[href*="details.html"]',
-      'a[href*="datenblatt"]',
-      'a[href*="mobile.de"][href*="id="]',
-      '[data-testid*="listing"] a[href*="/fahrzeuge/"]',
-      'a[href*="mobile.de/fahrzeuge/"]'
-    ].join(', ');
-    $(linkSelectors).each((_, el) => {
-      const href = $(el).attr('href');
-      if (!href) return;
-      const idMatch = href.match(/\/details\/(\d+)/) || href.match(/\/datenblatt\/(\d+)/) || href.match(/[?&]id=(\d+)/);
-      if (!idMatch || seen.has(idMatch[1])) return;
-      seen.add(idMatch[1]);
-
-      const card = $(el).closest('[class*="card"], [class*="result"], [class*="listing"], article') || $(el);
-      const text = card.text();
-      const titleEl = card.find('h2, h3, [class*="title"], [class*="Title"]').first();
-      const title = titleEl.text().trim() || $(el).text().trim();
-      const priceMatch = text.match(/(\d{1,3}(?:\.\d{3})*)\s*€/) || text.match(/€\s*(\d{1,3}(?:\.\d{3})*)/);
-      const kmMatch = text.match(/(\d{1,3}(?:\.\d{3})*)\s*km/i);
-      const yearMatch = text.match(/\b(19|20)\d{2}\b/);
+    for (const car of items) {
+      const title = car?.title;
+      if (!title) continue;
+      const rel = car?.relativeUrl;
+      if (!rel) continue;
+      const idMatch = rel.match(/\/details\/(\d+)/) || rel.match(/\/datenblatt\/(\d+)/) || rel.match(/[?&]id=(\d+)/);
+      const id = idMatch ? idMatch[1] : null;
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      const fullUrl = rel.startsWith('http') ? rel : `${BASE_URL}${rel.startsWith('/') ? rel : '/' + rel}`;
+      const fr = car?.attr?.fr;
+      const year = fr && fr.includes('/') ? parseInt(fr.split('/')[1], 10) : null;
+      const ml = car?.attr?.ml;
+      const mileage = ml ? parseInt(String(ml).replace(/[.\s\xa0]/g, '').replace(/km/gi, ''), 10) : null;
+      const price = car?.price?.grossAmount ?? null;
       const parts = title.split(/\s+/);
-
-      let fullUrl = href.startsWith('http') ? href : href.startsWith('/') ? `https://suchen.mobile.de${href}` : `https://suchen.mobile.de/${href}`;
-      if (fullUrl.includes('mobile.de') === false) {
-        fullUrl = `https://suchen.mobile.de${href.startsWith('/') ? href : '/' + href}`;
-      }
-
       listings.push({
         url: fullUrl,
-        id: idMatch[1],
+        id,
         brand: parts[0] || null,
         model: parts.slice(1).join(' ') || null,
-        price: priceMatch ? parseInt(priceMatch[1].replace(/\./g, ''), 10) : null,
-        mileage: kmMatch ? parseInt(kmMatch[1].replace(/\./g, ''), 10) : null,
-        year: yearMatch ? parseInt(yearMatch[0], 10) : null,
+        price: typeof price === 'number' ? price : (price ? parseInt(String(price).replace(/\D/g, ''), 10) : null),
+        mileage: Number.isNaN(mileage) ? null : mileage,
+        year: (year && year >= 1900 && year <= 2030) ? year : null,
         title,
       });
-    });
-    if (listings.length === 0 && html && html.length > 500) {
-      logger.debug('mobile.de: no listings found in HTML', { htmlLength: html.length, url: pageUrl });
     }
     return listings;
+  } catch (e) {
+    logger.debug('mobile.de: __INITIAL_STATE__ parse failed', { error: e.message });
+    return null;
+  }
+}
+
+/**
+ * Fallback: parse HTML with cheerio (when __INITIAL_STATE__ not present or blocked).
+ */
+function parseListingsFromHtml(html) {
+  const $ = cheerio.load(html);
+  const listings = [];
+  const seen = new Set();
+  const linkSelectors = [
+    'a[href*="/fahrzeuge/details/"]',
+    'a[href*="details.html"]',
+    'a[href*="datenblatt"]',
+    'a[href*="mobile.de"][href*="id="]',
+    '[data-testid*="listing"] a[href*="/fahrzeuge/"]',
+    'a[href*="mobile.de/fahrzeuge/"]'
+  ].join(', ');
+  $(linkSelectors).each((_, el) => {
+    const href = $(el).attr('href');
+    if (!href) return;
+    const idMatch = href.match(/\/details\/(\d+)/) || href.match(/\/datenblatt\/(\d+)/) || href.match(/[?&]id=(\d+)/);
+    if (!idMatch || seen.has(idMatch[1])) return;
+    seen.add(idMatch[1]);
+    const card = $(el).closest('[class*="card"], [class*="result"], [class*="listing"], article') || $(el);
+    const text = card.text();
+    const titleEl = card.find('h2, h3, [class*="title"], [class*="Title"]').first();
+    const title = titleEl.text().trim() || $(el).text().trim();
+    const priceMatch = text.match(/(\d{1,3}(?:\.\d{3})*)\s*€/) || text.match(/€\s*(\d{1,3}(?:\.\d{3})*)/);
+    const kmMatch = text.match(/(\d{1,3}(?:\.\d{3})*)\s*km/i);
+    const yearMatch = text.match(/\b(19|20)\d{2}\b/);
+    const parts = title.split(/\s+/);
+    let fullUrl = href.startsWith('http') ? href : href.startsWith('/') ? `${BASE_URL}${href}` : `${BASE_URL}/${href}`;
+    if (!fullUrl.includes('mobile.de')) fullUrl = `https://suchen.mobile.de${href.startsWith('/') ? href : '/' + href}`;
+    listings.push({
+      url: fullUrl,
+      id: idMatch[1],
+      brand: parts[0] || null,
+      model: parts.slice(1).join(' ') || null,
+      price: priceMatch ? parseInt(priceMatch[1].replace(/\./g, ''), 10) : null,
+      mileage: kmMatch ? parseInt(kmMatch[1].replace(/\./g, ''), 10) : null,
+      year: yearMatch ? parseInt(yearMatch[0], 10) : null,
+      title,
+    });
+  });
+  return listings;
+}
+
+async function scrapeMobileDeSearchViaScraper(pageUrl) {
+  if (!isScrapeDoAvailable()) return [];
+  const opts = { geoCode: 'de', superProxy: true };
+  try {
+    // 1. Try without render first (Oleg approach - __INITIAL_STATE__ is in initial HTML, faster & cheaper)
+    let html = await fetchViaScrapeDo(pageUrl, { ...opts, render: false });
+    let listings = extractFromInitialState(html);
+    if (listings && listings.length > 0) {
+      logger.debug('mobile.de: extracted from __INITIAL_STATE__ (no render)', { count: listings.length });
+      return listings;
+    }
+    listings = parseListingsFromHtml(html);
+    if (listings.length > 0) return listings;
+
+    // 2. Fallback: render=true if blocked or empty (anti-bot may not serve JSON without JS)
+    if (html && html.length > 500) {
+      logger.debug('mobile.de: trying with render=true', { url: pageUrl });
+      html = await fetchViaScrapeDo(pageUrl, { ...opts, render: true, customWait: 6000 });
+      listings = extractFromInitialState(html) || parseListingsFromHtml(html);
+    }
+    return listings || [];
   } catch (err) {
     logger.warn('scrape.do search failed for mobile.de', { error: err.message, url: pageUrl });
     return [];
