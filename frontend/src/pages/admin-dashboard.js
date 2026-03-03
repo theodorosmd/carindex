@@ -1399,6 +1399,32 @@ async function loadScraperDashboard() {
 
 window.loadScraperDashboard = loadScraperDashboard
 
+async function toggleScraperPause(id, currentEnabled) {
+  const token = getAuthToken()
+  if (!token) return
+
+  try {
+    const response = await fetch(`/api/v1/admin/auto-scrapers/${id}`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ enabled: !currentEnabled })
+    })
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error?.message || `Erreur ${response.status}`)
+    }
+    await loadScraperDashboard()
+  } catch (error) {
+    console.error('Erreur toggle scraper:', error)
+    alert('Erreur: ' + error.message)
+  }
+}
+
+window.toggleScraperPause = toggleScraperPause
+
 function renderScraperDashboard(data) {
   const container = document.getElementById('scraper-dashboard-content')
   if (!container) return
@@ -1416,7 +1442,7 @@ function renderScraperDashboard(data) {
       <div class="bg-green-50 border border-green-200 rounded-lg p-3 sm:p-4">
         <div class="text-xs sm:text-sm font-medium text-green-800">Runs OK</div>
         <div class="text-xl sm:text-2xl font-bold text-green-900">${(t.runs_ok || 0).toLocaleString('fr-FR')}</div>
-        <div class="text-xs text-green-600 mt-1 hidden sm:block">Succès (30 derniers jours)</div>
+        <div class="text-xs text-green-600 mt-1 hidden sm:block">Succès (7 derniers jours)</div>
       </div>
       <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4">
         <div class="text-xs sm:text-sm font-medium text-blue-800">En cours</div>
@@ -1431,7 +1457,7 @@ function renderScraperDashboard(data) {
       <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 sm:p-4">
         <div class="text-xs sm:text-sm font-medium text-gray-800">Total runs</div>
         <div class="text-xl sm:text-2xl font-bold text-gray-900">${(t.runs_total || 0).toLocaleString('fr-FR')}</div>
-        <div class="text-xs text-gray-600 mt-1 hidden sm:block">30 derniers jours</div>
+        <div class="text-xs text-gray-600 mt-1 hidden sm:block">7 derniers jours</div>
       </div>
       <div class="bg-white border border-gray-200 rounded-lg p-3 sm:p-4 col-span-2 sm:col-span-1">
         <div class="text-xs sm:text-sm font-medium text-gray-800">Taux complétion</div>
@@ -1454,10 +1480,37 @@ function renderScraperDashboard(data) {
     return pending.toLocaleString('fr-FR')
   }
 
+  function formatTimeTo100(days) {
+    if (days == null || days <= 0 || !isFinite(days)) return '—'
+    if (days < 1) return '< 1 j'
+    if (days < 30) return Math.round(days) + ' j'
+    if (days < 365) return (days / 30).toFixed(1).replace(/\.0$/, '') + ' mois'
+    return (days / 365).toFixed(1).replace(/\.0$/, '') + ' an' + (days >= 365 * 2 ? 's' : '')
+  }
+
   let mobileCardsHtml = ''
   let tableRowsHtml = ''
 
   if (by_website && by_website.length > 0) {
+    // Tri auto : 1) Statut (Actif > Pausé > —) 2) % scrapé décroissant 3) nom du site
+    const statusRank = (row) => {
+      const c = row.crons?.[0]
+      if (!c) return 2  // — en dernier
+      return c.enabled !== false ? 0 : 1  // Actif=0, Pausé=1
+    }
+    const pct = (row) => {
+      if (!(row.site_total_available > 0)) return -1
+      const r = (row.listings_total || 0) / row.site_total_available
+      return r <= 1 ? r : -1  // >100% = incohérent, même traitement que "—"
+    }
+    const name = (row) => (SOURCE_NAMES[row.source] || row.source).toLowerCase()
+    by_website.sort((a, b) => {
+      const sa = statusRank(a), sb = statusRank(b)
+      if (sa !== sb) return sa - sb
+      const pa = pct(a), pb = pct(b)
+      if (pa !== pb) return pb - pa
+      return name(a).localeCompare(name(b))
+    })
     let listingsSum = 0
     let totals = { ok: 0, pending: 0, failed: 0, raw_pending: 0, queue_urls: 0, queue_processing: 0, listings: 0 }
     by_website.forEach((row) => {
@@ -1474,7 +1527,7 @@ function renderScraperDashboard(data) {
       let pctScraped = null
       if (siteTotal > 0) {
         const raw = (row.listings_total || 0) / siteTotal * 100
-        pctScraped = Math.min(raw, 100).toFixed(1)  // cap 100% (site_total peut être sous-estimé)
+        pctScraped = raw <= 100 ? raw.toFixed(1) : null  // >100% = données incohérentes (site_total sous-estimé)
       }
       const pctShare = listingsSum > 0 ? ((row.listings_total || 0) / listingsSum * 100).toFixed(1) : '0'
       const name = SOURCE_NAMES[row.source] || row.source
@@ -1513,12 +1566,31 @@ function renderScraperDashboard(data) {
         if (dateStr) lastSuccessText += ' (' + dateStr + ')'
       }
 
+      const primaryCron = row.crons?.[0]
+      let statusBadge = ''
+      let statusButton = ''
+      if (primaryCron) {
+        const isEnabled = primaryCron.enabled !== false
+        statusBadge = isEnabled
+          ? '<span class="px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">Actif</span>'
+          : '<span class="px-2 py-0.5 rounded text-xs font-medium bg-gray-200 text-gray-600">Pausé</span>'
+        statusButton = isEnabled
+          ? `<button type="button" onclick="toggleScraperPause('${primaryCron.id}', true)" class="px-2 py-1 text-xs rounded border border-gray-300 bg-white hover:bg-gray-50 text-gray-700">Pause</button>`
+          : `<button type="button" onclick="toggleScraperPause('${primaryCron.id}', false)" class="px-2 py-1 text-xs rounded border border-green-300 bg-green-50 hover:bg-green-100 text-green-800">Reprendre</button>`
+      } else {
+        statusBadge = '<span class="px-2 py-0.5 rounded text-xs text-gray-500" title="Import externe ou pas de cron">—</span>'
+      }
+
       mobileCardsHtml += `
         <div class="border border-gray-200 rounded-lg p-3 bg-white min-w-0">
           <div class="flex items-center justify-between gap-2 mb-2">
             <span class="font-semibold text-gray-900 text-sm truncate">${name}</span>
-            <span class="text-xs text-gray-500 font-medium">${(row.listings_total || 0).toLocaleString('fr-FR')} listings${pctScraped != null ? ` <span class="text-blue-600 font-semibold" title="scrapé / total sur le site">(${pctScraped}% scrapé)</span>` : pctShare !== '0' ? ` <span class="text-gray-500">(${pctShare}% base)</span>` : ''}</span>
+            <div class="flex items-center gap-1.5 shrink-0">
+              ${statusBadge}
+              ${statusButton}
+            </div>
           </div>
+          <div class="text-xs text-gray-500 mb-2">${(row.listings_total || 0).toLocaleString('fr-FR')} listings${pctScraped != null ? ` <span class="text-blue-600 font-semibold" title="scrapé / total sur le site">(${pctScraped}% scrapé)</span>` : pctShare !== '0' ? ` <span class="text-gray-500">(${pctShare}% base)</span>` : ''}</span></div>
           <div class="grid grid-cols-3 gap-2 mb-2">
             <div class="text-center p-1.5 rounded ${row.runs_ok > 0 ? 'bg-green-50' : 'bg-gray-50'}">
               <div class="text-xs text-gray-500">OK</div>
@@ -1537,6 +1609,7 @@ function renderScraperDashboard(data) {
             <span>Dernier: ${lastRunText}</span>
             ${ls && lastSuccessText !== '—' ? '<span class="text-green-600">Dernier OK: ' + lastSuccessText + '</span>' : ''}
             ${(row.queue_urls_pending || row.queue_urls_processing) ? '<span>Queue: ' + formatQueueUrls(row) + '</span>' : ''}
+            ${row.time_to_100_days != null ? '<span class="text-blue-600" title="Estimation au rythme récent (runs 7j + listings 14j)">→ 100%: ' + formatTimeTo100(row.time_to_100_days) + '</span>' : ''}
           </div>
         </div>
       `
@@ -1544,6 +1617,12 @@ function renderScraperDashboard(data) {
       tableRowsHtml += `
         <tr class="hover:bg-gray-50">
           <td class="px-3 sm:px-4 py-2 font-medium text-gray-900 bg-white whitespace-nowrap">${name}</td>
+          <td class="px-3 sm:px-4 py-2 whitespace-nowrap">
+            <div class="flex items-center gap-1.5">
+              ${statusBadge}
+              ${statusButton}
+            </div>
+          </td>
           <td class="px-3 sm:px-4 py-2 text-right whitespace-nowrap"><span class="px-2 py-1 rounded ${row.runs_ok > 0 ? 'bg-green-100 text-green-800' : 'text-gray-400'}">${row.runs_ok}</span></td>
           <td class="px-3 sm:px-4 py-2 text-right whitespace-nowrap"><span class="px-2 py-1 rounded ${row.runs_pending > 0 ? 'bg-blue-100 text-blue-800' : 'text-gray-400'}">${row.runs_pending}</span></td>
           <td class="px-3 sm:px-4 py-2 text-right whitespace-nowrap"><span class="px-2 py-1 rounded ${row.runs_failed > 0 ? 'bg-red-100 text-red-800' : 'text-gray-400'}">${row.runs_failed}</span></td>
@@ -1552,11 +1631,13 @@ function renderScraperDashboard(data) {
           <td class="px-3 sm:px-4 py-2 text-right whitespace-nowrap">${(row.raw_pending || 0).toLocaleString('fr-FR')}</td>
           <td class="px-3 sm:px-4 py-2 text-right whitespace-nowrap">${formatQueueUrls(row)}</td>
           <td class="px-3 sm:px-4 py-2 text-right whitespace-nowrap font-medium" title="${pctScraped != null ? 'scrapé / total sur le site' : 'part de notre base'}">${pctScraped != null ? pctScraped + '%' : '—'}</td>
+          <td class="px-3 sm:px-4 py-2 text-right text-xs text-gray-600 whitespace-nowrap" title="Estimation au rythme récent (runs 7j + listings 14j)">${formatTimeTo100(row.time_to_100_days)}</td>
           <td class="px-3 sm:px-4 py-2 text-right whitespace-nowrap">${(row.listings_total || 0).toLocaleString('fr-FR')}</td>
         </tr>
       `
     })
     totals.listings = t.listings_total || listingsSum
+    totals.time_to_100_days = t.time_to_100_days
 
     mobileCardsHtml += `
       <div class="border-2 border-gray-300 rounded-lg p-3 bg-gray-50">
@@ -1579,12 +1660,14 @@ function renderScraperDashboard(data) {
           </div>
         </div>
         ${totals.queue_urls > 0 || totals.queue_processing > 0 ? '<div class="text-xs text-gray-500 border-t border-gray-200 pt-2 mt-2">Queue: ' + (totals.queue_processing > 0 ? totals.queue_urls.toLocaleString('fr-FR') + ' (' + totals.queue_processing + ' en cours)' : totals.queue_urls.toLocaleString('fr-FR')) + '</div>' : ''}
+        ${totals.time_to_100_days != null ? '<div class="text-xs text-blue-600 font-medium border-t border-gray-200 pt-2 mt-2" title="Rythme récent (runs 7j + listings 14j)">→ 100% total: ' + formatTimeTo100(totals.time_to_100_days) + '</div>' : ''}
       </div>
     `
 
     tableRowsHtml += `
         <tr class="bg-gray-100 font-semibold border-t-2 border-gray-300">
           <td class="px-3 sm:px-4 py-2 text-gray-900 bg-gray-100 whitespace-nowrap">Total</td>
+          <td class="px-3 sm:px-4 py-2 bg-gray-100"></td>
           <td class="px-3 sm:px-4 py-2 text-right">${totals.ok.toLocaleString('fr-FR')}</td>
           <td class="px-3 sm:px-4 py-2 text-right">${totals.pending.toLocaleString('fr-FR')}</td>
           <td class="px-3 sm:px-4 py-2 text-right">${totals.failed.toLocaleString('fr-FR')}</td>
@@ -1593,12 +1676,13 @@ function renderScraperDashboard(data) {
           <td class="px-3 sm:px-4 py-2 text-right">${totals.raw_pending.toLocaleString('fr-FR')}</td>
           <td class="px-3 sm:px-4 py-2 text-right">${totals.queue_processing > 0 ? totals.queue_urls.toLocaleString('fr-FR') + ' (' + totals.queue_processing + ' en cours)' : totals.queue_urls.toLocaleString('fr-FR')}</td>
           <td class="px-3 sm:px-4 py-2 text-right font-medium">—</td>
+          <td class="px-3 sm:px-4 py-2 text-right bg-gray-100 font-medium" title="Temps estimé pour atteindre 100% (rythme récent: runs 7j + listings 14j)">${formatTimeTo100(totals.time_to_100_days)}</td>
           <td class="px-3 sm:px-4 py-2 text-right">${totals.listings.toLocaleString('fr-FR')}</td>
         </tr>
       `
   } else {
     mobileCardsHtml += '<div class="text-center text-gray-500 py-8">Aucune donnée</div>'
-    tableRowsHtml += '<tr><td colspan="10" class="px-4 py-8 text-center text-gray-500">Aucune donnée</td></tr>'
+    tableRowsHtml += '<tr><td colspan="12" class="px-4 py-8 text-center text-gray-500">Aucune donnée</td></tr>'
   }
 
   html += mobileCardsHtml
@@ -1608,6 +1692,7 @@ function renderScraperDashboard(data) {
           <thead class="bg-gray-50">
             <tr>
               <th class="px-3 sm:px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase bg-gray-50 whitespace-nowrap">Site</th>
+              <th class="px-3 sm:px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase bg-gray-50 whitespace-nowrap">Statut</th>
               <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap" title="Runs réussis">Runs OK</th>
               <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">En cours</th>
               <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Échecs</th>
@@ -1616,6 +1701,7 @@ function renderScraperDashboard(data) {
               <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Raw en attente</th>
               <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap" title="URLs mobile.de à enrichir">Queue URLs</th>
               <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap" title="% scrapé par rapport au total sur le site">% scrapé</th>
+              <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap" title="Temps estimé pour atteindre 100% (rythme récent)">→ 100%</th>
               <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap" title="Annonces en base">Listings</th>
             </tr>
           </thead>

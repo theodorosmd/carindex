@@ -205,8 +205,11 @@ export async function getScraperDashboardStats() {
   try {
     // 1. Scraper runs by source and status (last N days for rate estimate)
     const DAYS_FOR_RATE = 7;  // shorter = estimate reacts faster to recent parallelization
+    const DAYS_FOR_LISTINGS_GROWTH = 14;  // longer to capture Oleg-style bursts (6M in 2 weeks)
     const rateCutoff = new Date();
     rateCutoff.setDate(rateCutoff.getDate() - DAYS_FOR_RATE);
+    const listingsGrowthCutoff = new Date();
+    listingsGrowthCutoff.setDate(listingsGrowthCutoff.getDate() - DAYS_FOR_LISTINGS_GROWTH);
 
     const runsData = await safeSelect('scraper_runs', supabase
       .from('scraper_runs')
@@ -389,7 +392,7 @@ export async function getScraperDashboardStats() {
         .from('listings')
         .select('*', { count: 'exact', head: true })
         .eq('source_platform', src)
-        .gte('created_at', rateCutoff.toISOString()));
+        .gte('created_at', listingsGrowthCutoff.toISOString()));
       if (createdCount > 0) {
         const key = normalizeListingSource(src);
         listingsCreatedLast7dBySource[key] = (listingsCreatedLast7dBySource[key] || 0) + createdCount;
@@ -418,10 +421,15 @@ export async function getScraperDashboardStats() {
       const listingsTotal = listingsBySource[source] || 0;
       const totalSaved30d = savedBySource[source] || savedBySource[normalizeForLookup(source)] || 0;
       const savedPerDayFromRuns = totalSaved30d > 0 ? totalSaved30d / DAYS_FOR_RATE : 0;
-      const createdLast7d = listingsCreatedLast7dBySource[source] || listingsCreatedLast7dBySource[normalizeForLookup(source)] || 0;
-      const savedPerDayFromListings = createdLast7d > 0 ? createdLast7d / DAYS_FOR_RATE : 0;
+      const createdLast14d = listingsCreatedLast7dBySource[source] || listingsCreatedLast7dBySource[normalizeForLookup(source)] || 0;
+      const savedPerDayFromListings = createdLast14d > 0 ? createdLast14d / DAYS_FOR_LISTINGS_GROWTH : 0;
       // Use max: listings growth reflects all ingest paths (crons, queue, API, Oleg); scraper_runs can undercount
-      const savedPerDay = Math.max(savedPerDayFromRuns, savedPerDayFromListings);
+      let savedPerDay = Math.max(savedPerDayFromRuns, savedPerDayFromListings);
+      // Optional override for mobile.de when Oleg's throughput is known (e.g. 6M in 2 weeks = ~430k/day)
+      const mobiledeOverride = parseInt(process.env.MOBILEDE_ESTIMATED_SAVED_PER_DAY || '0', 10);
+      if (isMobileDe && mobiledeOverride > 0 && mobiledeOverride > savedPerDay) {
+        savedPerDay = mobiledeOverride;
+      }
       const remaining = (siteTotal > 0 && listingsTotal < siteTotal) ? siteTotal - listingsTotal : 0;
       let time_to_100_days = null;
       if (remaining > 0 && savedPerDay > 0) {
