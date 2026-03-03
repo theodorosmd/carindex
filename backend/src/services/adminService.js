@@ -203,19 +203,21 @@ export async function updateUserRole(userId, role) {
  */
 export async function getScraperDashboardStats() {
   try {
-    // 1. Scraper runs by source and status (last 30 days)
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    // 1. Scraper runs by source and status (last N days for rate estimate)
+    const DAYS_FOR_RATE = 7;  // shorter = estimate reacts faster to recent parallelization
+    const rateCutoff = new Date();
+    rateCutoff.setDate(rateCutoff.getDate() - DAYS_FOR_RATE);
 
     const runsData = await safeSelect('scraper_runs', supabase
       .from('scraper_runs')
       .select('source_platform, status, total_scraped, total_saved, started_at, finished_at')
-      .gte('started_at', thirtyDaysAgo.toISOString())
+      .gte('started_at', rateCutoff.toISOString())
       .order('finished_at', { ascending: false, nullsFirst: false }));
 
     const runsBySource = {};
     const lastRunBySource = {};
     const lastSuccessBySource = {};
+    const savedBySource = {}; // total_saved per source (last N days) for time-to-100% estimate
     let totals = { ok: 0, pending: 0, failed: 0 };
 
     const normalizeSourceRuns = (s) => (['mobile_de', 'mobilede'].includes((s || '').toLowerCase()) ? 'mobile.de' : s);
@@ -243,9 +245,15 @@ export async function getScraperDashboardStats() {
         };
       }
       const status = (run.status || '').toLowerCase();
+      const saved = run.total_saved ?? 0;
       if (status === 'success') {
         runsBySource[src].ok += 1;
         totals.ok += 1;
+        savedBySource[src] = (savedBySource[src] || 0) + saved;
+      } else if (status === 'failed' && saved > 0) {
+        runsBySource[src].failed += 1;
+        totals.failed += 1;
+        savedBySource[src] = (savedBySource[src] || 0) + saved;  // partial success counts for rate
       } else if (status === 'running') {
         runsBySource[src].pending += 1;
         totals.pending += 1;
@@ -256,10 +264,16 @@ export async function getScraperDashboardStats() {
     });
 
     // Also aggregate from scraper_run (bytbil Python, other external scrapers)
-    const scraperRunData = await safeSelect('scraper_run', supabase
-      .from('scraper_run')
-      .select('source, start_time, end_time, error_count')
-      .gte('start_time', thirtyDaysAgo.toISOString()));
+    // Table may not exist in all deployments - wrap in try/catch
+    let scraperRunData = [];
+    try {
+      scraperRunData = await safeSelect('scraper_run', supabase
+        .from('scraper_run')
+        .select('source, start_time, end_time, error_count')
+        .gte('start_time', rateCutoff.toISOString()));
+    } catch (e) {
+      logger.warn('scraper_run query failed (table may not exist)', { error: e.message });
+    }
 
     const normalizeSource = (s) => (['mobile_de', 'mobilede'].includes(s) ? 'mobile.de' : s);
     const scraperRunSorted = (scraperRunData || []).slice().sort((a, b) => {
@@ -360,6 +374,7 @@ export async function getScraperDashboardStats() {
     // 6. Listings total by source - use count per source (Supabase limits select to 1000 rows)
     const listingsSources = ['autoscout24', 'mobile.de', 'mobile_de', 'mobilede', 'leboncoin', 'largus', 'lacentrale', 'blocket', 'bilweb', 'bytbil', 'subito', 'gaspedaal', 'marktplaats', 'coches.net', 'finn', 'otomoto'];
     const listingsBySource = {};
+    const listingsCreatedLast7dBySource = {}; // actual throughput (all ingest paths: crons, queue, API)
     const normalizeListingSource = (s) => (['mobile_de', 'mobilede'].includes(s) ? 'mobile.de' : s);
     for (const src of listingsSources) {
       const count = await safeCount('listings', supabase
@@ -369,6 +384,15 @@ export async function getScraperDashboardStats() {
       if (count > 0) {
         const key = normalizeListingSource(src);
         listingsBySource[key] = (listingsBySource[key] || 0) + count;
+      }
+      const createdCount = await safeCount('listings', supabase
+        .from('listings')
+        .select('*', { count: 'exact', head: true })
+        .eq('source_platform', src)
+        .gte('created_at', rateCutoff.toISOString()));
+      if (createdCount > 0) {
+        const key = normalizeListingSource(src);
+        listingsCreatedLast7dBySource[key] = (listingsCreatedLast7dBySource[key] || 0) + createdCount;
       }
     }
 
@@ -390,6 +414,19 @@ export async function getScraperDashboardStats() {
       const lastRun = lastRunBySource[source] || lastRunBySource[normalizeForLookup(source)] || null;
       const lastSuccess = lastSuccessBySource[source] || lastSuccessBySource[normalizeForLookup(source)] || null;
       const isMobileDe = source === 'mobile.de' || normalizeForLookup(source) === 'mobile.de';
+      const siteTotal = siteTotalsBySource[source] || null;
+      const listingsTotal = listingsBySource[source] || 0;
+      const totalSaved30d = savedBySource[source] || savedBySource[normalizeForLookup(source)] || 0;
+      const savedPerDayFromRuns = totalSaved30d > 0 ? totalSaved30d / DAYS_FOR_RATE : 0;
+      const createdLast7d = listingsCreatedLast7dBySource[source] || listingsCreatedLast7dBySource[normalizeForLookup(source)] || 0;
+      const savedPerDayFromListings = createdLast7d > 0 ? createdLast7d / DAYS_FOR_RATE : 0;
+      // Use max: listings growth reflects all ingest paths (crons, queue, API, Oleg); scraper_runs can undercount
+      const savedPerDay = Math.max(savedPerDayFromRuns, savedPerDayFromListings);
+      const remaining = (siteTotal > 0 && listingsTotal < siteTotal) ? siteTotal - listingsTotal : 0;
+      let time_to_100_days = null;
+      if (remaining > 0 && savedPerDay > 0) {
+        time_to_100_days = remaining / savedPerDay;
+      }
       return {
         source,
         runs_ok: runs.ok,
@@ -398,11 +435,13 @@ export async function getScraperDashboardStats() {
         raw_pending: rawPendingBySource[source] || 0,
         queue_urls_pending: isMobileDe ? mobiledeQueuePending : 0,
         queue_urls_processing: isMobileDe ? mobiledeQueueProcessing : 0,
-        listings_total: listingsBySource[source] || 0,
-        site_total_available: siteTotalsBySource[source] || null,
+        listings_total: listingsTotal,
+        site_total_available: siteTotal,
         last_run: lastRun,
         last_success: lastSuccess,
-        crons: cronsForSource
+        crons: cronsForSource,
+        time_to_100_days: time_to_100_days,
+        saved_per_day: savedPerDay
       };
     }).sort((a, b) => a.source.localeCompare(b.source));
 
@@ -410,13 +449,29 @@ export async function getScraperDashboardStats() {
       .from('listings')
       .select('*', { count: 'exact', head: true }));
 
+    let totalTimeTo100Days = null;
+    let totalRemaining = 0;
+    let totalSavedPerDay = 0;
+    for (const w of byWebsite) {
+      const siteTotal = w.site_total_available || 0;
+      const listingsTotal = w.listings_total || 0;
+      if (siteTotal > 0 && listingsTotal < siteTotal) {
+        totalRemaining += siteTotal - listingsTotal;
+      }
+      totalSavedPerDay += w.saved_per_day || 0;
+    }
+    if (totalRemaining > 0 && totalSavedPerDay > 0) {
+      totalTimeTo100Days = totalRemaining / totalSavedPerDay;
+    }
+
     return {
       totals: {
         runs_ok: totals.ok,
         runs_pending: totals.pending,
         runs_failed: totals.failed,
         runs_total: totals.ok + totals.pending + totals.failed,
-        listings_total: listingsGrandTotal || 0
+        listings_total: listingsGrandTotal || 0,
+        time_to_100_days: totalTimeTo100Days
       },
       by_website: byWebsite,
       crons
