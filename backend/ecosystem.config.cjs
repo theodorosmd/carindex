@@ -24,5 +24,17 @@ module.exports = {
       listen_timeout: 15000,
       kill_timeout: 10000,  // Plus de temps pour libérer le port avant SIGKILL
     },
+    {
+      name: 'carindex-mobilede-worker',
+      script: 'src/scripts/run-mobilede-queue-worker.js',
+      cwd: __dirname,
+      node_args: '-r dotenv/config',
+      instances: 5,  // 5 workers en parallèle (remplace Oleg)
+      exec_mode: 'fork',
+      env: { NODE_ENV: 'production' },
+      max_memory_restart: '500M',
+      restart_delay: 3000,
+      max_restarts: 9999,
+    },
   ],
 };

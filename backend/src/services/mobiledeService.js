@@ -1,6 +1,7 @@
 import { logger } from '../utils/logger.js';
 import { saveRawListings } from './rawIngestService.js';
 import { processRawListings } from './rawListingsProcessorService.js';
+import { addToQueue } from './mobileDeQueueService.js';
 import { fetchViaScrapeDo, isScrapeDoAvailable, isPageBlocked } from '../utils/scrapeDo.js';
 import * as cheerio from 'cheerio';
 import { launchBrowser } from '../utils/puppeteerLaunch.js';
@@ -45,6 +46,18 @@ export async function runMobileDeScraper(searchUrls, options = {}, progressCallb
         });
 
         if (listings.length > 0) {
+          // Alimenter la queue pour les workers (remplace Oleg)
+          const queueItems = listings.map((l) => ({
+            url: l.url,
+            title: l.title,
+            year: l.year,
+            price: l.price,
+            mileage: l.mileage,
+            images: l.images || l.imageUrls || []
+          }));
+          const { added } = await addToQueue(queueItems);
+          if (added > 0) logger.debug('mobile.de: added to queue', { added });
+
           // Stage 1: raw_listings (pour debugging, re-processing)
           const { saved } = await saveRawListings(listings, SOURCE_PLATFORM);
           results.totalScraped += listings.length;

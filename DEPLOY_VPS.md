@@ -118,11 +118,23 @@ ENABLE_SUPABASE_BYTBIL_IMPORT=false
 # Migration 20260302110000 désactive les auto_scrapers hors focus
 ```
 
-**Accélérer mobile.de** (scraping parallèle, dédié serveur) :
+**Accélérer le scraping** (parallélisme, serveur dédié) :
 
 ```env
-MOBILEDE_MAX_PAGES=200          # pages de recherche par run (défaut 100)
-MOBILEDE_CONCURRENT_PAGES=8     # pages scrapées en parallèle (défaut 5)
+# mobile.de
+MOBILEDE_MAX_PAGES=200
+MOBILEDE_CONCURRENT_PAGES=8
+
+# Autres sources (pages + détails en parallèle)
+AUTOSCOUT24_CONCURRENT_PAGES=5
+BLOCKET_CONCURRENT_PAGES=5
+BLOCKET_CONCURRENT_DETAILS=5
+LEBONCOIN_CONCURRENT_PAGES=5
+LEBONCOIN_CONCURRENT_DETAILS=5
+LACENTRALE_CONCURRENT_PAGES=5
+LACENTRALE_CONCURRENT_DETAILS=5
+LARGUS_MAX_PAGES=50
+LARGUS_CONCURRENT_DETAILS=5
 ```
 
 ### Lancement avec PM2
@@ -144,12 +156,35 @@ bash scripts/ensure-scrapers-always-running.sh
 
 Vérifiez que `backend/.env` contient : `ENABLE_CONTINUOUS_SCRAPING=true`, `ENABLE_CRON_JOBS=true`, `CONTINUOUS_SCRAPE_INTERVAL_HOURS=0`.
 
+### Worker queue mobile.de (remplace Oleg)
+
+Pour traiter la queue `mobile_de_fetch_queue` sans Oleg :
+
+```bash
+pm2 start ecosystem.config.cjs --only carindex-mobilede-worker
+pm2 save
+```
+
+Ou lancer tout (scraper + workers) :
+
+```bash
+pm2 start ecosystem.config.cjs
+```
+
+5 workers tournent en parallèle par défaut. Pour ajuster :
+
+```bash
+pm2 scale carindex-mobilede-worker 10   # 10 workers
+```
+
 ### Commandes utiles
 
 ```bash
 pm2 logs carindex-scraper    # voir les logs en direct
+pm2 logs carindex-mobilede-worker  # logs des workers queue
 pm2 monit                    # tableau de bord
 pm2 restart carindex-scraper # redémarrer
+pm2 restart carindex-mobilede-worker
 pm2 stop carindex-scraper    # arrêter
 ```
 
