@@ -14,17 +14,15 @@ module.exports = {
       node_args: '-r dotenv/config',
       env: {
         NODE_ENV: 'production',
-        // Chromium système sur Linux (évite libglib / bundled Chrome)
-        ...(process.platform === 'linux' && {
-          PUPPETEER_EXECUTABLE_PATH: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium-browser',
-        }),
+        // PUPPETEER_EXECUTABLE_PATH doit venir de .env (ex: /snap/bin/chromium sur Ubuntu 24.04)
+        // Ne pas le définir ici : sinon ça écrase le .env et /usr/bin/chromium-browser n'existe pas sur Ubuntu 24
       },
       max_memory_restart: '6G', // SCRAPE_CONCURRENCY=8 → ~8 Chromium, prévoir 4–6 Go
-      restart_delay: 5000,
+      restart_delay: 8000,  // Attendre que l'ancien processus libère le port 3001
       max_restarts: 9999, // Keep trying on crash
       min_uptime: '10s',  // Consider crash if dies before 10s
-      listen_timeout: 10000,
-      kill_timeout: 5000,
+      listen_timeout: 15000,
+      kill_timeout: 10000,  // Plus de temps pour libérer le port avant SIGKILL
     },
   ],
 };
