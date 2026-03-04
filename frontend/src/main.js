@@ -1,6 +1,6 @@
 import './styles/globals.css'
 import { getLang } from './utils/i18n.js'
-import { renderLandingPage } from './pages/landing-fr'
+import { renderLandingPage } from './pages/landing'
 import { renderListingsSearch } from './pages/listings-search'
 import { renderListingDetails } from './pages/listing-details'
 import { renderLogin } from './pages/auth-login'
@@ -150,9 +150,9 @@ function route() {
       document.body.innerHTML = `
         <div class="min-h-screen bg-gray-50 flex items-center justify-center">
           <div class="text-center">
-            <h1 class="text-2xl font-bold text-red-600 mb-4">Erreur de chargement</h1>
+            <h1 class="text-2xl font-bold text-red-600 mb-4">Loading error</h1>
             <p class="text-gray-600 mb-4">${error.message}</p>
-            <a href="#/dashboard" class="text-blue-600 hover:underline">Retour au dashboard</a>
+            <a href="#/dashboard" class="text-blue-600 hover:underline">Back to dashboard</a>
           </div>
         </div>
       `
@@ -174,9 +174,9 @@ function route() {
       document.body.innerHTML = `
         <div class="min-h-screen bg-gray-50 flex items-center justify-center">
           <div class="text-center">
-            <h1 class="text-2xl font-bold text-red-600 mb-4">Erreur de chargement</h1>
+            <h1 class="text-2xl font-bold text-red-600 mb-4">Loading error</h1>
             <p class="text-gray-600 mb-4">${error.message}</p>
-            <a href="#/dashboard" class="text-blue-600 hover:underline">Retour au dashboard</a>
+            <a href="#/dashboard" class="text-blue-600 hover:underline">Back to dashboard</a>
           </div>
         </div>
       `

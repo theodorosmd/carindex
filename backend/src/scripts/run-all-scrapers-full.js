@@ -213,13 +213,27 @@ async function runInBatches(items, concurrency, fn) {
   return results;
 }
 
+// Sources ciblées (blocket, leboncoin, autoscout24, largus, lacentrale, mobile.de). FOCUSED_SOURCES=all pour toutes.
+const FOCUSED_SOURCES_DEFAULT = 'blocket,leboncoin,autoscout24,largus,lacentrale,mobile.de';
+
 async function runAllScrapersFull() {
   try {
     const concurrency = Math.max(1, parseInt(process.env.SCRAPE_CONCURRENCY || '3', 10));
-    console.log('🚀 Lancement de tous les scrapers en mode complet (sans limite)...');
+    const focusEnv = process.env.FOCUSED_SOURCES || FOCUSED_SOURCES_DEFAULT;
+    const runAll = focusEnv.toLowerCase() === 'all';
+    const sources = runAll
+      ? Object.entries(DEFAULT_SCRAPER_URLS)
+      : Object.entries(DEFAULT_SCRAPER_URLS).filter(([k]) =>
+          focusEnv.split(',').map((s) => s.trim()).includes(k)
+        );
+    console.log('🚀 Lancement des scrapers en mode complet (sans limite)...');
+    console.log(`   Sources: ${runAll ? 'toutes' : sources.map(([k]) => SOURCE_LABELS[k] || k).join(', ')}`);
     console.log(`   Parallélisme: ${concurrency} scrapers en même temps\n`);
 
-    const sources = Object.entries(DEFAULT_SCRAPER_URLS);
+    if (sources.length === 0) {
+      console.log('   ⚠️ Aucune source à scraper (vérifiez FOCUSED_SOURCES)');
+      return;
+    }
     const results = await runInBatches(sources, concurrency, runOneSource);
 
     const totalScraped = results.reduce((s, r) => s + (r.scraped || 0), 0);

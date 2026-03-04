@@ -26,28 +26,44 @@ export async function runBlocketScraper(searchUrls, options = {}, progressCallba
     const useScrapeDoFirst = isScrapeDoAvailable();
 
     if (useScrapeDoFirst) {
-      logger.info('Starting Blocket.se scraper (scrape.do first)', { searchUrls, options });
+      const pageConcurrency = parseInt(process.env.BLOCKET_CONCURRENT_PAGES || '5', 10) || 1;
+      const detailConcurrency = parseInt(process.env.BLOCKET_CONCURRENT_DETAILS || '5', 10) || 1;
+      logger.info('Starting Blocket.se scraper (scrape.do parallel)', { pageConcurrency, detailConcurrency });
       const urls = Array.isArray(searchUrls) ? searchUrls : [searchUrls];
       for (const searchUrl of urls) {
         try {
-          for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
-            const pageUrl = pageNum === 1 ? searchUrl : (searchUrl.includes('?') ? `${searchUrl}&page=${pageNum}` : `${searchUrl}?page=${pageNum}`);
-            const scrapedListings = await scrapeBlocketSearchViaScraper(pageUrl);
-            if (scrapedListings.length === 0) break;
-            const enriched = [];
-            for (const item of scrapedListings) {
-              try {
-                const details = await fetchBlocketDetailViaScraper(item.url);
-                enriched.push(details ? { ...item, ...details } : item);
-              } catch { enriched.push(item); }
-              await new Promise(r => setTimeout(r, 400));
+          let shouldStop = false;
+          for (let start = 1; start <= maxPages && !shouldStop; start += pageConcurrency) {
+            const pageNums = [];
+            for (let i = 0; i < pageConcurrency && start + i <= maxPages; i++) pageNums.push(start + i);
+            const pageResults = await Promise.all(pageNums.map(async (pageNum) => {
+              const pageUrl = pageNum === 1 ? searchUrl : (searchUrl.includes('?') ? `${searchUrl}&page=${pageNum}` : `${searchUrl}?page=${pageNum}`);
+              const scraped = await scrapeBlocketSearchViaScraper(pageUrl);
+              return { pageNum, scraped };
+            }));
+            for (const { pageNum, scraped } of pageResults) {
+              if (scraped.length === 0 && pageNum === start) { shouldStop = true; break; }
+              if (scraped.length === 0) continue;
+              const enriched = [];
+              for (let i = 0; i < scraped.length; i += detailConcurrency) {
+                const chunk = scraped.slice(i, i + detailConcurrency);
+                const chunkResults = await Promise.all(chunk.map(async (item) => {
+                  try {
+                    const details = await fetchBlocketDetailViaScraper(item.url);
+                    return details ? { ...item, ...details } : item;
+                  } catch { return item; }
+                }));
+                enriched.push(...chunkResults);
+                await new Promise(r => setTimeout(r, 200));
+              }
+              await saveRawListings(enriched, SOURCE_PLATFORM);
+              const processResult = await processRawListings({ limit: enriched.length + 100, sourcePlatform: SOURCE_PLATFORM });
+              results.totalScraped += enriched.length;
+              results.saved += (processResult.created || 0) + (processResult.updated || 0) + (processResult.sourceAdded || 0);
+              if (progressCallback) await progressCallback({ totalScraped: results.totalScraped, totalSaved: results.saved, status: 'RUNNING', processedUrls: results.processedUrls });
             }
-            await saveRawListings(enriched, SOURCE_PLATFORM);
-            const processResult = await processRawListings({ limit: enriched.length + 100, sourcePlatform: SOURCE_PLATFORM });
-            results.totalScraped += enriched.length;
-            results.saved += (processResult.created || 0) + (processResult.updated || 0) + (processResult.sourceAdded || 0);
-            if (progressCallback) await progressCallback({ totalScraped: results.totalScraped, totalSaved: results.saved, status: 'RUNNING', processedUrls: results.processedUrls });
-            await new Promise(r => setTimeout(r, 1500));
+            if (pageResults[0]?.scraped?.length === 0) shouldStop = true;
+            await new Promise(r => setTimeout(r, 1000));
           }
           results.processedUrls.push(searchUrl);
         } catch (err) {
@@ -380,9 +396,9 @@ async function fetchBlocketListingDetails(browser, listingUrl) {
 async function scrapeBlocketSearchViaScraper(pageUrl) {
   if (!isScrapeDoAvailable()) return [];
   try {
-    const html = await fetchViaScrapeDo(pageUrl, { render: true, customWait: 4000, geoCode: 'se' });
+    let html = await fetchViaScrapeDo(pageUrl, { render: false, geoCode: 'se' });
     const $ = cheerio.load(html);
-    const listings = [];
+    let listings = [];
     const seen = new Set();
 
     $('a.sf-search-ad-link[href*="/mobility/item/"]').each((_, a) => {
@@ -410,6 +426,33 @@ async function scrapeBlocketSearchViaScraper(pageUrl) {
         year: yearMatch ? parseInt(yearMatch[0], 10) : null,
       });
     });
+    if (listings.length === 0 && html?.length > 500) {
+      html = await fetchViaScrapeDo(pageUrl, { render: true, customWait: 4000, geoCode: 'se' });
+      const $2 = cheerio.load(html);
+      listings = [];
+      $2('a.sf-search-ad-link[href*="/mobility/item/"]').each((_, a) => {
+        const href = $2(a).attr('href');
+        const idMatch = href?.match(/\/item\/(\d+)/);
+        if (!idMatch || listings.some((l) => l.id === idMatch[1])) return;
+        const card = $2(a).closest('.mobility-search-ad-card-content') || $2(a).closest('div');
+        const text = card.text() || $2(a).text();
+        const title = card.find('h2').first().text().trim() || $2(a).text().trim();
+        const priceMatch = text.match(/([\d\s]+)\s*kr/);
+        const yearMatch = text.match(/\b(19|20)\d{2}\b/);
+        const milMatch = text.match(/([\d\s\u00a0]+)\s*mil\b/);
+        const parts = title.split(/\s+/);
+        listings.push({
+          url: href.startsWith('http') ? href : `https://www.blocket.se${href}`,
+          id: idMatch[1],
+          brand: parts[0] || null,
+          model: parts.slice(1).join(' ') || null,
+          title,
+          price: priceMatch ? parseInt(priceMatch[1].replace(/[\s\u00a0]/g, ''), 10) : null,
+          mileageMil: milMatch ? parseInt(milMatch[1].replace(/[\s\u00a0]/g, ''), 10) : null,
+          year: yearMatch ? parseInt(yearMatch[0], 10) : null,
+        });
+      });
+    }
     return listings;
   } catch (err) {
     logger.warn('scrape.do search fallback failed for Blocket', { error: err.message });

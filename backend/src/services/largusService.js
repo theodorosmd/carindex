@@ -22,7 +22,7 @@ export async function runLargusScraper(searchUrls, options = {}, progressCallbac
   };
 
   try {
-    const maxPages = options.maxPages || 10;
+    const maxPages = options.maxPages ?? parseInt(process.env.LARGUS_MAX_PAGES || '50', 10);
 
     logger.info('Starting L\'Argus scraper (Puppeteer)', { searchUrls, options });
 
@@ -307,20 +307,24 @@ async function scrapeLargusUrl(browser, url, maxPages = 10) {
  * Fetch images + specs (couleur, portes, transmission, description, etc.) from each listing's detail page
  */
 async function enrichListingsWithImages(browser, listings) {
+  const concurrency = parseInt(process.env.LARGUS_CONCURRENT_DETAILS || '5', 10) || 1;
   const enriched = [];
-  for (let i = 0; i < listings.length; i++) {
-    const listing = listings[i];
-    try {
-      const details = await fetchLargusListingDetails(browser, listing.url);
-      enriched.push({ ...listing, ...details });
-    } catch (err) {
-      logger.warn('Could not fetch details for listing', { url: listing.url, error: err.message });
-      enriched.push({ ...listing, images: [] });
+  for (let i = 0; i < listings.length; i += concurrency) {
+    const chunk = listings.slice(i, i + concurrency);
+    const chunkResults = await Promise.all(chunk.map(async (listing) => {
+      try {
+        const details = await fetchLargusListingDetails(browser, listing.url);
+        return { ...listing, ...details };
+      } catch (err) {
+        logger.warn('Could not fetch details for listing', { url: listing.url, error: err.message });
+        return { ...listing, images: [] };
+      }
+    }));
+    enriched.push(...chunkResults);
+    if ((i + chunk.length) % 10 === 0 || i + chunk.length === listings.length) {
+      logger.info('Fetched details', { progress: `${i + chunk.length}/${listings.length}` });
     }
-    if ((i + 1) % 5 === 0) {
-      logger.info('Fetched details', { progress: `${i + 1}/${listings.length}` });
-    }
-    await new Promise((r) => setTimeout(r, 300));
+    await new Promise((r) => setTimeout(r, 200));
   }
   return enriched;
 }

@@ -77,17 +77,23 @@ async function runWorker() {
 
   let totalProcessed = 0;
   let totalSaved = 0;
+  let emptyCount = 0;
 
   while (true) {
     try {
       const result = await processOne(workerId);
       if (result) {
+        emptyCount = 0;
         totalProcessed += result.processed;
         totalSaved += result.saved || 0;
         if (totalProcessed % 50 === 0 && totalProcessed > 0) {
           logger.info('mobilede-queue progress', { workerId, totalProcessed, totalSaved });
         }
       } else {
+        emptyCount++;
+        if (emptyCount === 1 || emptyCount % 12 === 0) {
+          logger.info('mobilede-queue: queue empty, waiting...', { workerId, totalProcessed });
+        }
         await new Promise((r) => setTimeout(r, 5000));
       }
       await new Promise((r) => setTimeout(r, DELAY_MS));

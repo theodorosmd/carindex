@@ -296,7 +296,7 @@ export function renderLandingPage() {
               <h3 class="text-xl sm:text-2xl font-bold mb-2 text-gray-900">Start</h3>
               <div class="mb-4">
                 <span class="text-4xl sm:text-5xl font-bold text-gray-900">199€</span>
-                <span class="text-sm sm:text-base text-gray-600">/mois HT</span>
+                <span class="text-sm sm:text-base text-gray-600">/month ex. VAT</span>
               </div>
               <p class="text-gray-600">${tr('Perfect for small dealerships and independent used car dealers', 'Parfait pour petits concessionnaires et marchands VO indépendants')}</p>
             </div>
@@ -411,7 +411,7 @@ export function renderLandingPage() {
               <h3 class="text-xl sm:text-2xl font-bold mb-2 text-gray-900">Performance</h3>
               <div class="mb-4">
                 <span class="text-4xl sm:text-5xl font-bold text-gray-900">1 299€</span>
-                <span class="text-sm sm:text-base text-gray-600">/mois HT</span>
+                <span class="text-sm sm:text-base text-gray-600">/month ex. VAT</span>
               </div>
               <p class="text-gray-600">${tr('Perfect for large groups and companies with integration needs', 'Parfait pour grands groupes et entreprises avec besoins d\'intégration')}</p>
             </div>

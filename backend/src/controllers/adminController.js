@@ -40,7 +40,13 @@ export async function getScraperDashboard(req, res, next) {
     });
   } catch (error) {
     logger.error('Error in scraper dashboard route', { error: error.message });
-    next(error);
+    // Return 200 with empty data instead of 500 - admin UI stays usable
+    res.json({
+      success: true,
+      totals: { runs_ok: 0, runs_pending: 0, runs_failed: 0, runs_total: 0, listings_total: 0 },
+      by_website: [],
+      crons: []
+    });
   }
 }
 

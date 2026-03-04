@@ -82,42 +82,51 @@ export async function runLaCentraleScraper(searchUrls, options = {}, progressCal
 async function scrapeLaCentraleStreaming(baseUrl, maxPages, onPageDone) {
   let usePuppeteer = !isScrapeDoAvailable();
   let browser = null;
+  const pageConcurrency = parseInt(process.env.LACENTRALE_CONCURRENT_PAGES || '5', 10) || 1;
 
   try {
-    for (let page = 1; page <= maxPages; page++) {
-      const pageUrl = buildPageUrl(baseUrl, page);
-      logger.info('La Centrale fetching search page', { page, url: pageUrl });
+    for (let start = 1; start <= maxPages; start += pageConcurrency) {
+      const pageNums = [];
+      for (let i = 0; i < pageConcurrency && start + i <= maxPages; i++) pageNums.push(start + i);
 
-      let listings = [];
-
+      let batchResults = [];
       if (!usePuppeteer) {
-        try {
-          const html = await fetchViaScrapeDo(pageUrl, { render: true, customWait: 5000, geoCode: 'fr' });
-          listings = parseSearchPage(html);
-        } catch (err) {
-          logger.warn('La Centrale scrape.do failed, switching to Puppeteer', { page, error: err.message });
-          usePuppeteer = true;
+        batchResults = await Promise.all(pageNums.map(async (page) => {
+          const pageUrl = buildPageUrl(baseUrl, page);
+          try {
+            let html = await fetchViaScrapeDo(pageUrl, { render: false, geoCode: 'fr' });
+            let listings = parseSearchPage(html);
+            if (listings.length === 0 && html?.length > 500) {
+              html = await fetchViaScrapeDo(pageUrl, { render: true, customWait: 5000, geoCode: 'fr' });
+              listings = parseSearchPage(html);
+            }
+            return { page, listings };
+          } catch (err) {
+            logger.warn('La Centrale scrape.do failed', { page, error: err.message });
+            return { page, listings: [] };
+          }
+        }));
+      } else {
+        if (!browser) browser = await launchBrowser();
+        for (const page of pageNums) {
+          const pageUrl = buildPageUrl(baseUrl, page);
+          const listings = await scrapeLaCentralePagePuppeteer(browser, pageUrl);
+          batchResults.push({ page, listings });
         }
       }
 
-      if (usePuppeteer && listings.length === 0) {
-        if (!browser) {
-          browser = await launchBrowser();
+      for (const { page, listings } of batchResults) {
+        if (listings.length === 0 && page === start) {
+          logger.info('La Centrale no more listings found, stopping', { page });
+          return;
         }
-        listings = await scrapeLaCentralePagePuppeteer(browser, pageUrl);
+        if (listings.length === 0) continue;
+        logger.info('La Centrale search page parsed', { page, found: listings.length });
+        const enriched = await enrichListingsWithDetails(listings, usePuppeteer ? browser : null);
+        await onPageDone(enriched, page);
       }
-
-      if (listings.length === 0) {
-        logger.info('La Centrale no more listings found, stopping', { page });
-        break;
-      }
-
-      logger.info('La Centrale search page parsed', { page, found: listings.length });
-
-      const enriched = await enrichListingsWithDetails(listings, usePuppeteer ? browser : null);
-
-      await onPageDone(enriched, page);
-      await new Promise(r => setTimeout(r, 2000 + Math.random() * 2000));
+      if (batchResults[0]?.listings?.length === 0) break;
+      await new Promise(r => setTimeout(r, 1500 + Math.random() * 1000));
     }
   } finally {
     if (browser) await browser.close();
@@ -366,18 +375,21 @@ async function scrapeLaCentralePagePuppeteer(browser, pageUrl) {
 // ─── Detail page enrichment ───
 
 async function enrichListingsWithDetails(listings, browser) {
+  const concurrency = parseInt(process.env.LACENTRALE_CONCURRENT_DETAILS || '5', 10) || 1;
   const enriched = [];
-  for (let i = 0; i < listings.length; i++) {
-    const item = listings[i];
-    try {
-      logger.info('La Centrale fetching detail', { listing: `${i + 1}/${listings.length}`, url: item.url });
-      const details = await fetchListingDetails(item.url, browser);
-      enriched.push(details ? { ...item, ...details } : item);
-    } catch (err) {
-      logger.warn('La Centrale detail fetch failed', { url: item.url, error: err.message });
-      enriched.push(item);
-    }
-    await new Promise(r => setTimeout(r, 800 + Math.random() * 700));
+  for (let i = 0; i < listings.length; i += concurrency) {
+    const chunk = listings.slice(i, i + concurrency);
+    const chunkResults = await Promise.all(chunk.map(async (item) => {
+      try {
+        const details = await fetchListingDetails(item.url, browser);
+        return details ? { ...item, ...details } : item;
+      } catch (err) {
+        logger.warn('La Centrale detail fetch failed', { url: item.url, error: err.message });
+        return item;
+      }
+    }));
+    enriched.push(...chunkResults);
+    await new Promise(r => setTimeout(r, 300 + Math.random() * 200));
   }
   return enriched;
 }

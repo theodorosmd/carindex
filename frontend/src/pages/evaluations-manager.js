@@ -75,7 +75,7 @@ export function renderEvaluationsManager() {
         <div id="evaluation-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
           <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div class="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
-              <h2 class="text-2xl font-bold text-gray-900" id="modal-title">Détails de l'évaluation</h2>
+              <h2 class="text-2xl font-bold text-gray-900" id="modal-title">Evaluation details</h2>
               <button onclick="closeEvaluationModal()" class="text-gray-400 hover:text-gray-600 transition">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
@@ -94,9 +94,9 @@ export function renderEvaluationsManager() {
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
           </svg>
           <h3 class="mt-4 text-lg font-medium text-gray-900">${tr('No evaluations', 'Aucune évaluation')}</h3>
-          <p class="mt-2 text-sm text-gray-500">Vous n'avez pas encore sauvegardé d'évaluation.</p>
+          <p class="mt-2 text-sm text-gray-500">You haven't saved any evaluation yet.</p>
           <a href="#/auction-margin" class="mt-4 inline-block px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition">
-            Créer une évaluation
+            Create an evaluation
           </a>
         </div>
       </main>
@@ -216,7 +216,7 @@ async function loadEvaluations() {
       console.log('Parsed data:', data)
     } catch (parseError) {
       console.error('Failed to parse response JSON:', parseError)
-      throw new Error('Réponse invalide du serveur (JSON invalide)')
+      throw new Error('Invalid server response (invalid JSON)')
     }
     
     if (loadingState) loadingState.classList.add('hidden')
@@ -241,13 +241,13 @@ async function loadEvaluations() {
         
         // Check for network errors
         if (error.message && error.message.includes('Failed to fetch')) {
-          message = 'Impossible de se connecter au serveur. Vérifiez que le backend est démarré et accessible.'
+          message = 'Unable to connect to server. Check that the backend is running and accessible.'
         } else if (error.message && error.message.includes('fetch')) {
           message = tr('Network connection error. Check your internet connection and that the server is accessible.', 'Erreur de connexion réseau. Vérifiez votre connexion internet et que le serveur est accessible.')
         }
         // Check for migration-related errors
         else if (error.code === 'MIGRATION_REQUIRED' || error.message.includes('migration') || error.message.includes('user_id')) {
-          message = 'Migration de base de données requise. La colonne user_id n\'existe pas dans la table margin_calculations.'
+          message = 'Database migration required. The user_id column does not exist in the margin_calculations table.'
           if (error.details) {
             message += '\n\n' + error.details
           }
@@ -258,7 +258,7 @@ async function loadEvaluations() {
         // Add a retry button
         const retryBtn = document.createElement('button')
         retryBtn.className = 'mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition'
-        retryBtn.textContent = 'Réessayer'
+        retryBtn.textContent = 'Retry'
         retryBtn.onclick = () => {
           errorState.classList.add('hidden')
           loadingState.classList.remove('hidden')
@@ -301,7 +301,7 @@ function renderEvaluations(evaluations) {
               <input type="checkbox" class="evaluation-checkbox" data-id="${evaluation.id}" 
                      onchange="updateCompareButton()">
               <h3 class="text-lg font-semibold text-gray-900">
-                ${evaluation.name || `${auction.brand || ''} ${auction.model || ''} ${auction.year || ''}`.trim() || 'Évaluation sans nom'}
+                ${evaluation.name || `${auction.brand || ''} ${auction.model || ''} ${auction.year || ''}`.trim() || 'Unnamed evaluation'}
               </h3>
             </div>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
@@ -326,8 +326,8 @@ function renderEvaluations(evaluations) {
           <div class="flex gap-2 ml-4">
             <button class="recalculate-evaluation-btn px-3 py-2 text-green-600 hover:bg-green-50 rounded-md transition"
                     data-evaluation-id="${evaluation.id}"
-                    title="Recalculer avec les nouvelles règles de validation">
-              🔄 Recalculer
+                    title="Recalculate with new validation rules">
+              🔄 Recalculate
             </button>
             <button class="view-evaluation-btn px-3 py-2 text-blue-600 hover:bg-blue-50 rounded-md transition"
                     data-evaluation-id="${evaluation.id}">
@@ -453,7 +453,7 @@ window.viewEvaluation = async function(id) {
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
         </svg>
         <h3 class="mt-4 text-lg font-medium text-gray-900">Erreur</h3>
-        <p class="mt-2 text-sm text-gray-500">ID d'évaluation invalide. Format attendu: UUID.</p>
+        <p class="mt-2 text-sm text-gray-500">Invalid evaluation ID. Expected format: UUID.</p>
         <p class="mt-2 text-xs text-gray-400">ID reçu: ${id}</p>
         <button onclick="closeEvaluationModal()" class="mt-6 px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition">
           Fermer
@@ -475,12 +475,12 @@ window.viewEvaluation = async function(id) {
   try {
     const token = getAuthToken()
     if (!token) {
-      throw new Error('Non authentifié')
+      throw new Error('Not authenticated')
     }
     
     // Validate ID format (should be UUID)
     if (!id || typeof id !== 'string') {
-      throw new Error('ID d\'évaluation invalide')
+      throw new Error('Invalid evaluation ID')
     }
     
     console.log('Fetching evaluation with ID:', id)
@@ -502,12 +502,12 @@ window.viewEvaluation = async function(id) {
       }
       
       if (response.status === 404) {
-        errorMessage = 'Évaluation non trouvée. Elle a peut-être été supprimée.'
+        errorMessage = 'Evaluation not found. It may have been deleted.'
       } else if (response.status === 401) {
         window.location.hash = '#/login?redirect=' + encodeURIComponent(window.location.hash)
         return
       } else if (response.status === 400) {
-        errorMessage = 'ID d\'évaluation invalide. Format attendu: UUID.'
+        errorMessage = 'Invalid evaluation ID. Expected format: UUID.'
       }
       
       throw new Error(errorMessage)
@@ -517,7 +517,7 @@ window.viewEvaluation = async function(id) {
     
     if (!data.evaluation) {
       console.error('No evaluation in response:', data)
-      throw new Error('Réponse invalide du serveur')
+      throw new Error('Invalid server response')
     }
     
     const evaluation = data.evaluation
@@ -549,7 +549,7 @@ window.viewEvaluation = async function(id) {
     }
     
     // Build modal content
-    modalTitle.textContent = evaluation.name || `${auction.brand || ''} ${auction.model || ''} ${auction.year || ''}`.trim() || 'Détails de l\'évaluation'
+    modalTitle.textContent = evaluation.name || `${auction.brand || ''} ${auction.model || ''} ${auction.year || ''}`.trim() || 'Evaluation details'
     
     modalContent.innerHTML = `
       <div class="space-y-6">
@@ -719,7 +719,7 @@ window.viewEvaluation = async function(id) {
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
         </svg>
         <h3 class="mt-4 text-lg font-medium text-gray-900">Erreur</h3>
-        <p class="mt-2 text-sm text-gray-500">${error.message || 'Impossible de charger les détails de l\'évaluation'}</p>
+        <p class="mt-2 text-sm text-gray-500">${error.message || 'Unable to load evaluation details'}</p>
         <p class="mt-2 text-xs text-gray-400">ID: ${id}</p>
         <button onclick="closeEvaluationModal()" class="mt-6 px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition">
           Fermer
@@ -748,14 +748,14 @@ window.recalculateEvaluation = async function(id) {
     id = id.trim().replace(/^['"]|['"]$/g, '')
   }
 
-  if (!confirm('Recalculer cette évaluation avec les nouvelles règles de validation des prix ?')) {
+  if (!confirm('Recalculate this evaluation with the new price validation rules?')) {
     return
   }
 
   try {
     const token = getAuthToken()
     if (!token) {
-      throw new Error('Non authentifié')
+      throw new Error('Not authenticated')
     }
 
     console.log('Recalculating evaluation with ID:', id)
@@ -789,7 +789,7 @@ window.recalculateEvaluation = async function(id) {
     const result = await response.json()
     
     // Show success message
-    alert('Évaluation recalculée avec succès ! Les nouveaux prix reflètent les règles de validation améliorées. Le kilométrage a été mis à jour depuis l\'URL de l\'enchère.')
+    alert('Evaluation recalculated successfully! The new prices reflect the improved validation rules. Mileage has been updated from the auction URL.')
     
     // Close modal if open
     closeEvaluationModal()
@@ -804,7 +804,7 @@ window.recalculateEvaluation = async function(id) {
     const btn = document.querySelector(`[data-evaluation-id="${id}"].recalculate-evaluation-btn`)
     if (btn) {
       btn.disabled = false
-      btn.innerHTML = '🔄 Recalculer'
+      btn.innerHTML = '🔄 Recalculate'
     }
   }
 }
@@ -825,7 +825,7 @@ window.deleteEvaluation = async function(id) {
   try {
     const token = getAuthToken()
     if (!token) {
-      throw new Error('Non authentifié')
+      throw new Error('Not authenticated')
     }
 
     console.log('Deleting evaluation with ID:', id)

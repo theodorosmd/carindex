@@ -60,23 +60,46 @@ export async function renderDashboard() {
   app.innerHTML = `
     <!-- Navigation -->
     <header class="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
-      <nav class="container mx-auto px-4 sm:px-6 py-4">
-        <div class="flex items-center justify-between">
-          <a href="#/" class="flex items-center space-x-2">
+      <nav class="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-5">
+        <div class="flex items-center justify-between gap-4">
+          <a href="#/" class="flex items-center space-x-2 shrink-0">
             <div class="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
               <span class="text-white font-bold text-lg sm:text-xl">C</span>
             </div>
             <span class="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">Carindex</span>
           </a>
-          <div class="flex items-center space-x-2 sm:space-x-4">
-            <a href="#/search" class="hidden sm:inline text-gray-600 hover:text-blue-600 transition text-sm sm:text-base">${tr('Search', 'Rechercher')}</a>
-            <a href="#/market-insights" class="hidden sm:inline text-gray-600 hover:text-blue-600 transition text-sm sm:text-base">${tr('Market Insights', 'Market Insights')}</a>
-            <a href="#/arbitrage" class="hidden sm:inline text-gray-600 hover:text-blue-600 transition text-sm sm:text-base">${tr('Arbitrage', 'Arbitrage')}</a>
-            <a href="#/auction-margin" class="hidden sm:inline text-gray-600 hover:text-blue-600 transition text-sm sm:text-base">${tr('Margin Calculator', 'Calculateur de Marge')}</a>
-            <a href="#/evaluations" class="hidden sm:inline text-gray-600 hover:text-blue-600 transition text-sm sm:text-base">${tr('My Evaluations', 'Mes Évaluations')}</a>
-            <span class="hidden sm:inline text-gray-600 text-sm">${user.email}</span>
+          <!-- Desktop Navigation -->
+          <div class="hidden xl:flex items-center gap-x-6 lg:gap-x-8 flex-1 justify-end">
+            <a href="#/search" class="text-gray-600 hover:text-blue-600 transition text-sm lg:text-base whitespace-nowrap py-2">${tr('Search', 'Rechercher')}</a>
+            <a href="#/market-insights" class="text-gray-600 hover:text-blue-600 transition text-sm lg:text-base whitespace-nowrap py-2">${tr('Market Insights', 'Market Insights')}</a>
+            <a href="#/arbitrage" class="text-gray-600 hover:text-blue-600 transition text-sm lg:text-base whitespace-nowrap py-2">${tr('Arbitrage', 'Arbitrage')}</a>
+            <a href="#/auction-margin" class="text-gray-600 hover:text-blue-600 transition text-sm lg:text-base whitespace-nowrap py-2">${tr('Margin Calculator', 'Calculateur de Marge')}</a>
+            <a href="#/evaluations" class="text-gray-600 hover:text-blue-600 transition text-sm lg:text-base whitespace-nowrap py-2">${tr('My Evaluations', 'Mes Évaluations')}</a>
+            <span class="text-gray-500 text-sm whitespace-nowrap py-2 max-w-[140px] truncate" title="${user.email}">${user.email}</span>
+            <span class="w-px h-5 bg-gray-200" aria-hidden="true"></span>
             ${renderLanguageToggle()}
-            <button onclick="window.logout()" class="px-3 sm:px-4 py-2 text-gray-600 hover:text-blue-600 transition text-sm sm:text-base">${tr('Logout', 'Déconnexion')}</button>
+            <button onclick="window.logout()" class="text-gray-600 hover:text-blue-600 transition text-sm lg:text-base whitespace-nowrap py-2 pl-2">${tr('Logout', 'Déconnexion')}</button>
+          </div>
+          <!-- Tablet/Mobile Menu Button -->
+          <div class="xl:hidden flex items-center gap-3 shrink-0">
+            <span class="text-gray-500 text-sm truncate max-w-[100px] sm:max-w-[140px]" title="${user.email}">${user.email}</span>
+            <button id="dashboard-mobile-menu-btn" class="p-2 text-gray-600 hover:text-blue-600 hover:bg-gray-100 rounded-lg transition">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+              </svg>
+            </button>
+            ${renderLanguageToggle()}
+            <button onclick="window.logout()" class="text-gray-600 hover:text-blue-600 transition text-sm py-2">${tr('Logout', 'Déconnexion')}</button>
+          </div>
+        </div>
+        <!-- Mobile/Tablet Menu -->
+        <div id="dashboard-mobile-menu" class="hidden xl:hidden mt-4 pt-4 border-t border-gray-200 pb-4">
+          <div class="flex flex-col gap-2">
+            <a href="#/search" class="py-2.5 text-gray-600 hover:text-blue-600 transition">${tr('Search', 'Rechercher')}</a>
+            <a href="#/market-insights" class="py-2.5 text-gray-600 hover:text-blue-600 transition">${tr('Market Insights', 'Market Insights')}</a>
+            <a href="#/arbitrage" class="py-2.5 text-gray-600 hover:text-blue-600 transition">${tr('Arbitrage', 'Arbitrage')}</a>
+            <a href="#/auction-margin" class="py-2.5 text-gray-600 hover:text-blue-600 transition">${tr('Margin Calculator', 'Calculateur de Marge')}</a>
+            <a href="#/evaluations" class="py-2.5 text-gray-600 hover:text-blue-600 transition">${tr('My Evaluations', 'Mes Évaluations')}</a>
           </div>
         </div>
       </nav>
@@ -240,6 +263,15 @@ export async function renderDashboard() {
   // Load dashboard data
   attachLanguageToggle(() => window.location.reload())
   loadDashboardData()
+
+  // Mobile menu toggle
+  const mobileMenuBtn = document.getElementById('dashboard-mobile-menu-btn')
+  const mobileMenu = document.getElementById('dashboard-mobile-menu')
+  if (mobileMenuBtn && mobileMenu) {
+    mobileMenuBtn.addEventListener('click', () => {
+      mobileMenu.classList.toggle('hidden')
+    })
+  }
 }
 
 async function loadDashboardData() {

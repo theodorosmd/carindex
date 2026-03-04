@@ -79,7 +79,10 @@ async function scrape2ememainStreaming(baseUrl, maxPages, onPageDone) {
 
     let html;
     try {
-      html = await fetchViaScrapeDo(pageUrl, { render: true, customWait: 5000, geoCode: 'be' });
+      html = await fetchViaScrapeDo(pageUrl, { render: false, geoCode: 'be' });
+      if (parseSearchPage(html).length === 0 && html?.length > 500) {
+        html = await fetchViaScrapeDo(pageUrl, { render: true, customWait: 5000, geoCode: 'be' });
+      }
     } catch (err) {
       logger.error('2ememain search page fetch failed', { page, error: err.message });
       break;

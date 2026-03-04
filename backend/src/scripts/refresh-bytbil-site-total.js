@@ -17,13 +17,16 @@ const arg = process.argv[2];
 if (arg === '--seed') {
   // Valeurs connues (à ajuster si besoin) — permet d'afficher le % même si scrape.do échoue
   const KNOWN_TOTALS = {
-    autoscout24: 2_132_000,  // Europe multi-pays (BE, DE, IT, AT, NL, ES, FR, LU)
+    autoscout24: 3_318_614,  // Europe: DE 2.07M + ES 282k + NL 253k + IT 392k + AT 115k + BE 109k + FR 92k + LU 7k
     bytbil: 82_011,
     leboncoin: 733_444,
     blocket: 134_998,
     'mobile.de': 1_418_365,
     gaspedaal: 65_000,
     marktplaats: 15_000,
+    largus: 469_001,     // L'Argus: annonces occasion & neufs
+    lacentrale: 385_551, // La Centrale: bouton Rechercher
+    bilweb: 63_730,      // Bilweb: "Sökresultat - 63 730 fordon"
   };
   console.log('Seeding source_site_totals with known values...');
   for (const [source, total] of Object.entries(KNOWN_TOTALS)) {

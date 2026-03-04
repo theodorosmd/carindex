@@ -78,7 +78,10 @@ async function scrapeCochesNetStreaming(baseUrl, maxPages, onPageDone) {
 
     let html;
     try {
-      html = await fetchViaScrapeDo(pageUrl, { render: true, customWait: 4000, geoCode: 'es' });
+      html = await fetchViaScrapeDo(pageUrl, { render: false, geoCode: 'es' });
+      if (parseSearchPage(html).length === 0 && html?.length > 500) {
+        html = await fetchViaScrapeDo(pageUrl, { render: true, customWait: 4000, geoCode: 'es' });
+      }
     } catch (err) {
       logger.error('coches.net search page fetch failed', { page, error: err.message });
       break;

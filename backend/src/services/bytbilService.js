@@ -245,7 +245,12 @@ async function fetchBytbilListingDetails(browser, listingUrl) {
 async function scrapeBytbilSearchViaScraper(url, maxPages) {
   if (!isScrapeDoAvailable()) return [];
   try {
-    const html = await fetchViaScrapeDo(url, { render: true, customWait: 4000, geoCode: 'se' });
+    let html = await fetchViaScrapeDo(url, { render: false, geoCode: 'se' });
+    const $check = cheerio.load(html);
+    const hasListings = $check('.car-card, .vehicle-card, .listing-item').length > 0;
+    if (!hasListings && html?.length > 500) {
+      html = await fetchViaScrapeDo(url, { render: true, customWait: 4000, geoCode: 'se' });
+    }
     const total = parseSiteTotalFromHtml(html);
     if (total != null && total > 0) {
       await supabase

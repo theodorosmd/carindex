@@ -1,24 +1,10 @@
 import { apiCache } from '../utils/cache.js'
-import { logout } from '../main.js'
+import { logout, isAuthenticated } from '../main.js'
 import { tr, getLang, renderLanguageToggle, attachLanguageToggle, formatCurrency as formatCurrencyLocale, formatNumber, formatDate as formatDateLocale, capitalize } from '../utils/i18n.js'
+import { getListingImage, getPlaceholderImageUrl, getFilteredImages } from '../utils/listingUtils.js'
 
 // Make logout available globally
 window.logout = logout
-
-const LOGO_PATTERNS = [/logo/i, /brand/i, /favicon/i, /icon/i, /sprite/i, /banner/i, /header.*img/i]
-function getListingImage(images) {
-  if (!images || !images.length) return null
-  for (const url of images) {
-    if (!url) continue
-    const isLogo = LOGO_PATTERNS.some(p => p.test(url))
-    if (isLogo) continue
-    // Skip very short URLs (likely broken) or data URIs under 200 chars (tiny placeholders)
-    if (url.length < 20) continue
-    if (url.startsWith('data:') && url.length < 200) continue
-    return url
-  }
-  return null
-}
 
 // Initialize global state variables
 window.currentPage = 1
@@ -980,9 +966,12 @@ async function loadFacets() {
     if (facets.fuel_types && facets.fuel_types.length > 0) {
       const fuelMap = {
         'petrol': tr('PETROL', 'ESSENCE'),
+        'gasolina': tr('PETROL', 'ESSENCE'),  // Spanish/Portuguese from Coches.net
         'diesel': tr('DIESEL', 'DIESEL'),
+        'diésel': tr('DIESEL', 'DIESEL'),  // Spanish spelling from sources like Coches.net
         'hybrid': tr('HYBRID', 'HYBRIDE'),
-        'electric': tr('ELECTRIC', 'ÉLECTRIQUE')
+        'electric': tr('ELECTRIC', 'ÉLECTRIQUE'),
+        'electro': tr('ELECTRIC', 'ÉLECTRIQUE')  // Spanish/Italian from Coches.net
       }
       populateFilterSection('fuel-list', facets.fuel_types, 'fuel', 
         (name) => name.toLowerCase(),
@@ -1994,11 +1983,12 @@ function initializeSearch() {
     
     let cardHTML = '<div class="listing-card bg-white rounded-lg sm:rounded-xl shadow-md sm:shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer border border-gray-100 overflow-hidden transform hover:-translate-y-1" data-id="' + listing.id + '">'
     
-    // Image section with lazy loading
-    cardHTML += '<div class="relative aspect-[16/10] bg-gray-200 overflow-hidden">'
+    // Image section with lazy loading - absolute positioning ensures no letterboxing
+    cardHTML += '<div class="relative aspect-[4/3] bg-gray-100 overflow-hidden">'
     if (hasImage) {
-      cardHTML += '<img data-src="' + imageUrl + '" alt="' + capitalize(listing.brand) + ' ' + capitalize(listing.model) + '" class="lazy-image w-full h-full object-cover" loading="lazy" decoding="async" onload="if(this.naturalWidth<150||this.naturalHeight<150){this.style.display=\'none\'}" onerror="this.onerror=null; this.src=\'https://via.placeholder.com/600x400?text=' + encodeURIComponent(listing.brand + ' ' + listing.model) + '\'; this.classList.add(\'opacity-50\')">'
-      cardHTML += '<div class="absolute inset-0 bg-gray-200 animate-pulse lazy-placeholder"></div>'
+      const fallbackUrl = getPlaceholderImageUrl(listing.brand, listing.model, 800, 600)
+      cardHTML += '<img data-src="' + imageUrl + '" alt="' + capitalize(listing.brand) + ' ' + capitalize(listing.model) + '" class="lazy-image absolute inset-0 w-full h-full object-cover object-center block" loading="lazy" decoding="async" referrerpolicy="no-referrer" onload="if(this.naturalWidth<150||this.naturalHeight<150){this.style.display=\'none\'}" onerror="this.onerror=null; this.src=\'' + fallbackUrl + '\'; this.classList.add(\'opacity-50\')">'
+      cardHTML += '<div class="absolute inset-0 bg-gray-100 animate-pulse lazy-placeholder"></div>'
     } else {
       cardHTML += '<div class="w-full h-full flex items-center justify-center text-gray-400"><svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg></div>'
     }
@@ -2078,12 +2068,18 @@ function initializeSearch() {
     // Format fuel type for display
     const fuelTypeMap = {
       'petrol': tr('PETROL', 'ESSENCE'),
+      'gasolina': tr('PETROL', 'ESSENCE'),
       'diesel': tr('DIESEL', 'DIESEL'),
+      'diésel': tr('DIESEL', 'DIESEL'),
       'hybrid': tr('HYBRID', 'HYBRIDE'),
-      'electric': tr('ELECTRIC', 'ÉLECTRIQUE')
+      'electric': tr('ELECTRIC', 'ÉLECTRIQUE'),
+      'electro': tr('ELECTRIC', 'ÉLECTRIQUE'),
+      'electro/gasolina': tr('ELECTRIC/PETROL', 'ÉLECTRIQUE/ESSENCE'),
+      'electro/gasoline': tr('ELECTRIC/PETROL', 'ÉLECTRIQUE/ESSENCE')
     };
-    const fuelTypeDisplay = enrichedListing.fuel_type 
-      ? (fuelTypeMap[enrichedListing.fuel_type.toLowerCase()] || enrichedListing.fuel_type.toUpperCase())
+    const rawFuel = enrichedListing.fuel_type ? enrichedListing.fuel_type.toLowerCase().trim() : ''
+    const fuelTypeDisplay = rawFuel
+      ? (fuelTypeMap[rawFuel] || rawFuel.split(/[/\s]+/).map(p => fuelTypeMap[p.trim()] || p.toUpperCase()).join('/'))
       : null;
     
     // Format transmission for display
@@ -2138,25 +2134,26 @@ function initializeSearch() {
     const price = formatCurrencyLocale(listing.price, displayCurrency)
     const marketPrice = listing.market_price ? formatCurrencyLocale(listing.market_price, displayCurrency) : null
     const mileage = listing.mileage ? formatNumber(listing.mileage) : ''
-    const mainImage = listing.images?.[0] || 'https://via.placeholder.com/600x400'
-    const otherImages = listing.images?.slice(1, 4) || []
+    const filteredImages = getFilteredImages(listing.images)
+    const mainImage = filteredImages[0] || getPlaceholderImageUrl(listing.brand, listing.model, 800, 600)
+    const otherImages = filteredImages.slice(1, 4)
     
     let modalHTML = '<div class="grid md:grid-cols-2 gap-6">'
     modalHTML += '<div>'
     modalHTML += '<div class="rounded-xl overflow-hidden mb-4 relative" id="image-carousel">'
     modalHTML += '<div class="relative h-64 bg-gray-200">'
-    modalHTML += '<img id="main-carousel-image" src="' + mainImage + '" alt="' + listing.brand + ' ' + listing.model + '" class="w-full h-full object-cover">'
-    if (listing.images && listing.images.length > 1) {
+    modalHTML += '<img id="main-carousel-image" src="' + mainImage + '" alt="' + listing.brand + ' ' + listing.model + '" class="w-full h-full object-cover" referrerpolicy="no-referrer">'
+    if (filteredImages.length > 1) {
       modalHTML += '<button id="carousel-prev" class="absolute left-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white rounded-full p-2 transition"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg></button>'
       modalHTML += '<button id="carousel-next" class="absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white rounded-full p-2 transition"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></button>'
-      modalHTML += '<div class="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/50 text-white px-3 py-1 rounded-full text-sm"><span id="image-counter">1</span> / ' + listing.images.length + '</div>'
+      modalHTML += '<div class="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/50 text-white px-3 py-1 rounded-full text-sm"><span id="image-counter">1</span> / ' + filteredImages.length + '</div>'
     }
     modalHTML += '</div>'
     modalHTML += '</div>'
     if (otherImages.length > 0) {
       modalHTML += '<div class="grid grid-cols-3 gap-2" id="thumbnail-grid">'
       otherImages.forEach((img, index) => {
-        modalHTML += '<img src="' + img + '" alt="" class="thumbnail-image w-full h-24 object-cover rounded-lg cursor-pointer hover:opacity-75 border-2 border-transparent hover:border-blue-500 transition" data-index="' + (index + 1) + '">'
+        modalHTML += '<img src="' + img + '" alt="" class="thumbnail-image w-full h-24 object-cover rounded-lg cursor-pointer hover:opacity-75 border-2 border-transparent hover:border-blue-500 transition" data-index="' + (index + 1) + '" referrerpolicy="no-referrer">'
       })
       modalHTML += '</div>'
     }
@@ -2189,11 +2186,14 @@ function initializeSearch() {
       modalHTML += '</div>'
     }
     
+    const modalFuelMap = { petrol: tr('PETROL', 'ESSENCE'), gasolina: tr('PETROL', 'ESSENCE'), diesel: tr('DIESEL', 'DIESEL'), diésel: tr('DIESEL', 'DIESEL'), hybrid: tr('HYBRID', 'HYBRIDE'), electric: tr('ELECTRIC', 'ÉLECTRIQUE'), electro: tr('ELECTRIC', 'ÉLECTRIQUE'), 'electro/gasolina': tr('ELECTRIC/PETROL', 'ÉLECTRIQUE/ESSENCE'), 'electro/gasoline': tr('ELECTRIC/PETROL', 'ÉLECTRIQUE/ESSENCE') }
+    const rawModalFuel = listing.fuel_type ? listing.fuel_type.toLowerCase().trim() : ''
+    const modalFuelDisplay = rawModalFuel ? (modalFuelMap[rawModalFuel] || rawModalFuel.split(/[/\s]+/).map(p => modalFuelMap[p.trim()] || p.toUpperCase()).join('/')) : null
     modalHTML += '<div class="grid grid-cols-2 gap-4 mb-6">'
     modalHTML += '<div class="bg-gray-50 rounded-lg p-3"><div class="text-sm text-gray-600">' + tr('Year', 'Année') + '</div><div class="text-lg font-semibold">' + listing.year + '</div></div>'
     modalHTML += '<div class="bg-gray-50 rounded-lg p-3"><div class="text-sm text-gray-600">' + tr('Mileage', 'Kilométrage') + '</div><div class="text-lg font-semibold">' + mileage + ' km</div></div>'
-    if (listing.fuel_type) {
-      modalHTML += '<div class="bg-gray-50 rounded-lg p-3"><div class="text-sm text-gray-600">' + tr('Fuel', 'Carburant') + '</div><div class="text-lg font-semibold">' + listing.fuel_type + '</div></div>'
+    if (modalFuelDisplay) {
+      modalHTML += '<div class="bg-gray-50 rounded-lg p-3"><div class="text-sm text-gray-600">' + tr('Fuel', 'Carburant') + '</div><div class="text-lg font-semibold">' + modalFuelDisplay + '</div></div>'
     }
     const modalLocationCity = listing.location_city || listing.location?.city || listing.location_region
     const modalLocationCountry = listing.location_country || listing.location?.country || 'FR'
@@ -2213,7 +2213,7 @@ function initializeSearch() {
       })
       modalHTML += linkDisclaimer
     }
-    modalHTML += '<div class="flex space-x-3"><button class="px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg></button></div>'
+    modalHTML += isAuthenticated() ? '<div class="flex space-x-3"><button class="px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition" title="' + tr('Favorite', 'Favoris') + '"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg></button></div>' : ''
     modalHTML += '</div>'
     modalHTML += '</div>'
     modalHTML += '</div>'
@@ -2223,8 +2223,8 @@ function initializeSearch() {
     modal.classList.add('flex')
     
     // Initialize image carousel if multiple images
-    if (listing.images && listing.images.length > 1) {
-      initializeImageCarousel(listing.images)
+    if (filteredImages.length > 1) {
+      initializeImageCarousel(filteredImages)
     }
   }
   
@@ -2429,7 +2429,7 @@ function initializeSearch() {
         market_price: price + (Math.random() * 2000 - 1000),
         confidence_index: 70 + Math.floor(Math.random() * 25),
         fuel_type: fuelTypes[Math.floor(Math.random() * fuelTypes.length)],
-        images: ['https://via.placeholder.com/600x400?text=' + brand + '+' + model]
+        images: [getPlaceholderImageUrl(brand, model, 600, 400)]
       })
     }
     

@@ -71,44 +71,59 @@ export async function runLeBonCoinScraper(searchUrls, options = {}, progressCall
  * Scrape LeBonCoin page-by-page, calling onPageDone(listings, pageNum) after each page.
  */
 async function scrapeLeBonCoinStreaming(baseUrl, maxPages, onPageDone) {
-  for (let page = 1; page <= maxPages; page++) {
-    const pageUrl = page === 1 ? baseUrl : (baseUrl.includes('?') ? `${baseUrl}&page=${page}` : `${baseUrl}?page=${page}`);
+  const pageConcurrency = parseInt(process.env.LEBONCOIN_CONCURRENT_PAGES || '8', 10) || 1;
+  const detailConcurrency = parseInt(process.env.LEBONCOIN_CONCURRENT_DETAILS || '8', 10) || 1;
+  const delayBetweenDetails = parseInt(process.env.LEBONCOIN_DELAY_DETAILS_MS || '150', 10) || 50;
+  const delayBetweenPages = parseInt(process.env.LEBONCOIN_DELAY_PAGES_MS || '700', 10) || 300;
 
-    logger.info('LeBonCoin fetching search page', { page, url: pageUrl });
+  for (let start = 1; start <= maxPages; start += pageConcurrency) {
+    const pageNums = [];
+    for (let i = 0; i < pageConcurrency && start + i <= maxPages; i++) pageNums.push(start + i);
 
-    let html;
-    try {
-      html = await fetchViaScrapeDo(pageUrl, { render: true, customWait: 4000, geoCode: 'fr' });
-    } catch (err) {
-      logger.error('LeBonCoin search page fetch failed', { page, error: err.message });
-      break;
-    }
-
-    const listings = parseSearchPage(html);
-    if (listings.length === 0) {
-      logger.info('LeBonCoin no more listings found, stopping', { page });
-      break;
-    }
-
-    logger.info('LeBonCoin search page parsed', { page, found: listings.length });
-
-    const enriched = [];
-    for (let i = 0; i < listings.length; i++) {
-      const item = listings[i];
+    const pageResults = await Promise.all(pageNums.map(async (page) => {
+      const pageUrl = page === 1 ? baseUrl : (baseUrl.includes('?') ? `${baseUrl}&page=${page}` : `${baseUrl}?page=${page}`);
       try {
-        logger.info('LeBonCoin fetching detail', { page, listing: `${i + 1}/${listings.length}`, url: item.url });
-        const details = await fetchListingDetails(item.url);
-        enriched.push(details ? { ...item, ...details } : item);
+        let html = await fetchViaScrapeDo(pageUrl, { render: false, geoCode: 'fr' });
+        let listings = parseSearchPage(html);
+        if (listings.length === 0 && html?.length > 500) {
+          html = await fetchViaScrapeDo(pageUrl, { render: true, customWait: 2500, geoCode: 'fr' });
+          listings = parseSearchPage(html);
+        }
+        return { page, listings };
       } catch (err) {
-        logger.warn('LeBonCoin detail fetch failed', { url: item.url, error: err.message });
-        enriched.push(item);
+        logger.error('LeBonCoin search page fetch failed', { page, error: err.message });
+        return { page, listings: [] };
       }
-      await new Promise(r => setTimeout(r, 800 + Math.random() * 700));
+    }));
+
+    for (const { page, listings } of pageResults) {
+      if (listings.length === 0 && page === start) {
+        logger.info('LeBonCoin no more listings found, stopping', { page });
+        return;
+      }
+      if (listings.length === 0) continue;
+
+      logger.info('LeBonCoin search page parsed', { page, found: listings.length });
+
+      const enriched = [];
+      for (let i = 0; i < listings.length; i += detailConcurrency) {
+        const chunk = listings.slice(i, i + detailConcurrency);
+        const chunkResults = await Promise.all(chunk.map(async (item) => {
+          try {
+            const details = await fetchListingDetails(item.url);
+            return details ? { ...item, ...details } : item;
+          } catch (err) {
+            logger.warn('LeBonCoin detail fetch failed', { url: item.url, error: err.message });
+            return item;
+          }
+        }));
+        enriched.push(...chunkResults);
+        await new Promise(r => setTimeout(r, delayBetweenDetails + Math.random() * 100));
+      }
+
+      await onPageDone(enriched, page);
     }
-
-    await onPageDone(enriched, page);
-
-    await new Promise(r => setTimeout(r, 2000 + Math.random() * 2000));
+    await new Promise(r => setTimeout(r, delayBetweenPages + Math.random() * 300));
   }
 }
 

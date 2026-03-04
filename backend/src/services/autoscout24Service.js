@@ -80,59 +80,68 @@ async function scrapeAutoscout24Streaming(baseUrl, maxPages, onPageDone) {
   let usePuppeteer = !isScrapeDoAvailable();
   let browser = null;
 
+  const getGeoCode = () => {
+    if (baseUrl.includes('.be')) return 'be';
+    if (baseUrl.includes('.de')) return 'de';
+    if (baseUrl.includes('.it')) return 'it';
+    if (baseUrl.includes('.at')) return 'at';
+    if (baseUrl.includes('.nl')) return 'nl';
+    if (baseUrl.includes('.es')) return 'es';
+    if (baseUrl.includes('.fr')) return 'fr';
+    if (baseUrl.includes('.lu')) return 'lu';
+    return 'de';
+  };
+
+  const concurrency = parseInt(process.env.AUTOSCOUT24_CONCURRENT_PAGES || '5', 10) || 1;
+
   try {
-    for (let page = 1; page <= maxPages; page++) {
-      const pageUrl = buildPageUrl(baseUrl, page);
-      logger.info('AutoScout24 fetching search page', { page, url: pageUrl });
+    for (let start = 1; start <= maxPages; start += concurrency) {
+      const pageNums = [];
+      for (let i = 0; i < concurrency && start + i <= maxPages; i++) pageNums.push(start + i);
 
-      let listings = [];
-
+      let batchResults;
       if (!usePuppeteer) {
-        try {
-          const geoCode = (() => {
-            if (baseUrl.includes('.be')) return 'be';
-            if (baseUrl.includes('.de')) return 'de';
-            if (baseUrl.includes('.it')) return 'it';
-            if (baseUrl.includes('.at')) return 'at';
-            if (baseUrl.includes('.nl')) return 'nl';
-            if (baseUrl.includes('.es')) return 'es';
-            if (baseUrl.includes('.fr')) return 'fr';
-            if (baseUrl.includes('.lu')) return 'lu';
-            return 'de';
-          })();
-          const html = await fetchViaScrapeDo(pageUrl, {
-            render: true,
-            customWait: 5000,
-            geoCode
-          });
-          listings = parseSearchPage(html);
-        } catch (err) {
-          logger.warn('AutoScout24 scrape.do failed, switching to Puppeteer', { page, error: err.message });
-          usePuppeteer = true;
-        }
-      }
-
-      if (usePuppeteer && listings.length === 0) {
+        batchResults = await Promise.all(pageNums.map(async (page) => {
+          const pageUrl = buildPageUrl(baseUrl, page);
+          try {
+            let html = await fetchViaScrapeDo(pageUrl, { render: false, geoCode: getGeoCode() });
+            let listings = parseSearchPage(html);
+            if (listings.length === 0 && html?.length > 500) {
+              html = await fetchViaScrapeDo(pageUrl, { render: true, customWait: 5000, geoCode: getGeoCode() });
+              listings = parseSearchPage(html);
+            }
+            if (listings.length > 0) logger.info('AutoScout24 search page parsed', { page, found: listings.length });
+            return { page, listings };
+          } catch (err) {
+            logger.warn('AutoScout24 scrape.do failed', { page, error: err.message });
+            return { page, listings: [] };
+          }
+        }));
+      } else {
         if (!browser) {
           browser = await launchBrowser({
             args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--disable-blink-features=AutomationControlled']
           });
         }
-        listings = await scrapeSearchPagePuppeteer(browser, pageUrl);
+        batchResults = [];
+        for (const page of pageNums) {
+          const pageUrl = buildPageUrl(baseUrl, page);
+          const listings = await scrapeSearchPagePuppeteer(browser, pageUrl);
+          if (listings.length > 0) logger.info('AutoScout24 search page parsed', { page, found: listings.length });
+          batchResults.push({ page, listings });
+        }
       }
 
-      if (listings.length === 0) {
-        logger.info('AutoScout24 no more listings found, stopping', { page });
-        break;
+      for (let i = 0; i < batchResults.length; i++) {
+        const { page, listings } = batchResults[i];
+        if (listings.length === 0 && page === start) {
+          logger.info('AutoScout24 no more listings found, stopping', { page });
+          return;
+        }
+        if (listings.length > 0) await onPageDone(listings, page);
       }
-
-      logger.info('AutoScout24 search page parsed', { page, found: listings.length });
-
-      // __NEXT_DATA__ already has full data (brand, model, price, mileage, fuel, etc.) - skip detail fetch for speed
-      const enriched = listings;
-
-      await onPageDone(enriched, page);
-      await new Promise((r) => setTimeout(r, 2000 + Math.random() * 2000));
+      if (batchResults[0]?.listings?.length === 0) break;
+      await new Promise((r) => setTimeout(r, 1500 + Math.random() * 1000));
     }
   } finally {
     if (browser) await browser.close();

@@ -35,7 +35,10 @@ export async function runFinnScraper(searchUrls, options = {}, progressCallback 
             const pageUrl = buildPageUrl(searchUrl, pageNum);
             let html;
             try {
-              html = await fetchViaScrapeDo(pageUrl, { render: true, customWait: 4000, geoCode: 'no' });
+              html = await fetchViaScrapeDo(pageUrl, { render: false, geoCode: 'no' });
+              if (parseFinnSearchPage(html).length === 0 && html?.length > 500) {
+                html = await fetchViaScrapeDo(pageUrl, { render: true, customWait: 4000, geoCode: 'no' });
+              }
             } catch (err) {
               logger.warn('FINN scrape.do failed', { page: pageNum, error: err.message });
               break;
@@ -160,7 +163,10 @@ async function scrapeFinnUrlStreaming(browser, url, maxPages, onPageDone) {
 
         if (await isPageBlocked(page)) {
           logger.warn('FINN.no page blocked, falling back to scrape.do', { page: currentPage });
-          html = await fetchViaScrapeDo(pageUrl, { render: true, customWait: 4000, geoCode: 'no' });
+          html = await fetchViaScrapeDo(pageUrl, { render: false, geoCode: 'no' });
+          if (parseFinnSearchPage(html).length === 0 && html?.length > 500) {
+            html = await fetchViaScrapeDo(pageUrl, { render: true, customWait: 4000, geoCode: 'no' });
+          }
           usedFallback = true;
         } else {
           html = await page.content();
@@ -168,7 +174,10 @@ async function scrapeFinnUrlStreaming(browser, url, maxPages, onPageDone) {
       } catch (err) {
         logger.warn('FINN.no Puppeteer failed, trying scrape.do', { page: currentPage, error: err.message });
         try {
-          html = await fetchViaScrapeDo(pageUrl, { render: true, customWait: 4000, geoCode: 'no' });
+          html = await fetchViaScrapeDo(pageUrl, { render: false, geoCode: 'no' });
+          if (parseFinnSearchPage(html).length === 0 && html?.length > 500) {
+            html = await fetchViaScrapeDo(pageUrl, { render: true, customWait: 4000, geoCode: 'no' });
+          }
           usedFallback = true;
         } catch (fallbackErr) {
           logger.error('FINN.no search page fetch failed', { page: currentPage, error: fallbackErr.message });

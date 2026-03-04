@@ -41,12 +41,12 @@ export function renderAuctionMarginCalculator() {
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <!-- Left Column: Form -->
           <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-xl font-semibold mb-4">Informations du véhicule aux enchères</h2>
+            <h2 class="text-xl font-semibold mb-4">Auction vehicle information</h2>
             
             <form id="auction-form" class="space-y-4">
               <!-- URL Input with Parse Button -->
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">URL de l'enchère *</label>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Auction URL *</label>
                 <div class="flex gap-2">
                   <input type="url" id="auction-url" name="auction-url" 
                          placeholder="https://www.kvd.se/auktion/..." 
@@ -56,37 +56,37 @@ export function renderAuctionMarginCalculator() {
                     Analyser
                   </button>
                 </div>
-                <p class="text-xs text-gray-500 mt-1">Collez l'URL de l'enchère (KVD, Swedish Auction, etc.) pour remplir automatiquement les champs</p>
+                <p class="text-xs text-gray-500 mt-1">Paste the auction URL (KVD, Swedish Auction, etc.) to auto-fill the fields</p>
                 <div id="parse-status" class="mt-2 text-sm hidden"></div>
               </div>
 
               <div class="grid grid-cols-2 gap-4">
                 <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">Marque *</label>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Brand *</label>
                   <input type="text" id="brand" name="brand" class="w-full px-3 py-2 border border-gray-300 rounded-md" required>
                 </div>
                 <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">Modèle *</label>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Model *</label>
                   <input type="text" id="model" name="model" class="w-full px-3 py-2 border border-gray-300 rounded-md" required>
                 </div>
               </div>
 
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Finition (Trim)</label>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Trim</label>
                 <input type="text" id="trim" name="trim" class="w-full px-3 py-2 border border-gray-300 rounded-md">
               </div>
 
               <div class="grid grid-cols-3 gap-4">
                 <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">Année *</label>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Year *</label>
                   <input type="number" id="year" name="year" min="1990" max="2100" class="w-full px-3 py-2 border border-gray-300 rounded-md" required>
                 </div>
                 <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">Kilométrage *</label>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Mileage *</label>
                   <input type="number" id="mileage" name="mileage" min="0" class="w-full px-3 py-2 border border-gray-300 rounded-md" required>
                 </div>
                 <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">Puissance (ch)</label>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Power (hp)</label>
                   <input type="number" id="power_hp" name="power_hp" min="0" class="w-full px-3 py-2 border border-gray-300 rounded-md">
                 </div>
               </div>
@@ -95,31 +95,31 @@ export function renderAuctionMarginCalculator() {
                 <div>
                   <label class="block text-sm font-medium text-gray-700 mb-1">Carburant</label>
                   <select id="fuel_type" name="fuel_type" class="w-full px-3 py-2 border border-gray-300 rounded-md">
-                    <option value="">Sélectionner</option>
-                    <option value="petrol">Essence</option>
+                    <option value="">Select</option>
+                    <option value="petrol">Petrol</option>
                     <option value="diesel">Diesel</option>
-                    <option value="electric">Électrique</option>
-                    <option value="hybrid">Hybride</option>
+                    <option value="electric">Electric</option>
+                    <option value="hybrid">Hybrid</option>
                     <option value="gpl">GPL</option>
                   </select>
                 </div>
                 <div>
                   <label class="block text-sm font-medium text-gray-700 mb-1">Transmission</label>
                   <select id="transmission" name="transmission" class="w-full px-3 py-2 border border-gray-300 rounded-md">
-                    <option value="">Sélectionner</option>
-                    <option value="manual">Manuelle</option>
-                    <option value="automatic">Automatique</option>
+                    <option value="">Select</option>
+                    <option value="manual">Manual</option>
+                    <option value="automatic">Automatic</option>
                   </select>
                 </div>
               </div>
 
               <div class="grid grid-cols-2 gap-4">
                 <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">Prix enchère (SEK) *</label>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Auction price (SEK) *</label>
                   <input type="number" id="auction_price_sek" name="auction_price_sek" min="0" step="0.01" class="w-full px-3 py-2 border border-gray-300 rounded-md" required>
                 </div>
                 <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">Frais enchère (EUR)</label>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Auction fee (EUR)</label>
                   <input type="number" id="auction_fee_eur" name="auction_fee_eur" min="0" step="0.01" class="w-full px-3 py-2 border border-gray-300 rounded-md" value="0">
                 </div>
               </div>
@@ -132,22 +132,22 @@ export function renderAuctionMarginCalculator() {
               <!-- Evaluation Name (optional) -->
               <div class="border-t pt-4 mt-6">
                 <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">Nom de l'évaluation (optionnel)</label>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Evaluation name (optional)</label>
                   <input type="text" id="evaluation-name" name="evaluation-name" 
-                         placeholder="Ex: Audi Q4 2024 - Évaluation 1" 
+                         placeholder="Ex: Audi Q4 2024 - Evaluation 1" 
                          maxlength="255"
                          class="w-full px-3 py-2 border border-gray-300 rounded-md">
-                  <p class="text-xs text-gray-500 mt-1">Donnez un nom à cette évaluation pour la retrouver plus tard</p>
+                  <p class="text-xs text-gray-500 mt-1">Give this evaluation a name to find it later</p>
                 </div>
               </div>
 
               <!-- French Malus Configuration -->
               <div class="border-t pt-4 mt-6 bg-blue-50 rounded-lg p-4">
-                <h3 class="text-lg font-semibold mb-4 text-blue-900">🟢 Malus écologique français</h3>
+                <h3 class="text-lg font-semibold mb-4 text-blue-900">🟢 French ecological malus</h3>
                 
                 <div class="grid grid-cols-2 gap-4">
                   <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Émissions CO₂ WLTP (g/km)</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">WLTP CO₂ emissions (g/km)</label>
                     <input type="number" id="co2_g_km_wltp" name="co2_g_km_wltp" min="0" step="1" 
                            class="w-full px-3 py-2 border border-gray-300 rounded-md"
                            placeholder="Ex: 150">

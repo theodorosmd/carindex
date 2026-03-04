@@ -29,7 +29,10 @@ export async function runGaspedaalScraper(searchUrls, options = {}, progressCall
             const pageUrl = buildPageUrl(searchUrl, pageNum);
             let html;
             try {
-              html = await fetchViaScrapeDo(pageUrl, { render: true, customWait: 4000, geoCode: 'nl' });
+              html = await fetchViaScrapeDo(pageUrl, { render: false, geoCode: 'nl' });
+              if (parseSearchPage(html).length === 0 && html?.length > 500) {
+                html = await fetchViaScrapeDo(pageUrl, { render: true, customWait: 4000, geoCode: 'nl' });
+              }
             } catch (err) {
               logger.warn('Gaspedaal scrape.do failed', { page: pageNum, error: err.message });
               break;

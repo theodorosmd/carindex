@@ -1,14 +1,19 @@
 /**
  * Chart.js helper for creating price history charts
  */
+import { getLang } from './i18n.js'
 
 /**
  * Create a price history line chart
  * @param {string} canvasId - ID of the canvas element
  * @param {Array} data - Array of {price, recorded_at} objects
- * @param {Object} options - Chart options
+ * @param {Object} options - Chart options. i18n: { priceLabel, priceDropsLabel }
  */
 export function createPriceHistoryChart(canvasId, data, options = {}) {
+  const { i18n = {}, ...chartOptions } = options
+  const locale = getLang() === 'fr' ? 'fr-FR' : 'en-US'
+  const priceLabel = i18n.priceLabel || (locale === 'fr-FR' ? 'Prix (€)' : 'Price (€)')
+  const priceDropsLabel = i18n.priceDropsLabel || (locale === 'fr-FR' ? 'Baisses de prix' : 'Price drops')
   const canvas = document.getElementById(canvasId);
   if (!canvas) {
     console.error(`Canvas element not found: ${canvasId}`);
@@ -24,7 +29,7 @@ export function createPriceHistoryChart(canvasId, data, options = {}) {
   // Process data
   const labels = data.map(item => {
     const date = new Date(item.recorded_at);
-    return date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+    return date.toLocaleDateString(locale, { day: '2-digit', month: '2-digit' });
   });
 
   const prices = data.map(item => parseFloat(item.price || 0));
@@ -50,7 +55,7 @@ export function createPriceHistoryChart(canvasId, data, options = {}) {
       labels: labels,
       datasets: [
         {
-          label: 'Prix (€)',
+          label: priceLabel,
           data: prices,
           borderColor: 'rgb(59, 130, 246)',
           backgroundColor: 'rgba(59, 130, 246, 0.1)',
@@ -82,7 +87,7 @@ export function createPriceHistoryChart(canvasId, data, options = {}) {
               if (label) {
                 label += ': ';
               }
-              label += new Intl.NumberFormat('fr-FR', {
+              label += new Intl.NumberFormat(locale, {
                 style: 'currency',
                 currency: 'EUR'
               }).format(context.parsed.y);
@@ -96,7 +101,7 @@ export function createPriceHistoryChart(canvasId, data, options = {}) {
           beginAtZero: false,
           ticks: {
             callback: function(value) {
-              return new Intl.NumberFormat('fr-FR', {
+              return new Intl.NumberFormat(locale, {
                 style: 'currency',
                 currency: 'EUR',
                 maximumFractionDigits: 0
@@ -118,7 +123,7 @@ export function createPriceHistoryChart(canvasId, data, options = {}) {
         axis: 'x',
         intersect: false
       },
-      ...options
+      ...chartOptions
     }
   };
 
@@ -134,7 +139,7 @@ export function createPriceHistoryChart(canvasId, data, options = {}) {
     });
 
     chartConfig.data.datasets.push({
-      label: 'Baisses de prix',
+      label: priceDropsLabel,
       data: dropPrices,
       borderColor: 'rgb(239, 68, 68)',
       backgroundColor: 'rgba(239, 68, 68, 0.2)',

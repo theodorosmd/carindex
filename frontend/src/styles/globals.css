@@ -101,4 +101,8 @@ html {
   background: #f9fafb; /* hover:bg-gray-50 */
 }
 
+/* Listing images: smooth fade-in when loaded */
+.listing-card .lazy-image {
+  transition: opacity 0.3s ease;
+}
 

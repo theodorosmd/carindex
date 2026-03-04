@@ -3,9 +3,9 @@ import { tr, renderLanguageToggle, formatCurrency, capitalize } from '../utils/i
 
 const API_BASE = '/api/v1';
 const COUNTRY_NAMES = {
-  FR: 'France', DE: 'Allemagne', BE: 'Belgique', LU: 'Luxembourg', NL: 'Pays-Bas',
-  ES: 'Espagne', IT: 'Italie', CH: 'Suisse', PL: 'Pologne', NO: 'Norvège',
-  DK: 'Danemark', FI: 'Finlande', SE: 'Suède'
+  FR: 'France', DE: 'Germany', BE: 'Belgium', LU: 'Luxembourg', NL: 'Netherlands',
+  ES: 'Spain', IT: 'Italy', CH: 'Switzerland', PL: 'Poland', NO: 'Norway',
+  DK: 'Denmark', FI: 'Finland', SE: 'Sweden'
 };
 
 /** External marketplace search URLs by country (buy country = where to find cars) */
@@ -33,7 +33,7 @@ async function apiGet(path, params = {}, options = {}) {
   const res = await fetch(`${API_BASE}/arbitrage/${path}${q ? '?' + q : ''}`, { headers });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    return { success: false, error: data?.error?.message || data?.error?.code || `Erreur ${res.status}` };
+    return { success: false, error: data?.error?.message || data?.error?.code || `Error ${res.status}` };
   }
   return data;
 }
@@ -48,12 +48,12 @@ export function renderArbitrage() {
             <a href="#/" class="flex items-center space-x-2 shrink-0">
               <span class="text-lg sm:text-2xl font-bold text-blue-600">Carindex</span>
             </a>
-            <h1 class="text-base sm:text-xl font-semibold text-gray-900 truncate">Arbitrage Véhicule</h1>
+            <h1 class="text-base sm:text-xl font-semibold text-gray-900 truncate">Vehicle Arbitrage</h1>
           </div>
           <nav class="flex items-center space-x-2 sm:space-x-4 shrink-0 text-sm sm:text-base">
             ${renderLanguageToggle()}
             <a href="#/dashboard" class="text-gray-600 hover:text-blue-600 whitespace-nowrap">Dashboard</a>
-            <a href="#/search" class="text-gray-600 hover:text-blue-600 whitespace-nowrap">Recherche</a>
+            <a href="#/search" class="text-gray-600 hover:text-blue-600 whitespace-nowrap">Search</a>
           </nav>
         </div>
       </div>
@@ -62,38 +62,38 @@ export function renderArbitrage() {
     <div class="container mx-auto px-3 sm:px-6 py-4 sm:py-8 max-w-[100vw] overflow-x-hidden">
       <!-- Opportunités auto-détectées -->
       <div class="bg-white rounded-xl shadow-lg p-3 sm:p-6 mb-6 overflow-hidden">
-        <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-2 sm:mb-4">🔄 Opportunités auto-détectées</h2>
-        <p class="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">Mises à jour quotidiennement (4h). Achat dans le pays moins cher, vente dans le pays plus cher.</p>
-        <div id="auto-opp-result" class="overflow-x-auto -mx-2 sm:mx-0 rounded-lg border border-gray-200" style="-webkit-overflow-scrolling: touch">Chargement...</div>
+        <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-2 sm:mb-4">🔄 Auto-detected opportunities</h2>
+        <p class="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">Updated daily (4h). Buy in cheaper country, sell in more expensive country.</p>
+        <div id="auto-opp-result" class="overflow-x-auto -mx-2 sm:mx-0 rounded-lg border border-gray-200" style="-webkit-overflow-scrolling: touch">Loading...</div>
       </div>
 
       <!-- Simulateur coûts d'import -->
       <div class="bg-white rounded-xl shadow-lg p-3 sm:p-6 mb-6 overflow-hidden">
-        <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">💰 Simulateur de coûts d'import</h2>
+        <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">💰 Import cost simulator</h2>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mb-4">
           <div>
-            <label class="block text-sm font-medium text-gray-600 mb-1">Prix d'achat (€)</label>
+            <label class="block text-sm font-medium text-gray-600 mb-1">Purchase price (€)</label>
             <input type="number" id="sim-price" placeholder="25000" class="w-full px-3 py-2 border rounded-lg">
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-600 mb-1">Pays achat</label>
+            <label class="block text-sm font-medium text-gray-600 mb-1">Buy country</label>
             <select id="sim-buy" class="w-full px-3 py-2 border rounded-lg">
               ${Object.entries(COUNTRY_NAMES).map(([c, n]) => `<option value="${c}">${n}</option>`).join('')}
             </select>
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-600 mb-1">Pays vente</label>
+            <label class="block text-sm font-medium text-gray-600 mb-1">Sell country</label>
             <select id="sim-sell" class="w-full px-3 py-2 border rounded-lg">
               ${Object.entries(COUNTRY_NAMES).map(([c, n]) => `<option value="${c}">${n}</option>`).join('')}
             </select>
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-600 mb-1">Réparations (€)</label>
-            <input type="number" id="sim-reconditioning" placeholder="500" min="0" class="w-full px-3 py-2 border rounded-lg" title="Réparations / réconditionnement estimées avant revente">
+            <label class="block text-sm font-medium text-gray-600 mb-1">Repairs (€)</label>
+            <input type="number" id="sim-reconditioning" placeholder="500" min="0" class="w-full px-3 py-2 border rounded-lg" title="Estimated repairs/reconditioning before resale">
           </div>
           <div class="flex items-end">
             <button onclick="window.calcImportCosts()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-              Calculer
+              Calculate
             </button>
           </div>
         </div>
@@ -102,68 +102,68 @@ export function renderArbitrage() {
 
       <!-- Comparaison prix par pays -->
       <div class="bg-white rounded-xl shadow-lg p-3 sm:p-6 mb-6 overflow-hidden">
-        <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">📊 Comparaison des prix par pays</h2>
+        <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">📊 Price comparison by country</h2>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">
-          <input type="text" id="comp-brand" placeholder="Marque (ex: bmw)" class="px-3 py-2 border rounded-lg">
-          <input type="text" id="comp-model" placeholder="Modèle (ex: x3)" class="px-3 py-2 border rounded-lg">
-          <input type="number" id="comp-year" placeholder="Année (optionnel)" class="px-3 py-2 border rounded-lg" min="2000">
-          <button onclick="window.loadPriceComparison()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Comparer</button>
+          <input type="text" id="comp-brand" placeholder="Brand (e.g. bmw)" class="px-3 py-2 border rounded-lg">
+          <input type="text" id="comp-model" placeholder="Model (e.g. x3)" class="px-3 py-2 border rounded-lg">
+          <input type="number" id="comp-year" placeholder="Year (optional)" class="px-3 py-2 border rounded-lg" min="2000">
+          <button onclick="window.loadPriceComparison()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Compare</button>
         </div>
         <div id="comp-result" class="overflow-x-auto"></div>
       </div>
 
       <!-- Opportunités d'arbitrage -->
       <div class="bg-white rounded-xl shadow-lg p-3 sm:p-6 mb-6 overflow-hidden">
-        <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">🎯 Opportunités d'arbitrage</h2>
-        <p class="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">Paires de pays où acheter moins cher et revendre plus cher (marge après coûts)</p>
+        <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">🎯 Arbitrage opportunities</h2>
+        <p class="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">Country pairs where you can buy cheaper and sell higher (margin after costs)</p>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">
-          <input type="text" id="opp-brand" placeholder="Marque" class="px-3 py-2 border rounded-lg">
-          <input type="text" id="opp-model" placeholder="Modèle" class="px-3 py-2 border rounded-lg">
-          <input type="number" id="opp-year" placeholder="Année" class="px-3 py-2 border rounded-lg" min="2000">
-          <button onclick="window.loadOpportunities()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">Rechercher</button>
+          <input type="text" id="opp-brand" placeholder="Brand" class="px-3 py-2 border rounded-lg">
+          <input type="text" id="opp-model" placeholder="Model" class="px-3 py-2 border rounded-lg">
+          <input type="number" id="opp-year" placeholder="Year" class="px-3 py-2 border rounded-lg" min="2000">
+          <button onclick="window.loadOpportunities()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">Search</button>
         </div>
         <div id="opp-result" class="overflow-x-auto"></div>
       </div>
 
       <!-- Annonces avec opportunité -->
       <div id="list-listings-section" class="bg-white rounded-xl shadow-lg p-3 sm:p-6 mb-6 overflow-hidden">
-        <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">🚗 Annonces avec opportunité</h2>
-        <p class="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">Annonces réelles sous la médiane du pays de vente cible</p>
+        <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">🚗 Listings with opportunity</h2>
+        <p class="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">Real listings below the median of the target sell country</p>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 mb-4 flex-wrap">
-          <input type="text" id="list-brand" placeholder="Marque" class="px-3 py-2 border rounded-lg">
-          <input type="text" id="list-model" placeholder="Modèle" class="px-3 py-2 border rounded-lg">
-          <input type="number" id="list-year" placeholder="Année" class="px-3 py-2 border rounded-lg">
+          <input type="text" id="list-brand" placeholder="Brand" class="px-3 py-2 border rounded-lg">
+          <input type="text" id="list-model" placeholder="Model" class="px-3 py-2 border rounded-lg">
+          <input type="number" id="list-year" placeholder="Year" class="px-3 py-2 border rounded-lg">
           <select id="list-buy" class="px-3 py-2 border rounded-lg">
-            <option value="">Achat...</option>
+            <option value="">Buy...</option>
             ${Object.entries(COUNTRY_NAMES).map(([c, n]) => `<option value="${c}">${n}</option>`).join('')}
           </select>
           <select id="list-sell" class="px-3 py-2 border rounded-lg">
-            <option value="">Vente...</option>
+            <option value="">Sell...</option>
             ${Object.entries(COUNTRY_NAMES).map(([c, n]) => `<option value="${c}">${n}</option>`).join('')}
           </select>
-          <button onclick="window.loadListingsArbitrage()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 col-span-full md:col-span-1">Rechercher</button>
+          <button onclick="window.loadListingsArbitrage()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 col-span-full md:col-span-1">Search</button>
         </div>
         <div id="list-result" class="overflow-x-auto"></div>
       </div>
 
       <!-- Alerte arbitrage -->
       <div class="bg-white rounded-xl shadow-lg p-3 sm:p-6 mb-6 overflow-hidden">
-        <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">🔔 Alerte arbitrage</h2>
-        <p class="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">Recevez un email quand une annonce rentable apparaît (achat en X, vente en Y)</p>
+        <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">🔔 Arbitrage alert</h2>
+        <p class="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">Get an email when a profitable listing appears (buy in X, sell in Y)</p>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 mb-4">
-          <input type="text" id="alert-name" placeholder="Nom de l'alerte" class="px-3 py-2 border rounded-lg">
-          <input type="text" id="alert-brand" placeholder="Marque" class="px-3 py-2 border rounded-lg">
-          <input type="text" id="alert-model" placeholder="Modèle" class="px-3 py-2 border rounded-lg">
+          <input type="text" id="alert-name" placeholder="Alert name" class="px-3 py-2 border rounded-lg">
+          <input type="text" id="alert-brand" placeholder="Brand" class="px-3 py-2 border rounded-lg">
+          <input type="text" id="alert-model" placeholder="Model" class="px-3 py-2 border rounded-lg">
           <select id="alert-buy" class="px-3 py-2 border rounded-lg">
-            <option value="">Achat...</option>
+            <option value="">Buy...</option>
             ${Object.entries(COUNTRY_NAMES).map(([c, n]) => `<option value="${c}">${n}</option>`).join('')}
           </select>
           <select id="alert-sell" class="px-3 py-2 border rounded-lg">
-            <option value="">Vente...</option>
+            <option value="">Sell...</option>
             ${Object.entries(COUNTRY_NAMES).map(([c, n]) => `<option value="${c}">${n}</option>`).join('')}
           </select>
-          <input type="number" id="alert-margin" placeholder="Marge min (€)" value="2000" class="px-3 py-2 border rounded-lg">
-          <button onclick="window.createArbitrageAlert()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Créer l'alerte</button>
+          <input type="number" id="alert-margin" placeholder="Min margin (€)" value="2000" class="px-3 py-2 border rounded-lg">
+          <button onclick="window.createArbitrageAlert()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Create alert</button>
         </div>
         <div id="alert-result" class="text-sm"></div>
       </div>
@@ -176,10 +176,10 @@ export function renderArbitrage() {
     el.innerHTML = '<p class="text-gray-500">Chargement...</p>';
     try {
       const r = await apiGet('auto-detected', { limit: 500, _: Date.now() });
-      const errMsg = r?.error?.message || (typeof r?.error === 'string' ? r.error : r?.error?.code) || 'Erreur API';
+      const errMsg = r?.error?.message || (typeof r?.error === 'string' ? r.error : r?.error?.code) || 'API Error';
       if (!r?.success) { el.innerHTML = `<p class="text-red-600">${errMsg}</p>`; return; }
       if (!r.opportunities?.length) {
-        el.innerHTML = '<p class="text-gray-500">Aucune opportunité détectée pour l\'instant. Le job tourne chaque nuit.</p>';
+        el.innerHTML = '<p class="text-gray-500">No opportunity detected yet. The job runs every night.</p>';
         return;
       }
     const appBaseUrl = window.location.origin;
@@ -190,13 +190,13 @@ export function renderArbitrage() {
     el.innerHTML = `
       <table class="min-w-[720px] divide-y divide-gray-200 text-sm table-sticky-col">
         <thead class="bg-gray-50"><tr>
-          <th class="px-3 sm:px-4 py-2 text-left text-xs font-medium text-gray-500 whitespace-nowrap">Modèle</th>
-          <th class="px-3 sm:px-4 py-2 text-left text-xs font-medium text-gray-500 whitespace-nowrap">Achat</th>
-          <th class="px-3 sm:px-4 py-2 text-left text-xs font-medium text-gray-500 whitespace-nowrap">Vente</th>
-          <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 whitespace-nowrap">Liquidité</th>
-          <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 whitespace-nowrap">Prix achat</th>
-          <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 whitespace-nowrap">Prix vente</th>
-          <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 whitespace-nowrap">Marge nette</th>
+          <th class="px-3 sm:px-4 py-2 text-left text-xs font-medium text-gray-500 whitespace-nowrap">Model</th>
+          <th class="px-3 sm:px-4 py-2 text-left text-xs font-medium text-gray-500 whitespace-nowrap">Buy</th>
+          <th class="px-3 sm:px-4 py-2 text-left text-xs font-medium text-gray-500 whitespace-nowrap">Sell</th>
+          <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 whitespace-nowrap">Liquidity</th>
+          <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 whitespace-nowrap">Buy price</th>
+          <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 whitespace-nowrap">Sell price</th>
+          <th class="px-3 sm:px-4 py-2 text-right text-xs font-medium text-gray-500 whitespace-nowrap">Net margin</th>
           <th class="px-3 sm:px-4 py-2 text-left text-xs font-medium text-gray-500 whitespace-nowrap">Liens</th>
         </tr></thead>
         <tbody class="bg-white divide-y">

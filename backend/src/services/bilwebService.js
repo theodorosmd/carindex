@@ -141,7 +141,14 @@ async function scrapeBilwebViaScrapeDo(baseUrl, maxPages = 10) {
 
     let html;
     try {
-      html = await fetchViaScrapeDo(url, { render: true, customWait: 4000, geoCode: 'se' });
+      html = await fetchViaScrapeDo(url, { render: false, geoCode: 'se' });
+      const $first = cheerio.load(html);
+      const cardsFirst = $first('a[href*="/bil/"], a[href*="/vehicle/"]').closest('.vehicle-item, .car-item, [data-vehicle], article, .listing-card, li');
+      const itemsFirst = cardsFirst.length ? cardsFirst : $first('a[href*="/bil/"], a[href*="/vehicle/"]');
+      const hasListings = itemsFirst.length > 0;
+      if (!hasListings && html?.length > 500) {
+        html = await fetchViaScrapeDo(url, { render: true, customWait: 4000, geoCode: 'se' });
+      }
     } catch (err) {
       logger.warn('Bilweb scrape.do fetch failed', { page: pageNum, error: err.message });
       break;

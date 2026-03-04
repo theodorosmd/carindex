@@ -78,7 +78,10 @@ async function scrapeSubitoStreaming(baseUrl, maxPages, onPageDone) {
 
     let html;
     try {
-      html = await fetchViaScrapeDo(pageUrl, { render: true, customWait: 5000, geoCode: 'it' });
+      html = await fetchViaScrapeDo(pageUrl, { render: false, geoCode: 'it' });
+      if (parseSearchPage(html).length === 0 && html?.length > 500) {
+        html = await fetchViaScrapeDo(pageUrl, { render: true, customWait: 5000, geoCode: 'it' });
+      }
     } catch (err) {
       logger.error('Subito.it search page fetch failed', { page, error: err.message });
       break;

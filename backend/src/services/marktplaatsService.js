@@ -106,7 +106,10 @@ async function scrapeMarktplaatsStreaming(browser, baseUrl, maxPages, preferScra
 
       if (preferScrapeDo && process.env.SCRAPE_DO_TOKEN) {
         try {
-          html = await fetchViaScrapeDo(pageUrl, { render: true, customWait: 5000, geoCode: 'nl' });
+          html = await fetchViaScrapeDo(pageUrl, { render: false, geoCode: 'nl' });
+          if (parseSearchPage(html).length === 0 && html?.length > 500) {
+            html = await fetchViaScrapeDo(pageUrl, { render: true, customWait: 5000, geoCode: 'nl' });
+          }
           usedFallback = true;
         } catch (err) {
           logger.warn('Marktplaats scrape.do failed, trying Puppeteer', { page: pageNum, error: err.message });

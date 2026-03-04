@@ -52,6 +52,7 @@ const SOURCE_CONFIG = {
     url: 'https://occasion.largus.fr/auto/?npp=15',
     geoCode: 'fr',
     patterns: [
+      /(\d[\d\s]*)\s*annonces?\s*(?:occasion|&|et)/i,  // "469001 annonces occasion & neufs"
       /(\d[\d\s]*)\s*(?:véhicules?|annonces?)/i,
       /(?:résultats?|trouvé)\s*[:\s]*(\d[\d\s]*)/i,
     ]
@@ -60,6 +61,7 @@ const SOURCE_CONFIG = {
     url: 'https://www.lacentrale.fr/listing',
     geoCode: 'fr',
     patterns: [
+      /Rechercher\s*\((\d[\d\s]*)\)/i,  // "Rechercher (385 551)"
       /(\d[\d\s]*)\s*(?:annonces?|véhicules?)/i,
       /(?:résultats?|annonces?)\s*[:\s]*(\d[\d\s]*)/i,
     ]

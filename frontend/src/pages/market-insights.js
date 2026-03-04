@@ -160,20 +160,20 @@ export function renderMarketInsights() {
         <!-- Statistics by Country -->
         <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
           <div class="flex items-center justify-between mb-4">
-            <h2 class="text-2xl font-bold text-gray-900">Statistiques par Pays</h2>
+            <h2 class="text-2xl font-bold text-gray-900">Statistics by Country</h2>
             <select id="country-stats-period" onchange="loadStatsByCountry()" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
-              <option value="7">7 jours</option>
-              <option value="30" selected>30 jours</option>
-              <option value="90">90 jours</option>
+              <option value="7">7 days</option>
+              <option value="30" selected>30 days</option>
+              <option value="90">90 days</option>
             </select>
           </div>
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
             <div>
-              <h3 class="text-lg font-semibold text-gray-900 mb-4">Ventes par Pays</h3>
+              <h3 class="text-lg font-semibold text-gray-900 mb-4">Sales by Country</h3>
               <canvas id="sales-by-country-chart"></canvas>
             </div>
             <div>
-              <h3 class="text-lg font-semibold text-gray-900 mb-4">DOM Moyen par Pays</h3>
+              <h3 class="text-lg font-semibold text-gray-900 mb-4">Average DOM by Country</h3>
               <canvas id="dom-by-country-chart"></canvas>
             </div>
           </div>
@@ -181,12 +181,12 @@ export function renderMarketInsights() {
             <table class="min-w-full divide-y divide-gray-200">
               <thead class="bg-gray-50">
                 <tr>
-                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pays</th>
-                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ventes</th>
-                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Modèles Uniques</th>
-                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">DOM Moyen</th>
-                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prix Médian</th>
-                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vélocité/mois</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Country</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sales</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unique Models</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Avg DOM</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Median Price</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Velocity/month</th>
                 </tr>
               </thead>
               <tbody id="country-stats-body" class="bg-white divide-y divide-gray-200">
@@ -199,51 +199,51 @@ export function renderMarketInsights() {
         <!-- Model Comparison -->
         <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
           <div class="flex items-center justify-between mb-4">
-            <h2 class="text-2xl font-bold text-gray-900">Comparaison de Modèles</h2>
+            <h2 class="text-2xl font-bold text-gray-900">Model Comparison</h2>
             <button onclick="showCompareModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
-              + Comparer des modèles
+              + Compare models
             </button>
           </div>
           <div id="compare-models-content">
-            <p class="text-gray-500 text-center py-8">Sélectionnez 2 à 5 modèles à comparer</p>
+            <p class="text-gray-500 text-center py-8">Select 2 to 5 models to compare</p>
           </div>
         </div>
 
         <!-- Model Trends -->
         <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
           <div class="flex items-center justify-between mb-4">
-            <h2 class="text-2xl font-bold text-gray-900">Tendances Temporelles</h2>
+            <h2 class="text-2xl font-bold text-gray-900">Time Trends</h2>
             <div class="flex items-center space-x-2">
-              <input type="text" id="trends-brand" placeholder="Marque" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
-              <input type="text" id="trends-model" placeholder="Modèle" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
-              <input type="number" id="trends-year" placeholder="Année (optionnel)" class="px-3 py-2 border border-gray-300 rounded-lg text-sm w-24">
+              <input type="text" id="trends-brand" placeholder="Brand" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+              <input type="text" id="trends-model" placeholder="Model" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+              <input type="number" id="trends-year" placeholder="Year (optional)" class="px-3 py-2 border border-gray-300 rounded-lg text-sm w-24">
               <select id="trends-months" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                <option value="6">6 mois</option>
-                <option value="12" selected>12 mois</option>
+                <option value="6">6 months</option>
+                <option value="12" selected>12 months</option>
               </select>
               <button onclick="loadModelTrends()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
-                Analyser
+                Analyze
               </button>
             </div>
           </div>
           <div id="trends-content">
-            <p class="text-gray-500 text-center py-8">Entrez une marque et un modèle pour voir les tendances</p>
+            <p class="text-gray-500 text-center py-8">Enter a brand and model to see trends</p>
           </div>
         </div>
 
         <!-- Profitability Analysis -->
         <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
           <div class="flex items-center justify-between mb-4">
-            <h2 class="text-2xl font-bold text-gray-900">Analyse de Rentabilité</h2>
+            <h2 class="text-2xl font-bold text-gray-900">Profitability Analysis</h2>
             <div class="flex items-center space-x-2">
               <select id="profitability-country" onchange="loadProfitability()" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                <option value="">Tous pays</option>
+                <option value="">All countries</option>
                 <!-- Will be populated by JS -->
               </select>
               <select id="profitability-days" onchange="loadProfitability()" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                <option value="30">30 jours</option>
-                <option value="90" selected>90 jours</option>
-                <option value="180">180 jours</option>
+                <option value="30">30 days</option>
+                <option value="90" selected>90 days</option>
+                <option value="180">180 days</option>
               </select>
             </div>
           </div>

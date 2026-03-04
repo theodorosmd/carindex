@@ -28,7 +28,12 @@ const DEFAULT_ARGS = [
   '--disable-features=IsolateOrigins,site-per-process',
 ];
 
-const LINUX_CHROMIUM_PATHS = ['/usr/bin/chromium-browser', '/usr/bin/chromium', '/usr/bin/google-chrome-stable'];
+const LINUX_CHROMIUM_PATHS = [
+  '/usr/bin/chromium-browser',
+  '/usr/bin/chromium',
+  '/usr/bin/google-chrome-stable',
+  '/snap/bin/chromium',  // Ubuntu 24.04 (snap)
+];
 
 /** On Linux, prefer system Chromium to avoid libglib errors from bundled Chrome */
 function getExecutablePath() {
