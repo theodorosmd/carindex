@@ -146,6 +146,12 @@ function parseSearchPage(html) {
     const priceMatch = text.match(/(\d[\d\s.]*)\s*€/);
     const yearMatch = text.match(/\b(19|20)\d{2}\b/);
     const kmMatch = text.match(/([\d\s.]+)\s*km/i);
+    let mileage = null;
+    if (kmMatch) {
+      const raw = parseInt(kmMatch[1].replace(/[\s.]/g, ''), 10);
+      // Cap to PostgreSQL integer max to avoid "out of range" in leboncoin_fetch_queue
+      mileage = Number.isNaN(raw) || raw < 0 || raw > 2147483647 ? null : raw;
+    }
 
     const parts = title.split(/\s+/);
     const brand = parts[0] || null;
@@ -159,7 +165,7 @@ function parseSearchPage(html) {
       title,
       price: priceMatch ? parseInt(priceMatch[1].replace(/[\s.]/g, ''), 10) : null,
       year: yearMatch ? parseInt(yearMatch[0], 10) : null,
-      mileage: kmMatch ? parseInt(kmMatch[1].replace(/[\s.]/g, ''), 10) : null,
+      mileage,
     });
   });
 
@@ -488,12 +494,15 @@ export function mapLeBonCoinDataToListing(item) {
   const price = parseFloat(priceValue) || 0;
 
   // Mileage: JSON-LD > criteria > __NEXT_DATA__ attr > search card
+  // Cap to PostgreSQL integer max (2^31-1) to avoid "out of range" / "numeric field overflow"
+  const MAX_SAFE_MILEAGE = 2147483647;
   let mileage = item.jsonMileage || 0;
   if (!mileage) {
     const kmRaw = specs['kilométrage'] || specs['kilometrage'] || specs['mileage'] || '';
     mileage = parseInt(String(kmRaw).replace(/[\s.km]/gi, ''), 10) || 0;
   }
   if (!mileage) mileage = parseInt(item.mileage || 0, 10) || 0;
+  if (mileage && (mileage < 0 || mileage > MAX_SAFE_MILEAGE)) mileage = 0;
 
   // Year: JSON-LD > criteria > __NEXT_DATA__ attr > search card
   let year = item.jsonYear || null;

@@ -52,10 +52,22 @@ setupMonitoring();
 
 // When loaded directly (not via start.js), listen on PORT
 if (process.argv[1]?.endsWith('server.js')) {
-  app.listen(PORT, '0.0.0.0', () => {
-    logger.info(`Carindex API server running on port ${PORT}`);
-    console.log(`Server listening on 0.0.0.0:${PORT}`);
-  });
+  function tryListen(retries = 3) {
+    const server = app.listen(PORT, '0.0.0.0', () => {
+      logger.info(`Carindex API server running on port ${PORT}`);
+      console.log(`Server listening on 0.0.0.0:${PORT}`);
+    });
+    server.on('error', (err) => {
+      if (err.code === 'EADDRINUSE' && retries > 0) {
+        server.close(() => {});
+        logger.warn(`Port ${PORT} in use (hot-reload?), retrying in 2s...`, { retriesLeft: retries - 1 });
+        setTimeout(() => tryListen(retries - 1), 2000);
+      } else {
+        throw err;
+      }
+    });
+  }
+  tryListen();
 }
 
 // Start cron jobs after server is ready

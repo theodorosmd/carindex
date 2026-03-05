@@ -8,6 +8,16 @@ import { logger } from '../utils/logger.js';
 
 const LOCK_DURATION_MINUTES = 30;
 
+/** PostgreSQL integer max; mileage values above this cause "out of range" errors */
+const MAX_SAFE_INTEGER = 2147483647;
+
+function sanitizeMileage(val) {
+  if (val == null || val === '') return null;
+  const n = typeof val === 'number' ? val : parseInt(val, 10);
+  if (Number.isNaN(n) || n < 0 || n > MAX_SAFE_INTEGER) return null;
+  return n;
+}
+
 /**
  * Ajouter des URLs à la queue
  * @param {Array<{url: string, title?: string, brand?: string, model?: string, year?: number, price?: number, mileage?: number}>} items
@@ -45,7 +55,7 @@ export async function addToQueue(items) {
           model: item.model || null,
           year: item.year ?? null,
           price: item.price ?? null,
-          mileage: item.mileage ?? null,
+          mileage: sanitizeMileage(item.mileage),
           status: 'pending',
           retry_count: 0,
           next_retry_at: null,
