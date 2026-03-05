@@ -18,7 +18,7 @@ module.exports = {
         // Ne pas le définir ici : sinon ça écrase le .env et /usr/bin/chromium-browser n'existe pas sur Ubuntu 24
       },
       max_memory_restart: '6G', // SCRAPE_CONCURRENCY=8 → ~8 Chromium, prévoir 4–6 Go
-      restart_delay: 8000,  // Attendre que l'ancien processus libère le port 3001
+      restart_delay: 15000,  // Attendre que le port soit libéré (TIME_WAIT)
       max_restarts: 9999, // Keep trying on crash
       min_uptime: '10s',  // Consider crash if dies before 10s
       listen_timeout: 15000,

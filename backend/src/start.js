@@ -28,8 +28,36 @@ const server = http.createServer((req, res) => {
   }
 });
 
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`[start] HTTP server listening on 0.0.0.0:${PORT}`);
+async function startServer() {
+  const opts = { port: PORT, host: '0.0.0.0', reuseAddr: true };
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    try {
+      await new Promise((resolve, reject) => {
+        const onError = (err) => {
+          server.off('error', onError);
+          reject(err);
+        };
+        server.once('error', onError);
+        server.listen(opts, () => {
+          server.off('error', onError);
+          console.log(`[start] HTTP server listening on 0.0.0.0:${PORT}`);
+          resolve();
+        });
+      });
+      return;
+    } catch (err) {
+      if (err.code === 'EADDRINUSE' && attempt < 5) {
+        console.warn(`[start] Port ${PORT} in use, retry ${attempt}/5 in 15s...`);
+        await new Promise((r) => setTimeout(r, 15000));
+      } else {
+        throw err;
+      }
+    }
+  }
+}
+startServer().catch((err) => {
+  console.error('[start] Failed to listen:', err.message);
+  process.exit(1);
 });
 
 try {

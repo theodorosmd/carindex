@@ -204,6 +204,12 @@ pm2 restart carindex-mobilede-worker
 pm2 stop carindex-scraper    # arrêter
 ```
 
+**Si EADDRINUSE (port 3001 déjà utilisé)** :
+```bash
+fuser -k 3001/tcp
+pm2 restart carindex-scraper
+```
+
 ---
 
 ## 4. Déploiement avec Docker
