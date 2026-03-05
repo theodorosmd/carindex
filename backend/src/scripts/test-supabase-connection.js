@@ -1,107 +1,46 @@
+#!/usr/bin/env node
 /**
- * Script pour tester différentes URLs de connexion Supabase
- * et identifier la bonne configuration
+ * Test minimal de connexion Supabase - debug si check:growth retourne 0.
+ * Usage: node -r dotenv/config src/scripts/test-supabase-connection.js
  */
+import 'dotenv/config';
+import { createClient } from '@supabase/supabase-js';
 
-import dotenv from 'dotenv';
-import pkg from 'pg';
-const { Pool } = pkg;
+const url = process.env.SUPABASE_URL;
+const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-dotenv.config();
+console.log('Supabase URL:', url ? `${url.slice(0, 30)}...` : 'MANQUANT');
+console.log('Service key:', key ? `${key.slice(0, 20)}...` : 'MANQUANT');
+console.log('');
 
-const projectRef = 'jgrebihiurfmuhfftsoa';
-const password = '57qxIZYf8xA81Qqorqq8vgC7+2b3s6HkyQGp90V/QjnD2wPkSeHT8U7dMaQYbCa9v1xc9sx7eCnA8FlNdQB6Hg==';
-const encodedPassword = encodeURIComponent(password);
-
-// Différentes URLs à tester
-const urlsToTest = [
-  {
-    name: 'Direct connection (db.*.supabase.co)',
-    url: `postgresql://postgres:${encodedPassword}@db.${projectRef}.supabase.co:5432/postgres`
-  },
-  {
-    name: 'Connection pooling (pooler.supabase.com)',
-    url: `postgresql://postgres.${projectRef}:${encodedPassword}@aws-0-eu-central-1.pooler.supabase.com:6543/postgres`
-  },
-  {
-    name: 'Connection pooling (us-east-1)',
-    url: `postgresql://postgres.${projectRef}:${encodedPassword}@aws-0-us-east-1.pooler.supabase.com:6543/postgres`
-  },
-  {
-    name: 'Connection pooling (eu-west-1)',
-    url: `postgresql://postgres.${projectRef}:${encodedPassword}@aws-0-eu-west-1.pooler.supabase.com:6543/postgres`
-  },
-  {
-    name: 'Current DATABASE_URL from .env',
-    url: process.env.DATABASE_URL
-  }
-];
-
-async function testConnection(name, url) {
-  console.log(`\n🔍 Test: ${name}`);
-  console.log(`   URL: ${url.replace(/:[^:@]+@/, ':****@')}`); // Masquer le mot de passe
-  
-  const pool = new Pool({
-    connectionString: url,
-    connectionTimeoutMillis: 5000,
-  });
-
-  try {
-    const result = await pool.query('SELECT NOW() as time, version() as version, current_database() as database');
-    console.log(`   ✅ SUCCÈS!`);
-    console.log(`   Database: ${result.rows[0].database}`);
-    console.log(`   Time: ${result.rows[0].time}`);
-    await pool.end();
-    return { success: true, url };
-  } catch (error) {
-    console.log(`   ❌ ÉCHEC: ${error.message}`);
-    console.log(`   Code: ${error.code}`);
-    await pool.end();
-    return { success: false, error: error.message };
-  }
+if (!url || !key) {
+  console.error('❌ SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY manquant dans .env');
+  process.exit(1);
 }
+
+const supabase = createClient(url, key);
 
 async function main() {
-  console.log('🧪 Test des connexions Supabase\n');
-  console.log('='.repeat(60));
+  // 1. Count
+  const { count, error: countErr } = await supabase.from('listings').select('*', { count: 'exact', head: true });
+  console.log('1. Count listings:', count ?? 'null', countErr ? `| Erreur: ${countErr.message}` : '');
 
-  const results = [];
-  
-  for (const { name, url } of urlsToTest) {
-    if (!url) continue;
-    const result = await testConnection(name, url);
-    results.push({ name, ...result });
-    
-    // Si on trouve une connexion qui fonctionne, on s'arrête
-    if (result.success) {
-      console.log(`\n✅ URL fonctionnelle trouvée: ${name}`);
-      console.log(`\n📝 Mettez à jour votre .env avec:`);
-      console.log(`DATABASE_URL=${url}`);
-      break;
-    }
-  }
+  // 2. Fetch 1 row
+  const { data: row, error: rowErr } = await supabase.from('listings').select('id, source_platform').limit(1).maybeSingle();
+  console.log('2. Premier row:', row ? JSON.stringify(row) : 'vide', rowErr ? `| Erreur: ${rowErr.message}` : '');
 
-  // Résumé
-  console.log('\n' + '='.repeat(60));
-  const successful = results.find(r => r.success);
-  
-  if (successful) {
-    console.log('\n✅ Connexion Supabase configurée avec succès!');
+  // 3. Tables existantes ?
+  const { data: tables, error: tablesErr } = await supabase.from('listings').select('id').limit(0);
+  console.log('3. Table listings accessible:', !tablesErr, tablesErr ? `| Erreur: ${tablesErr.message}` : '');
+
+  if (count > 0) {
+    console.log('\n✅ Connexion OK. Total:', count.toLocaleString('fr-FR'));
   } else {
-    console.log('\n❌ Aucune connexion n\'a fonctionné.');
-    console.log('\n💡 Solutions possibles:');
-    console.log('1. Vérifiez que votre projet Supabase est actif (non en pause)');
-    console.log('2. Allez sur: https://supabase.com/dashboard/project/jgrebihiurfmuhfftsoa/settings/database');
-    console.log('3. Copiez l\'URL de connexion depuis la section "Connection string" → onglet "URI"');
-    console.log('4. Mettez à jour DATABASE_URL dans backend/.env');
+    console.log('\n⚠️ Count=0. Vérifier dans Supabase Dashboard → Table Editor → listings');
   }
 }
 
-main().catch(console.error);
-
-
-
-
-
-
-
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

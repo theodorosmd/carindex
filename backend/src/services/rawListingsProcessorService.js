@@ -96,8 +96,16 @@ export async function processRawListings(options = {}) {
 
       const AI_ENRICHABLE = ['largus', 'leboncoin', 'marktplaats', '2ememain', 'finn', 'otomoto'];
       if (AI_ENRICHABLE.includes(row.source_platform) && process.env.OPENAI_API_KEY) {
-        const hasMissing = !listing.transmission || listing.doors == null || !listing.color ||
-          listing.power_hp == null || !listing.category || listing.displacement == null;
+        const missingCritical = !listing.brand || !listing.model;
+        const missingSpecs = [
+          !listing.transmission,
+          listing.doors == null,
+          !listing.color,
+          listing.power_hp == null,
+          !listing.category,
+          listing.displacement == null
+        ].filter(Boolean).length;
+        const hasMissing = missingCritical || missingSpecs >= 3;
         if (hasMissing && listing.description) {
           try {
             const aiFilled = await openaiService.fillMissingListingFields(listing);
@@ -129,7 +137,8 @@ export async function processRawListings(options = {}) {
     return { processed: 0, created: 0, updated: 0, errors: rawRows.length };
   }
 
-  const result = await upsertListingsBatch(mappedListings);
+  const createOnly = options.createOnly === true || process.env.INGEST_CREATE_ONLY === 'true';
+  const result = await upsertListingsBatch(mappedListings, { createOnly });
 
   if (processedIds.length > 0) {
     const { error: updateError } = await supabase
@@ -149,6 +158,7 @@ export async function processRawListings(options = {}) {
     processed: processedIds.length,
     created: result.created,
     updated: result.updated,
+    skipped: result.skipped || 0,
     errors: result.errors
   });
 
@@ -156,6 +166,7 @@ export async function processRawListings(options = {}) {
     processed: processedIds.length,
     created: result.created,
     updated: result.updated,
+    skipped: result.skipped || 0,
     sourceAdded: result.sourceAdded || 0,
     errors: result.errors
   };

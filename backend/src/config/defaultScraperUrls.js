@@ -17,6 +17,7 @@ export const DEFAULT_SCRAPER_URLS = {
     'https://suchen.mobile.de/fahrzeuge/search.html?isSearchRequest=true&s=Car&vc=Car'
   ],
   leboncoin: [
+    'https://www.leboncoin.fr/recherche?category=2&sort=time&order=desc',
     'https://www.leboncoin.fr/c/voitures'
   ],
   largus: [

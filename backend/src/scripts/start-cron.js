@@ -1,8 +1,6 @@
 import cron from 'node-cron';
 import { checkAlerts } from '../jobs/alertChecker.js';
-import { startAutoScraperJobs } from '../jobs/autoScraperJob.js';
 import { startContinuousScrapingJob } from '../jobs/continuousScrapingJob.js';
-import { startDailyScrapingJob } from '../jobs/dailyScraping.js';
 import { startSalesDetectionJob } from '../jobs/salesDetectionJob.js';
 import { startDjangoImportJob, startDjangoLeboncoinImportJob } from '../jobs/djangoImportJob.js';
 import { startSupabaseBytbilImportJob } from '../jobs/supabaseBytbilImportJob.js';
@@ -18,25 +16,29 @@ import { logger } from '../utils/logger.js';
 export function startCronJobs() {
   logger.info('Starting cron jobs...');
 
-  if (!process.env.SCRAPE_DO_TOKEN && process.env.ENABLE_AUTO_SCRAPERS !== 'false') {
+  if (!process.env.SCRAPE_DO_TOKEN) {
     logger.warn('SCRAPE_DO_TOKEN not set — LeBonCoin, Subito, coches.net, OtoMoto, 2ememain will fail. Scrape.do fallback unavailable for Blocket, Bytbil, mobile.de, Gaspedaal. Add token in Railway Variables.');
   }
 
-  // Scraping continu : tourne jusqu'à tout scraper, puis recommence (désactive auto_scrapers + daily)
+  // UN SEUL SYSTÈME DE SCRAPING : run-all-scrapers-full
+  // Option 1: continu (boucle jusqu'à 100%, puis recommence)
+  // Option 2: cron quotidien (ex. 3h du matin)
   if (process.env.ENABLE_CONTINUOUS_SCRAPING === 'true') {
-    logger.info('Continuous scraping enabled - scrapers run until all sources are scraped, then repeat');
+    logger.info('Scraping: mode continu (run-all-scrapers-full en boucle)');
     startContinuousScrapingJob();
-    // Ne pas démarrer les crons individuels (chaque 6h) ni le daily (6h du matin)
   } else {
-    // Start auto scraper jobs (cron par source, ex. toutes les 6h)
-    if (process.env.ENABLE_AUTO_SCRAPERS !== 'false') {
-      startAutoScraperJobs();
-    }
-
-    // Start daily scraping job (runs at 6 AM)
-    if (process.env.ENABLE_DAILY_SCRAPING !== 'false') {
-      startDailyScrapingJob();
-    }
+    // Cron quotidien : run-all-scrapers-full à 3h (configurable via SCRAPE_CRON)
+    const scrapeCron = process.env.SCRAPE_CRON || '0 3 * * *'; // default: daily 3h
+    cron.schedule(scrapeCron, async () => {
+      logger.info('Scrape cron: starting run-all-scrapers-full...');
+      try {
+        const { runAllScrapersFull } = await import('./run-all-scrapers-full.js');
+        await runAllScrapersFull();
+      } catch (error) {
+        logger.error('Scrape cron failed', { error: error.message });
+      }
+    }, { scheduled: true, timezone: 'Europe/Paris' });
+    logger.info('Scraping: cron quotidien', { cron: scrapeCron });
   }
 
   // Check alerts every hour
@@ -91,20 +93,6 @@ export function startCronJobs() {
     startArbitrageDetectionJob();
   }
 
-  // Scraping complet de toutes les sources (tous les véhicules) - hebdomadaire dimanche 3h
-  if (process.env.ENABLE_FULL_SCRAPE_CRON === 'true') {
-    cron.schedule('0 3 * * 0', async () => {
-      logger.info('Full scrape cron: starting run-all-scrapers-full...');
-      try {
-        const { runAllScrapersFull } = await import('./run-all-scrapers-full.js');
-        await runAllScrapersFull();
-      } catch (error) {
-        logger.error('Full scrape cron failed', { error: error.message });
-      }
-    }, { scheduled: true, timezone: 'Europe/Paris' });
-    logger.info('Full scrape cron scheduled (Sundays 3:00 AM)');
-  }
-
   // Also run immediately on startup (optional, for testing)
   if (process.env.RUN_ALERTS_ON_STARTUP === 'true') {
     logger.info('Running initial alert check on startup...');
@@ -119,11 +107,6 @@ export function startCronJobs() {
 
   logger.info('Cron jobs started successfully');
   logger.info('Alert check scheduled to run every hour');
-  logger.info(
-    process.env.ENABLE_CONTINUOUS_SCRAPING === 'true'
-      ? 'Continuous scraping enabled (run until all scraped, then repeat)'
-      : 'Auto scrapers enabled: ' + (process.env.ENABLE_AUTO_SCRAPERS !== 'false')
-  );
 }
 
 // If running as standalone script

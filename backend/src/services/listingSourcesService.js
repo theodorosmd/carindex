@@ -129,6 +129,10 @@ export async function upsertListingSource(listingId, platform, sourceListingId, 
     );
 
   if (error) {
+    if (error.code === '23505') {
+      // Duplicate (listing_id, source_platform) or (source_platform, source_listing_id) — déjà présent
+      return true;
+    }
     logger.warn('Failed to upsert listing source', {
       listingId,
       platform,

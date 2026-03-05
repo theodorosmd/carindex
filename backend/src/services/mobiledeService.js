@@ -123,8 +123,8 @@ async function scrapeMobileDeUrl(browser, url, maxPages = 10, useScrapeDo = null
 
   // 1. Si scrape.do est dispo : l'utiliser en priorité (mobile.de bloque souvent Puppeteer)
   if (useScraper) {
-    const concurrency = parseInt(process.env.MOBILEDE_CONCURRENT_PAGES || '5', 10) || 1;
-    const batchDelayMs = parseInt(process.env.MOBILEDE_BATCH_DELAY_MS || '2500', 10) || 0;
+    const concurrency = parseInt(process.env.MOBILEDE_CONCURRENT_PAGES || '8', 10) || 1;
+    const batchDelayMs = parseInt(process.env.MOBILEDE_BATCH_DELAY_MS || '1200', 10) || 0;
     logger.info('mobile.de: using scrape.do (parallel)', { concurrency, maxPages, batchDelayMs });
     for (let start = 1; start <= maxPages; start += concurrency) {
       const pageNums = [];

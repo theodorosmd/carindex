@@ -1,6 +1,7 @@
 import { logger } from '../utils/logger.js';
 import { saveRawListings } from './rawIngestService.js';
 import { processRawListings } from './rawListingsProcessorService.js';
+import { addToQueue } from './leboncoinQueueService.js';
 import { fetchViaScrapeDo } from '../utils/scrapeDo.js';
 import * as cheerio from 'cheerio';
 
@@ -8,16 +9,16 @@ const SOURCE_PLATFORM = 'leboncoin';
 
 /**
  * Run LeBonCoin scraper via scrape.do
- * Flux: scrape → raw_listings → processRawListings → listings
+ * Flux: recherche → queue (leboncoin_fetch_queue) → workers fetchent détails → raw_listings → listings
  */
 export async function runLeBonCoinScraper(searchUrls, options = {}, progressCallback = null) {
-  const results = { totalScraped: 0, saved: 0, errors: 0, processedUrls: [] };
+  const results = { totalScraped: 0, addedToQueue: 0, errors: 0, processedUrls: [] };
 
   try {
     const maxPages = options.maxPages || 15;
     const urls = Array.isArray(searchUrls) ? searchUrls : [searchUrls];
 
-    logger.info('Starting LeBonCoin scraper (scrape.do)', { urls, options });
+    logger.info('Starting LeBonCoin scraper (queue mode)', { urls, options });
 
     for (const searchUrl of urls) {
       try {
@@ -26,26 +27,22 @@ export async function runLeBonCoinScraper(searchUrls, options = {}, progressCall
         await scrapeLeBonCoinStreaming(searchUrl, maxPages, async (pageListings, pageNum) => {
           if (pageListings.length === 0) return;
 
-          await saveRawListings(pageListings, SOURCE_PLATFORM);
-          const processResult = await processRawListings({
-            limit: pageListings.length + 100,
-            sourcePlatform: SOURCE_PLATFORM
-          });
-
+          const { added } = await addToQueue(pageListings);
           results.totalScraped += pageListings.length;
-          results.saved += (processResult.created || 0) + (processResult.updated || 0) + (processResult.sourceAdded || 0);
+          results.addedToQueue += added;
 
-          logger.info('LeBonCoin batch saved', {
+          logger.info('LeBonCoin batch added to queue', {
             page: pageNum,
             batchSize: pageListings.length,
+            added,
             totalScraped: results.totalScraped,
-            totalSaved: results.saved
+            totalInQueue: results.addedToQueue
           });
 
           if (progressCallback) {
             await progressCallback({
               totalScraped: results.totalScraped,
-              totalSaved: results.saved,
+              totalSaved: results.addedToQueue,
               status: 'RUNNING',
               processedUrls: results.processedUrls
             });
@@ -59,8 +56,8 @@ export async function runLeBonCoinScraper(searchUrls, options = {}, progressCall
       }
     }
 
-    logger.info('LeBonCoin scraper completed', results);
-    return { runId: null, totalScraped: results.totalScraped, saved: results.saved, processedUrls: results.processedUrls };
+    logger.info('LeBonCoin scraper completed (queue mode)', results);
+    return { runId: null, totalScraped: results.totalScraped, saved: results.addedToQueue, processedUrls: results.processedUrls };
   } catch (error) {
     logger.error('Error in LeBonCoin scraper', { error: error.message, stack: error.stack });
     throw error;
@@ -70,11 +67,12 @@ export async function runLeBonCoinScraper(searchUrls, options = {}, progressCall
 /**
  * Scrape LeBonCoin page-by-page, calling onPageDone(listings, pageNum) after each page.
  */
+/**
+ * Scrape LeBonCoin search pages only. Add stubs to queue; workers fetch details.
+ */
 async function scrapeLeBonCoinStreaming(baseUrl, maxPages, onPageDone) {
-  const pageConcurrency = parseInt(process.env.LEBONCOIN_CONCURRENT_PAGES || '8', 10) || 1;
-  const detailConcurrency = parseInt(process.env.LEBONCOIN_CONCURRENT_DETAILS || '8', 10) || 1;
-  const delayBetweenDetails = parseInt(process.env.LEBONCOIN_DELAY_DETAILS_MS || '150', 10) || 50;
-  const delayBetweenPages = parseInt(process.env.LEBONCOIN_DELAY_PAGES_MS || '700', 10) || 300;
+  const pageConcurrency = parseInt(process.env.LEBONCOIN_CONCURRENT_PAGES || '5', 10) || 1;
+  const delayBetweenPages = parseInt(process.env.LEBONCOIN_DELAY_PAGES_MS || '400', 10) || 300;
 
   for (let start = 1; start <= maxPages; start += pageConcurrency) {
     const pageNums = [];
@@ -82,18 +80,27 @@ async function scrapeLeBonCoinStreaming(baseUrl, maxPages, onPageDone) {
 
     const pageResults = await Promise.all(pageNums.map(async (page) => {
       const pageUrl = page === 1 ? baseUrl : (baseUrl.includes('?') ? `${baseUrl}&page=${page}` : `${baseUrl}?page=${page}`);
-      try {
-        let html = await fetchViaScrapeDo(pageUrl, { render: false, geoCode: 'fr' });
-        let listings = parseSearchPage(html);
-        if (listings.length === 0 && html?.length > 500) {
-          html = await fetchViaScrapeDo(pageUrl, { render: true, customWait: 2500, geoCode: 'fr' });
-          listings = parseSearchPage(html);
+      const maxRetries = 3;
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          let html = await fetchViaScrapeDo(pageUrl, { render: false, geoCode: 'fr', retries: 2 });
+          let listings = parseSearchPage(html);
+          if (listings.length === 0 && html?.length > 500) {
+            html = await fetchViaScrapeDo(pageUrl, { render: true, customWait: 2500, geoCode: 'fr', retries: 2 });
+            listings = parseSearchPage(html);
+          }
+          return { page, listings };
+        } catch (err) {
+          logger.warn('LeBonCoin search page fetch failed', { page, attempt, error: err.message });
+          if (attempt < maxRetries) {
+            await new Promise(r => setTimeout(r, 3000 * attempt));
+          } else {
+            logger.error('LeBonCoin search page fetch failed (final)', { page, error: err.message });
+            return { page, listings: [] };
+          }
         }
-        return { page, listings };
-      } catch (err) {
-        logger.error('LeBonCoin search page fetch failed', { page, error: err.message });
-        return { page, listings: [] };
       }
+      return { page, listings: [] };
     }));
 
     for (const { page, listings } of pageResults) {
@@ -104,24 +111,7 @@ async function scrapeLeBonCoinStreaming(baseUrl, maxPages, onPageDone) {
       if (listings.length === 0) continue;
 
       logger.info('LeBonCoin search page parsed', { page, found: listings.length });
-
-      const enriched = [];
-      for (let i = 0; i < listings.length; i += detailConcurrency) {
-        const chunk = listings.slice(i, i + detailConcurrency);
-        const chunkResults = await Promise.all(chunk.map(async (item) => {
-          try {
-            const details = await fetchListingDetails(item.url);
-            return details ? { ...item, ...details } : item;
-          } catch (err) {
-            logger.warn('LeBonCoin detail fetch failed', { url: item.url, error: err.message });
-            return item;
-          }
-        }));
-        enriched.push(...chunkResults);
-        await new Promise(r => setTimeout(r, delayBetweenDetails + Math.random() * 100));
-      }
-
-      await onPageDone(enriched, page);
+      await onPageDone(listings, page);
     }
     await new Promise(r => setTimeout(r, delayBetweenPages + Math.random() * 300));
   }
@@ -179,8 +169,9 @@ function parseSearchPage(html) {
 /**
  * Fetch and parse a LeBonCoin detail page for full specs.
  * Uses JSON-LD Vehicle schema + data-qa-id criteria items.
+ * Exported for use by leboncoin queue worker.
  */
-async function fetchListingDetails(listingUrl) {
+export async function fetchListingDetails(listingUrl) {
   const html = await fetchViaScrapeDo(listingUrl, { geoCode: 'fr' });
   const $ = cheerio.load(html);
   const data = {};

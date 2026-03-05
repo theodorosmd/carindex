@@ -204,65 +204,114 @@ async function upsertListingsBulk(listings, options = {}) {
   return results;
 }
 
+/** Batch prefetch: (platform, sourceId) -> listing_id from listing_sources + listings. Reduces N queries to ~1 per platform. */
+async function prefetchExistingSources(listings) {
+  const byPlatform = {};
+  for (const l of listings) {
+    const p = l.source_platform;
+    const s = String(l.source_listing_id);
+    if (!byPlatform[p]) byPlatform[p] = new Set();
+    byPlatform[p].add(s);
+  }
+  const map = new Map(); // key: `${platform}|${sourceId}` -> { listingId }
+  for (const [platform, ids] of Object.entries(byPlatform)) {
+    const idList = Array.from(ids);
+    for (let i = 0; i < idList.length; i += 500) {
+      const chunk = idList.slice(i, i + 500);
+      const { data: sources } = await supabase
+        .from('listing_sources')
+        .select('listing_id, source_listing_id')
+        .eq('source_platform', platform)
+        .in('source_listing_id', chunk);
+      (sources || []).forEach((r) => map.set(`${platform}|${r.source_listing_id}`, { listingId: r.listing_id }));
+    }
+    const { data: leg } = await supabase
+      .from('listings')
+      .select('id, source_listing_id')
+      .eq('source_platform', platform)
+      .in('source_listing_id', idList);
+    (leg || []).forEach((r) => {
+      const k = `${platform}|${r.source_listing_id}`;
+      if (!map.has(k)) map.set(k, { listingId: r.id });
+    });
+  }
+  return map;
+}
+
 export async function upsertListingsBatch(listings, options = {}) {
-  if (options.useBulkUpsert && listings.length > 1) {
+  const createOnly = options.createOnly === true || process.env.INGEST_CREATE_ONLY === 'true';
+  if (options.useBulkUpsert && listings.length > 1 && !createOnly) {
     return upsertListingsBulk(listings, options);
   }
 
   const results = {
     created: 0,
     updated: 0,
-    sourceAdded: 0, // new: added as extra source to existing listing
+    sourceAdded: 0,
+    skipped: 0,
     errors: 0,
     items: []
   };
 
+  const validListings = [];
   for (const input of listings) {
     try {
       const listing = normalizeListing(input);
       const missing = validateRequiredFields(listing, options);
       if (missing.length > 0) {
         results.errors += 1;
-        results.items.push({
-          source_platform: listing.source_platform,
-          source_listing_id: listing.source_listing_id,
-          status: 'error',
-          error: `Missing required fields: ${missing.join(', ')}`
-        });
+        results.items.push({ source_platform: listing.source_platform, source_listing_id: listing.source_listing_id, status: 'error', error: `Missing: ${missing.join(', ')}` });
         continue;
       }
-
       const fieldErrors = validateListingFields(listing);
       if (fieldErrors.length > 0) {
         results.errors += 1;
-        results.items.push({
-          source_platform: listing.source_platform,
-          source_listing_id: listing.source_listing_id,
-          status: 'error',
-          error: `Invalid fields: ${fieldErrors.join('; ')}`
-        });
+        results.items.push({ source_platform: listing.source_platform, source_listing_id: listing.source_listing_id, status: 'error', error: `Invalid: ${fieldErrors.join('; ')}` });
         continue;
       }
+      validListings.push(listing);
+    } catch {
+      results.errors += 1;
+    }
+  }
 
+  const existingMap = validListings.length > 10 ? await prefetchExistingSources(validListings) : null;
+
+  for (const listing of validListings) {
+    try {
       const platform = listing.source_platform;
-      const sourceId = listing.source_listing_id;
+      const sourceId = String(listing.source_listing_id);
 
-      // 1. Check listing_sources: same ad already linked?
-      let listingId = await getListingIdBySource(platform, sourceId);
-
-      // 2. Fallback: check listings directly (legacy / before migration)
-      if (!listingId) {
-        const { data: leg, error: legErr } = await supabase
-          .from('listings')
-          .select('id, price, first_seen')
-          .eq('source_platform', platform)
-          .eq('source_listing_id', sourceId)
-          .maybeSingle();
-        if (!legErr && leg) listingId = leg.id;
+      let listingId = null;
+      if (existingMap) {
+        const cached = existingMap.get(`${platform}|${sourceId}`);
+        if (cached) listingId = cached.listingId;
+      } else {
+        listingId = await getListingIdBySource(platform, sourceId);
+        if (!listingId) {
+          const { data: leg } = await supabase
+            .from('listings')
+            .select('id')
+            .eq('source_platform', platform)
+            .eq('source_listing_id', sourceId)
+            .maybeSingle();
+          if (leg) listingId = leg.id;
+        }
       }
 
       if (listingId) {
-        // Ad already exists – update listing
+        // Ad already exists
+        if (createOnly) {
+          results.skipped += 1;
+          results.items.push({
+            id: listingId,
+            source_platform: platform,
+            source_listing_id: sourceId,
+            status: 'skipped'
+          });
+          continue;
+        }
+        // Update listing
         const { data: existing } = await supabase
           .from('listings')
           .select('id, price, first_seen')
@@ -308,6 +357,16 @@ export async function upsertListingsBatch(listings, options = {}) {
       const fingerprintMatch = await findListingByFingerprint(listing, platform);
 
       if (fingerprintMatch) {
+        if (createOnly) {
+          results.skipped += 1;
+          results.items.push({
+            id: fingerprintMatch.id,
+            source_platform: platform,
+            source_listing_id: sourceId,
+            status: 'skipped'
+          });
+          continue;
+        }
         // Add this source to the existing listing
         const added = await upsertListingSource(
           fingerprintMatch.id,
@@ -385,8 +444,8 @@ export async function upsertListingsBatch(listings, options = {}) {
     } catch (error) {
       results.errors += 1;
       results.items.push({
-        source_platform: input?.source_platform,
-        source_listing_id: input?.source_listing_id,
+        source_platform: listing?.source_platform,
+        source_listing_id: listing?.source_listing_id,
         status: 'error',
         error: error.message
       });

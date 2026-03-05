@@ -65,7 +65,10 @@ export async function fetchViaScrapeDo(targetUrl, {
 
       return await resp.text();
     } catch (err) {
-      if (attempt < retries && (err.message.includes('502') || err.message.includes('ECONNRESET'))) {
+      const isRetryable = err.message.includes('502') || err.message.includes('ECONNRESET') ||
+        err.message.includes('fetch failed') || err.message.includes('ECONNREFUSED') ||
+        err.message.includes('ETIMEDOUT') || err.message.includes('ENOTFOUND');
+      if (attempt < retries && isRetryable) {
         logger.warn('scrape.do fetch error, retrying', { attempt, error: err.message });
         await new Promise(r => setTimeout(r, 5000 * attempt));
         continue;

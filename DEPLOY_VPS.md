@@ -101,8 +101,7 @@ PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 Optionnel (pour que le VPS ne fasse que le scraping) :
 
 ```env
-ENABLE_DAILY_SCRAPING=false
-ENABLE_AUTO_SCRAPERS=false
+ENABLE_CONTINUOUS_SCRAPING=true   # run-all-scrapers-full en boucle (seul système de scraping)
 ENABLE_IMAGE_BACKFILL=false
 ENABLE_ARBITRAGE_DETECTION=false
 ENABLE_DJANGO_IMPORT=false
@@ -176,6 +175,23 @@ pm2 start ecosystem.config.cjs
 ```bash
 pm2 scale carindex-mobilede-worker 10   # 10 workers
 ```
+
+### Worker queue Leboncoin (~300k véhicules en quelques jours)
+
+Pour traiter la queue `leboncoin_fetch_queue` et atteindre le débit d'Oleg (300k+ en quelques jours) :
+
+```bash
+pm2 start ecosystem.config.cjs --only carindex-leboncoin-worker
+# ou tout : pm2 start ecosystem.config.cjs
+```
+
+**20 workers** par défaut (ecosystem.config.cjs). Pour augmenter :
+
+```bash
+pm2 scale carindex-leboncoin-worker 30   # 30 workers
+```
+
+Variables optionnelles : `LEBONCOIN_QUEUE_DELAY_MS=200`, `LEBONCOIN_CONCURRENT_PAGES=5`, `LEBONCOIN_DELAY_PAGES_MS=400`.
 
 ### Commandes utiles
 

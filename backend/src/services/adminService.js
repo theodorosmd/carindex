@@ -365,6 +365,16 @@ export async function getScraperDashboardStats() {
       .select('*', { count: 'exact', head: true })
       .eq('status', 'processing'));
 
+    // 4b. leboncoin_fetch_queue - URLs en attente + en cours
+    const leboncoinQueuePending = await safeCount('leboncoin_fetch_queue', supabase
+      .from('leboncoin_fetch_queue')
+      .select('*', { count: 'exact', head: true })
+      .in('status', ['pending', 'retry']));
+    const leboncoinQueueProcessing = await safeCount('leboncoin_fetch_queue', supabase
+      .from('leboncoin_fetch_queue')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'processing'));
+
     // 5. Site totals (total vehicles available on each marketplace, for % scraped)
     const siteTotalsData = await safeSelect('source_site_totals', supabase
       .from('source_site_totals')
@@ -417,6 +427,7 @@ export async function getScraperDashboardStats() {
       const lastRun = lastRunBySource[source] || lastRunBySource[normalizeForLookup(source)] || null;
       const lastSuccess = lastSuccessBySource[source] || lastSuccessBySource[normalizeForLookup(source)] || null;
       const isMobileDe = source === 'mobile.de' || normalizeForLookup(source) === 'mobile.de';
+      const isLeboncoin = source === 'leboncoin';
       const siteTotal = siteTotalsBySource[source] || null;
       const listingsTotal = listingsBySource[source] || 0;
       const totalSaved30d = savedBySource[source] || savedBySource[normalizeForLookup(source)] || 0;
@@ -441,8 +452,8 @@ export async function getScraperDashboardStats() {
         runs_pending: runs.pending,
         runs_failed: runs.failed,
         raw_pending: rawPendingBySource[source] || 0,
-        queue_urls_pending: isMobileDe ? mobiledeQueuePending : 0,
-        queue_urls_processing: isMobileDe ? mobiledeQueueProcessing : 0,
+        queue_urls_pending: isMobileDe ? mobiledeQueuePending : (isLeboncoin ? leboncoinQueuePending : 0),
+        queue_urls_processing: isMobileDe ? mobiledeQueueProcessing : (isLeboncoin ? leboncoinQueueProcessing : 0),
         listings_total: listingsTotal,
         site_total_available: siteTotal,
         last_run: lastRun,

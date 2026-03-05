@@ -36,5 +36,17 @@ module.exports = {
       restart_delay: 3000,
       max_restarts: 9999,
     },
+    {
+      name: 'carindex-leboncoin-worker',
+      script: 'src/scripts/run-leboncoin-queue-worker.js',
+      cwd: __dirname,
+      node_args: '-r dotenv/config',
+      instances: 20,  // 20 workers pour ~300k/jour (Oleg: 300k en qq jours)
+      exec_mode: 'fork',
+      env: { NODE_ENV: 'production' },
+      max_memory_restart: '500M',
+      restart_delay: 3000,
+      max_restarts: 9999,
+    },
   ],
 };
