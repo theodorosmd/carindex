@@ -54,7 +54,9 @@ async function runSourceScraper(source, searchUrls) {
       return runSubitoScraper(urls, opts);
     case 'blocket': {
       const { runBlocketScraper } = await import('../services/blocketService.js');
-      return runBlocketScraper(urls, opts);
+      // Cap at 30 pages per cycle: watermark stops early once listings are known
+      const blocketOpts = { ...opts, maxPages: parseInt(process.env.BLOCKET_MAX_PAGES || '30', 10) };
+      return runBlocketScraper(urls, blocketOpts);
     }
     case 'bilweb': {
       const { runBilwebScraper } = await import('../services/bilwebService.js');
