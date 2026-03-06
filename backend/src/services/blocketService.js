@@ -404,9 +404,10 @@ async function fetchBlocketListingDetails(browser, listingUrl) {
 async function scrapeBlocketSearchViaScraper(pageUrl) {
   if (!isScrapeDoAvailable()) return [];
   try {
-    let html = await fetchViaScrapeDo(pageUrl, { render: false, geoCode: 'se' });
+    // Blocket is a SPA — render=false never returns listings, go straight to render=true
+    const html = await fetchViaScrapeDo(pageUrl, { render: true, customWait: 4000, geoCode: 'se', retries: 1 });
     const $ = cheerio.load(html);
-    let listings = [];
+    const listings = [];
     const seen = new Set();
 
     $('a[href*="/mobility/item/"]').each((_, a) => {
@@ -434,33 +435,6 @@ async function scrapeBlocketSearchViaScraper(pageUrl) {
         year: yearMatch ? parseInt(yearMatch[0], 10) : null,
       });
     });
-    if (listings.length === 0 && html?.length > 500) {
-      html = await fetchViaScrapeDo(pageUrl, { render: true, customWait: 4000, geoCode: 'se' });
-      const $2 = cheerio.load(html);
-      listings = [];
-      $2('a[href*="/mobility/item/"]').each((_, a) => {
-        const href = $2(a).attr('href');
-        const idMatch = href?.match(/\/item\/(\d+)/);
-        if (!idMatch || listings.some((l) => l.id === idMatch[1])) return;
-        const card = $2(a).closest('.mobility-search-ad-card-content') || $2(a).closest('div');
-        const text = card.text() || $2(a).text();
-        const title = card.find('h2').first().text().trim() || $2(a).text().trim();
-        const priceMatch = text.match(/([\d\s]+)\s*kr/);
-        const yearMatch = text.match(/\b(19|20)\d{2}\b/);
-        const milMatch = text.match(/([\d\s\u00a0]+)\s*mil\b/);
-        const parts = title.split(/\s+/);
-        listings.push({
-          url: href.startsWith('http') ? href : `https://www.blocket.se${href}`,
-          id: idMatch[1],
-          brand: parts[0] || null,
-          model: parts.slice(1).join(' ') || null,
-          title,
-          price: priceMatch ? parseInt(priceMatch[1].replace(/[\s\u00a0]/g, ''), 10) : null,
-          mileageMil: milMatch ? parseInt(milMatch[1].replace(/[\s\u00a0]/g, ''), 10) : null,
-          year: yearMatch ? parseInt(yearMatch[0], 10) : null,
-        });
-      });
-    }
     return listings;
   } catch (err) {
     logger.warn('scrape.do search fallback failed for Blocket', { error: err.message });
@@ -472,7 +446,7 @@ async function fetchBlocketDetailViaScraper(listingUrl) {
   if (!isScrapeDoAvailable()) return null;
 
   try {
-    const html = await fetchViaScrapeDo(listingUrl, { geoCode: 'se' });
+    const html = await fetchViaScrapeDo(listingUrl, { geoCode: 'se', retries: 1 });
     const $ = cheerio.load(html);
     const data = {};
 
