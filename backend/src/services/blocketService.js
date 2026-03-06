@@ -41,6 +41,7 @@ export async function runBlocketScraper(searchUrls, options = {}, progressCallba
               const scraped = await scrapeBlocketSearchViaScraper(pageUrl);
               return { pageNum, scraped };
             }));
+            let batchNewCount = 0;
             for (const { pageNum, scraped } of pageResults) {
               if (scraped.length === 0 && pageNum === start) { shouldStop = true; break; }
               if (scraped.length === 0) continue;
@@ -58,9 +59,16 @@ export async function runBlocketScraper(searchUrls, options = {}, progressCallba
               }
               await saveRawListings(enriched, SOURCE_PLATFORM);
               const processResult = await processRawListings({ limit: enriched.length + 100, sourcePlatform: SOURCE_PLATFORM });
+              const newCount = (processResult.created || 0) + (processResult.updated || 0) + (processResult.sourceAdded || 0);
               results.totalScraped += enriched.length;
-              results.saved += (processResult.created || 0) + (processResult.updated || 0) + (processResult.sourceAdded || 0);
+              results.saved += newCount;
+              batchNewCount += newCount;
               if (progressCallback) await progressCallback({ totalScraped: results.totalScraped, totalSaved: results.saved, status: 'RUNNING', processedUrls: results.processedUrls });
+            }
+            // Watermark early stop: if entire batch had no new listings, all known
+            if (batchNewCount === 0 && pageResults.some((r) => r.scraped.length > 0)) {
+              logger.info('blocket: watermark reached, stopping early', { page: start });
+              shouldStop = true;
             }
             if (pageResults[0]?.scraped?.length === 0) shouldStop = true;
             await new Promise(r => setTimeout(r, 1000));
