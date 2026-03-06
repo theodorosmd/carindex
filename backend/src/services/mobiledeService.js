@@ -311,7 +311,9 @@ function extractFromInitialState(html) {
   if (!jsonStr || jsonStr.length < 100) return null;
   try {
     const state = JSON.parse(jsonStr);
-    const items = state?.search?.srp?.data?.searchResults?.items;
+    // Try both known paths (mobile.de restructured their state in early 2026)
+    const items = state?.search?.srp?.data?.searchResults?.items
+      ?? state?.srp?.data?.searchResults?.items;
     if (!Array.isArray(items)) return null;
     const listings = [];
     const seen = new Set();
