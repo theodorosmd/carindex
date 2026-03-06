@@ -397,23 +397,27 @@ function parseListingsFromHtml(html) {
 async function scrapeMobileDeSearchViaScraper(pageUrl) {
   if (!isScrapeDoAvailable()) return [];
   const opts = { geoCode: 'de', superProxy: true };
+  let html = null;
   try {
     // 1. Try without render first (Oleg approach - __INITIAL_STATE__ is in initial HTML, faster & cheaper)
-    let html = await fetchViaScrapeDo(pageUrl, { ...opts, render: false });
+    html = await fetchViaScrapeDo(pageUrl, { ...opts, render: false });
+  } catch (err) {
+    logger.debug('mobile.de: render=false failed, falling back to render=true', { error: err.message });
+  }
+
+  try {
+    // 2. If render=false failed or returned no data, try render=true
+    if (!html || html.length < 500) {
+      logger.debug('mobile.de: trying with render=true', { url: pageUrl });
+      html = await fetchViaScrapeDo(pageUrl, { ...opts, render: true, customWait: 6000 });
+    }
+
     let listings = extractFromInitialState(html);
     if (listings && listings.length > 0) {
-      logger.debug('mobile.de: extracted from __INITIAL_STATE__ (no render)', { count: listings.length });
+      logger.debug('mobile.de: extracted from __INITIAL_STATE__', { count: listings.length });
       return listings;
     }
     listings = parseListingsFromHtml(html);
-    if (listings.length > 0) return listings;
-
-    // 2. Fallback: render=true if blocked or empty (anti-bot may not serve JSON without JS)
-    if (html && html.length > 500) {
-      logger.debug('mobile.de: trying with render=true', { url: pageUrl });
-      html = await fetchViaScrapeDo(pageUrl, { ...opts, render: true, customWait: 6000 });
-      listings = extractFromInitialState(html) || parseListingsFromHtml(html);
-    }
     return listings || [];
   } catch (err) {
     logger.warn('scrape.do search failed for mobile.de', { error: err.message, url: pageUrl });
