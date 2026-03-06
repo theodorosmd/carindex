@@ -93,6 +93,9 @@ export function startCronJobs() {
     startArbitrageDetectionJob();
   }
 
+  // listing_stats_cache is kept up-to-date by DB triggers (trg_listing_stats_cache).
+  // No backend cron needed — avoids full table scans and Disk IO spikes.
+
   // Also run immediately on startup (optional, for testing)
   if (process.env.RUN_ALERTS_ON_STARTUP === 'true') {
     logger.info('Running initial alert check on startup...');

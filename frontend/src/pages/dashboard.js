@@ -308,7 +308,13 @@ async function loadDashboardData() {
     
     const searchesProgress = stats.searches.limit === -1 ? 0 : 
       Math.min(100, (stats.searches.count / stats.searches.limit) * 100)
-    document.getElementById('searches-progress').style.width = searchesProgress + '%'
+    const searchesProgressEl = document.getElementById('searches-progress')
+    searchesProgressEl.style.width = searchesProgress + '%'
+    if (searchesProgress >= 90) {
+      searchesProgressEl.classList.replace('bg-blue-600', 'bg-red-500')
+    } else if (searchesProgress >= 70) {
+      searchesProgressEl.classList.replace('bg-blue-600', 'bg-orange-400')
+    }
 
     document.getElementById('alerts-count').textContent = stats.alerts.count
     document.getElementById('alerts-limit').textContent = 
@@ -316,7 +322,13 @@ async function loadDashboardData() {
     
     const alertsProgress = stats.alerts.limit === -1 ? 0 : 
       Math.min(100, (stats.alerts.count / stats.alerts.limit) * 100)
-    document.getElementById('alerts-progress').style.width = alertsProgress + '%'
+    const alertsProgressEl = document.getElementById('alerts-progress')
+    alertsProgressEl.style.width = alertsProgress + '%'
+    if (alertsProgress >= 90) {
+      alertsProgressEl.classList.replace('bg-green-600', 'bg-red-500')
+    } else if (alertsProgress >= 70) {
+      alertsProgressEl.classList.replace('bg-green-600', 'bg-orange-400')
+    }
 
     const planNames = {
       starter: 'Starter',
@@ -324,6 +336,52 @@ async function loadDashboardData() {
       plus: 'Plus'
     }
     document.getElementById('plan-name').textContent = planNames[stats.plan] || stats.plan
+
+    // Show upgrade banner if any limit is reached (starter plan only)
+    const searchesAtLimit = stats.searches.limit !== -1 && stats.searches.remaining === 0
+    const alertsAtLimit = stats.alerts.limit !== -1 && stats.alerts.remaining === 0
+    if (searchesAtLimit || alertsAtLimit) {
+      const limitType = searchesAtLimit && alertsAtLimit
+        ? tr('searches and alerts', 'recherches et alertes')
+        : searchesAtLimit
+          ? tr('searches', 'recherches')
+          : tr('alerts', 'alertes')
+      const bannerHtml = `
+        <div id="upgrade-banner" class="bg-amber-50 border border-amber-300 rounded-xl px-5 py-4 mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div class="flex items-start gap-3">
+            <svg class="w-6 h-6 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"></path>
+            </svg>
+            <div>
+              <p class="font-semibold text-amber-900">${tr("You've reached your Starter plan limit", "Vous avez atteint la limite de votre plan Starter")}</p>
+              <p class="text-sm text-amber-700 mt-0.5">${tr(`Your monthly ${limitType} quota is used up. Upgrade to Pro for unlimited ${limitType}.`, `Votre quota mensuel de ${limitType} est épuisé. Passez en Pro pour des ${limitType} illimitées.`)}</p>
+            </div>
+          </div>
+          <a href="#/pricing" class="flex-shrink-0 inline-flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white font-semibold px-4 py-2 rounded-lg transition text-sm">
+            ${tr('Upgrade to Pro', 'Passer en Pro')}
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path></svg>
+          </a>
+        </div>`
+      dashboardContent.insertAdjacentHTML('afterbegin', bannerHtml)
+    } else if (searchesProgress >= 80 || alertsProgress >= 80) {
+      // Warning banner when nearing limit (>80%)
+      const bannerHtml = `
+        <div id="upgrade-banner" class="bg-orange-50 border border-orange-200 rounded-xl px-5 py-4 mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div class="flex items-start gap-3">
+            <svg class="w-6 h-6 text-orange-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"></path>
+            </svg>
+            <p class="text-sm text-orange-800">
+              <span class="font-semibold">${tr("You're nearing your Starter plan limit.", "Vous approchez de la limite de votre plan Starter.")}</span>
+              ${tr(' Upgrade to Pro for unlimited access.', ' Passez en Pro pour un accès illimité.')}
+            </p>
+          </div>
+          <a href="#/pricing" class="flex-shrink-0 text-sm font-semibold text-orange-600 hover:text-orange-700 whitespace-nowrap">
+            ${tr('View plans →', 'Voir les plans →')}
+          </a>
+        </div>`
+      dashboardContent.insertAdjacentHTML('afterbegin', bannerHtml)
+    }
 
     // Load recent searches
     const searchesResponse = await fetch('/api/v1/dashboard/recent-searches', {

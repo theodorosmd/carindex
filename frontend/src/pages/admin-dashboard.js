@@ -186,6 +186,7 @@ export async function renderAdminDashboard() {
               </div>
               <div class="text-2xl sm:text-3xl font-bold text-gray-900" id="total-listings">-</div>
               <div class="text-xs sm:text-sm text-gray-500 mt-1 sm:mt-2" id="active-listings">Active: -</div>
+              <div class="text-xs text-gray-400 mt-1" id="listings-cache-time"></div>
             </div>
 
             <!-- Total Alerts -->
@@ -227,6 +228,25 @@ export async function renderAdminDashboard() {
             </div>
             <p class="text-xs sm:text-sm text-gray-600 mb-4 sm:mb-6">Overview of runs, crons, and statuses (OK / pending / error) per site</p>
             <div id="scraper-dashboard-content" class="space-y-6">
+              <div class="text-center py-8 text-gray-500">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <p class="mt-2">Loading...</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Plan Usage Monitoring -->
+          <div class="bg-white rounded-lg sm:rounded-xl shadow-lg p-4 sm:p-6 mb-6 sm:mb-8">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6 gap-2">
+              <div>
+                <h2 class="text-lg sm:text-xl font-bold text-gray-900">Plan Usage</h2>
+                <p class="text-sm text-gray-500 mt-0.5">Users at ≥80% of their plan quota this month</p>
+              </div>
+              <button onclick="loadUsageMonitoring()" class="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium whitespace-nowrap">
+                Refresh
+              </button>
+            </div>
+            <div id="usage-monitoring-content">
               <div class="text-center py-8 text-gray-500">
                 <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                 <p class="mt-2">Loading...</p>
@@ -734,6 +754,7 @@ export async function renderAdminDashboard() {
   loadAdminData()
   loadUsers()
   loadScraperDashboard()
+  loadUsageMonitoring()
   loadAutoScrapers()
   loadScraperRuns()
   
@@ -880,6 +901,11 @@ async function loadAdminData() {
     if (recentUsersEl) recentUsersEl.textContent = `New (7d): ${stats.users.recent.toLocaleString('en-US')}`
     if (totalListingsEl) totalListingsEl.textContent = stats.listings.total.toLocaleString('en-US')
     if (activeListingsEl) activeListingsEl.textContent = `Active: ${stats.listings.active.toLocaleString('en-US')}`
+    const cacheTimeEl = document.getElementById('listings-cache-time')
+    if (cacheTimeEl && stats.listings.cache_updated_at) {
+      const age = Math.round((Date.now() - new Date(stats.listings.cache_updated_at)) / 60000)
+      cacheTimeEl.textContent = age < 2 ? 'Updated just now' : `Updated ${age}m ago`
+    }
     if (totalAlertsEl) totalAlertsEl.textContent = stats.alerts.total.toLocaleString('en-US')
     if (activeAlertsEl) activeAlertsEl.textContent = `Active: ${stats.alerts.active.toLocaleString('en-US')}`
 
@@ -1399,6 +1425,94 @@ async function loadScraperDashboard() {
 }
 
 window.loadScraperDashboard = loadScraperDashboard
+
+async function loadUsageMonitoring() {
+  const container = document.getElementById('usage-monitoring-content')
+  if (!container) return
+  const token = getAuthToken()
+  if (!token) return
+
+  try {
+    const response = await fetch('/api/v1/admin/users/near-limits?threshold=80', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    const data = await response.json()
+    const users = data.users || []
+
+    if (users.length === 0) {
+      container.innerHTML = `
+        <div class="text-center py-8 text-gray-500">
+          <svg class="mx-auto h-10 w-10 text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+          <p class="font-medium">No users near their plan limits</p>
+          <p class="text-sm mt-1">All users are below 80% of their quota this month.</p>
+        </div>`
+      return
+    }
+
+    const planColors = { starter: 'bg-gray-100 text-gray-700', pro: 'bg-blue-100 text-blue-700', plus: 'bg-purple-100 text-purple-700' }
+    const pctColor = (pct) => pct >= 100 ? 'text-red-600 font-bold' : pct >= 80 ? 'text-orange-500 font-semibold' : 'text-gray-600'
+    const barColor = (pct) => pct >= 100 ? 'bg-red-500' : pct >= 80 ? 'bg-orange-400' : 'bg-blue-500'
+
+    container.innerHTML = `
+      <div class="overflow-x-auto -mx-4 sm:mx-0">
+        <table class="min-w-full divide-y divide-gray-200 text-sm">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Plan</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Searches (this month)</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Alerts (active)</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Peak usage</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-100">
+            ${users.map(u => {
+              const planBadge = planColors[u.plan] || 'bg-gray-100 text-gray-700'
+              const searchLimit = u.searches.limit === -1 ? '∞' : u.searches.limit
+              const alertLimit = u.alerts.limit === -1 ? '∞' : u.alerts.limit
+              return `
+                <tr class="hover:bg-gray-50">
+                  <td class="px-4 py-3 font-medium text-gray-900 max-w-xs truncate">${u.email}</td>
+                  <td class="px-4 py-3"><span class="px-2 py-0.5 rounded-full text-xs font-medium capitalize ${planBadge}">${u.plan}</span></td>
+                  <td class="px-4 py-3">
+                    <div class="flex items-center gap-2">
+                      <span class="${pctColor(u.searches.pct)}">${u.searches.count} / ${searchLimit}</span>
+                      <div class="flex-1 max-w-24 bg-gray-200 rounded-full h-1.5">
+                        <div class="${barColor(u.searches.pct)} h-1.5 rounded-full" style="width:${Math.min(100, u.searches.pct)}%"></div>
+                      </div>
+                      <span class="text-xs text-gray-400">${u.searches.pct}%</span>
+                    </div>
+                  </td>
+                  <td class="px-4 py-3">
+                    <div class="flex items-center gap-2">
+                      <span class="${pctColor(u.alerts.pct)}">${u.alerts.count} / ${alertLimit}</span>
+                      <div class="flex-1 max-w-24 bg-gray-200 rounded-full h-1.5">
+                        <div class="${barColor(u.alerts.pct)} h-1.5 rounded-full" style="width:${Math.min(100, u.alerts.pct)}%"></div>
+                      </div>
+                      <span class="text-xs text-gray-400">${u.alerts.pct}%</span>
+                    </div>
+                  </td>
+                  <td class="px-4 py-3"><span class="${pctColor(u.max_usage_pct)} text-base">${u.max_usage_pct}%</span></td>
+                </tr>`
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+      <p class="text-xs text-gray-400 mt-3">Showing ${users.length} user${users.length !== 1 ? 's' : ''} at ≥80% of plan quota.</p>`
+  } catch (error) {
+    console.error('Error loading usage monitoring:', error)
+    container.innerHTML = `
+      <div class="text-center py-6 text-red-500 text-sm">
+        <p>Failed to load usage data.</p>
+        <button onclick="loadUsageMonitoring()" class="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm">Retry</button>
+      </div>`
+  }
+}
+
+window.loadUsageMonitoring = loadUsageMonitoring
 
 async function toggleScraperPause(id, currentEnabled) {
   const token = getAuthToken()

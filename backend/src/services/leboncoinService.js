@@ -25,7 +25,7 @@ export async function runLeBonCoinScraper(searchUrls, options = {}, progressCall
         logger.info('Scraping LeBonCoin URL', { url: searchUrl });
 
         await scrapeLeBonCoinStreaming(searchUrl, maxPages, async (pageListings, pageNum) => {
-          if (pageListings.length === 0) return;
+          if (pageListings.length === 0) return { added: 0 };
 
           const { added } = await addToQueue(pageListings);
           results.totalScraped += pageListings.length;
@@ -47,6 +47,7 @@ export async function runLeBonCoinScraper(searchUrls, options = {}, progressCall
               processedUrls: results.processedUrls
             });
           }
+          return { added };
         });
 
         results.processedUrls.push(searchUrl);
@@ -73,6 +74,8 @@ export async function runLeBonCoinScraper(searchUrls, options = {}, progressCall
 async function scrapeLeBonCoinStreaming(baseUrl, maxPages, onPageDone) {
   const pageConcurrency = parseInt(process.env.LEBONCOIN_CONCURRENT_PAGES || '5', 10) || 1;
   const delayBetweenPages = parseInt(process.env.LEBONCOIN_DELAY_PAGES_MS || '400', 10) || 300;
+  let consecutiveZeroBatches = 0;
+  const STOP_AFTER = 2; // 2 consecutive all-skip batches = watermark confirmed
 
   for (let start = 1; start <= maxPages; start += pageConcurrency) {
     const pageNums = [];
@@ -103,6 +106,7 @@ async function scrapeLeBonCoinStreaming(baseUrl, maxPages, onPageDone) {
       return { page, listings: [] };
     }));
 
+    let batchAdded = 0;
     for (const { page, listings } of pageResults) {
       if (listings.length === 0 && page === start) {
         logger.info('LeBonCoin no more listings found, stopping', { page });
@@ -111,8 +115,19 @@ async function scrapeLeBonCoinStreaming(baseUrl, maxPages, onPageDone) {
       if (listings.length === 0) continue;
 
       logger.info('LeBonCoin search page parsed', { page, found: listings.length });
-      await onPageDone(listings, page);
+      const result = await onPageDone(listings, page);
+      batchAdded += result?.added ?? 0;
     }
+
+    if (batchAdded === 0) {
+      if (++consecutiveZeroBatches >= STOP_AFTER) {
+        logger.info('LeBonCoin: watermark reached, stopping early', { page: start });
+        return;
+      }
+    } else {
+      consecutiveZeroBatches = 0;
+    }
+
     await new Promise(r => setTimeout(r, delayBetweenPages + Math.random() * 300));
   }
 }

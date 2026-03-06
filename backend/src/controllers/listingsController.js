@@ -1,6 +1,7 @@
 import { searchListingsService, getListingByIdService } from '../services/listingsService.js';
 import { getPriceHistory } from '../services/priceHistoryService.js';
 import { logger } from '../utils/logger.js';
+import { supabase } from '../config/supabase.js';
 
 export async function searchListings(req, res, next) {
   try {
@@ -75,6 +76,33 @@ export async function searchListings(req, res, next) {
     }, userPlan);
 
     res.json(result);
+
+    // Fire-and-forget: track search usage for authenticated users
+    if (req.user?.id) {
+      supabase.from('user_searches').insert({
+        user_id: req.user.id,
+        search_criteria: {
+          query: searchQuery,
+          brand,
+          model,
+          min_price,
+          max_price,
+          min_year,
+          max_year,
+          min_mileage,
+          max_mileage,
+          country,
+          fuel_type,
+          transmission,
+          sort
+        },
+        results_count: result.total ?? result.listings?.length ?? 0
+      }).then(({ error: insertError }) => {
+        if (insertError) {
+          logger.warn('Failed to track user search', { error: insertError.message, userId: req.user.id });
+        }
+      });
+    }
   } catch (error) {
     logger.error('Error searching listings', { error: error.message });
     next(error);

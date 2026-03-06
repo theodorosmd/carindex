@@ -236,8 +236,13 @@ async function fetchBytbilListingDetails(browser, listingUrl) {
     return details;
 
   } catch (error) {
-    logger.warn('Puppeteer failed for Bytbil detail, trying scrape.do', { url: listingUrl, error: error.message });
     await page.close();
+    const is404 = error.message?.includes('404') || error.message?.includes('net::ERR_ABORTED');
+    if (is404) {
+      logger.info('Bytbil detail 404 — listing deleted, skipping scrape.do', { url: listingUrl });
+      return null;
+    }
+    logger.warn('Puppeteer failed for Bytbil detail, trying scrape.do', { url: listingUrl, error: error.message });
     return fetchBytbilDetailViaScraper(listingUrl);
   }
 }

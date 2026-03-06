@@ -1,4 +1,4 @@
-import { getAdminStats, getScraperDashboardStats, getAllUsers, updateUserRole, updateUserPlan } from '../services/adminService.js';
+import { getAdminStats, getScraperDashboardStats, getAllUsers, updateUserRole, updateUserPlan, getUsersNearLimits, refreshListingStatsCache } from '../services/adminService.js';
 import { exportListingsCsvService } from '../services/listingsService.js';
 import { logger } from '../utils/logger.js';
 
@@ -129,6 +129,21 @@ export async function updatePlan(req, res, next) {
 }
 
 /**
+ * Get users near their plan limits
+ * GET /api/v1/admin/users/near-limits?threshold=80
+ */
+export async function getUsersNearLimitsController(req, res, next) {
+  try {
+    const threshold = parseInt(req.query.threshold) || 80;
+    const users = await getUsersNearLimits(threshold);
+    res.json({ success: true, users });
+  } catch (error) {
+    logger.error('Error in admin users near-limits route', { error: error.message });
+    next(error);
+  }
+}
+
+/**
  * Export listings as CSV (admin only)
  * GET /api/v1/admin/listings/export/csv
  */
@@ -252,6 +267,20 @@ export async function exportListingsCsv(req, res, next) {
     res.status(200).send(csv);
   } catch (error) {
     logger.error('Error exporting listings csv', { error: error.message });
+    next(error);
+  }
+}
+
+/**
+ * Refresh listing stats cache
+ * POST /api/v1/admin/listings/stats/refresh
+ */
+export async function refreshListingsStatsCache(req, res, next) {
+  try {
+    await refreshListingStatsCache();
+    res.json({ success: true, message: 'Listing stats cache refreshed' });
+  } catch (error) {
+    logger.error('Error refreshing listing stats cache', { error: error.message });
     next(error);
   }
 }

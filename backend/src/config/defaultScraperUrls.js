@@ -14,11 +14,10 @@ export const DEFAULT_SCRAPER_URLS = {
     'https://www.autoscout24.lu/lst?sort=standard&desc=0&offer=U&ustate=N%2CU&atype=C'
   ],
   'mobile.de': [
-    'https://suchen.mobile.de/fahrzeuge/search.html?isSearchRequest=true&s=Car&vc=Car'
+    'https://suchen.mobile.de/fahrzeuge/search.html?isSearchRequest=true&s=Car&vc=Car&sortOption.0.sortBy=creationTime&sortOption.0.order=DESCENDING'
   ],
   leboncoin: [
-    'https://www.leboncoin.fr/recherche?category=2&sort=time&order=desc',
-    'https://www.leboncoin.fr/c/voitures'
+    'https://www.leboncoin.fr/recherche?category=2&sort=time&order=desc'
   ],
   largus: [
     'https://occasion.largus.fr/auto/?npp=15'

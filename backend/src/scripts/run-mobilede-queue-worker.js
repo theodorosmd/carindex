@@ -60,13 +60,25 @@ async function processOne(workerId) {
     return { processed: 1, saved: totalSaved };
   } catch (err) {
     logger.error('mobilede-queue: process failed', { url: item.url, error: err.message });
-    const retryCount = 1;
-    const nextRetry = new Date(Date.now() + 60 * 1000).toISOString();
-    await releaseItem(item.id, 'retry', {
-      retryCount,
-      nextRetryAt: nextRetry,
-      lastError: err.message,
-    });
+
+    // 410 = listing deleted on mobile.de — mark as gone, never retry
+    const is410 = err.message?.includes('scrape.do 410') || err.message?.includes('410:');
+    if (is410) {
+      await releaseItem(item.id, 'gone', { lastError: err.message });
+      return { processed: 1, saved: 0, gone: true };
+    }
+
+    const retryCount = (item.retry_count || 0) + 1;
+    if (retryCount >= MAX_RETRIES) {
+      await releaseItem(item.id, 'error', { retryCount, lastError: err.message });
+    } else {
+      const nextRetry = new Date(Date.now() + 60_000 * retryCount).toISOString();
+      await releaseItem(item.id, 'retry', {
+        retryCount,
+        nextRetryAt: nextRetry,
+        lastError: err.message,
+      });
+    }
     return { processed: 1, saved: 0, error: err.message };
   }
 }

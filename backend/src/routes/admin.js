@@ -2,7 +2,7 @@ import express from 'express';
 import { body } from 'express-validator';
 import { requireAdmin } from '../middleware/adminAuth.js';
 import { validateRequest } from '../middleware/validateRequest.js';
-import { getStats, getScraperDashboard, getUsers, updateRole, updatePlan, exportListingsCsv } from '../controllers/adminController.js';
+import { getStats, getScraperDashboard, getUsers, updateRole, updatePlan, exportListingsCsv, getUsersNearLimitsController, refreshListingsStatsCache } from '../controllers/adminController.js';
 import {
   getAutoScrapers,
   getAutoScraper,
@@ -39,6 +39,12 @@ router.get('/scraper-dashboard', getScraperDashboard);
 router.get('/users', getUsers);
 
 /**
+ * Get users near their plan limits
+ * GET /api/v1/admin/users/near-limits
+ */
+router.get('/users/near-limits', getUsersNearLimitsController);
+
+/**
  * Update user role
  * PATCH /api/v1/admin/users/:userId/role
  */
@@ -69,6 +75,12 @@ router.patch('/users/:userId/plan', planValidation, updatePlan);
  * GET /api/v1/admin/listings/export/csv
  */
 router.get('/listings/export/csv', exportListingsCsv);
+
+/**
+ * Refresh listing stats cache (call from VPS scraper after each batch)
+ * POST /api/v1/admin/listings/stats/refresh
+ */
+router.post('/listings/stats/refresh', refreshListingsStatsCache);
 
 /**
  * Auto Scrapers routes

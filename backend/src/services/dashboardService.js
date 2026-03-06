@@ -1,5 +1,6 @@
 import { supabase } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
+import { PLAN_LIMITS, getPlanLimits } from '../middleware/planLimits.js';
 
 /**
  * Get user statistics
@@ -18,24 +19,7 @@ export async function getUserStats(userId) {
     }
 
     const plan = user.plan || 'starter';
-
-    // Define plan limits
-    const planLimits = {
-      starter: {
-        searches_per_month: 200,
-        alerts_active: 10
-      },
-      pro: {
-        searches_per_month: -1, // unlimited
-        alerts_active: 50
-      },
-      plus: {
-        searches_per_month: -1, // unlimited
-        alerts_active: -1 // unlimited
-      }
-    };
-
-    const limits = planLimits[plan] || planLimits.starter;
+    const limits = getPlanLimits(plan);
 
     // Count searches this month
     const startOfMonth = new Date();

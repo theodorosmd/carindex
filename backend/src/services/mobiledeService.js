@@ -38,16 +38,12 @@ export async function runMobileDeScraper(searchUrls, options = {}, progressCallb
       try {
         logger.info('Scraping mobile.de URL', { url: searchUrl });
 
-        const listings = await scrapeMobileDeUrl(browser, searchUrl, maxPages, useScrapeDo);
+        const allListings = [];
+        await scrapeMobileDeUrl(browser, searchUrl, maxPages, useScrapeDo, async (batchListings) => {
+          if (batchListings.length === 0) return { stop: false };
 
-        logger.info('mobile.de scraping completed', {
-          url: searchUrl,
-          listingsFound: listings.length
-        });
-
-        if (listings.length > 0) {
           // Alimenter la queue pour les workers (remplace Oleg)
-          const queueItems = listings.map((l) => ({
+          const queueItems = batchListings.map((l) => ({
             url: l.url,
             title: l.title,
             year: l.year,
@@ -56,12 +52,23 @@ export async function runMobileDeScraper(searchUrls, options = {}, progressCallb
             images: l.images || l.imageUrls || []
           }));
           const { added } = await addToQueue(queueItems);
-          if (added > 0) logger.debug('mobile.de: added to queue', { added });
+          if (added > 0) logger.debug('mobile.de: added to queue', { added, batch: batchListings.length });
 
           // Stage 1: raw_listings (pour debugging, re-processing)
-          const { saved } = await saveRawListings(listings, SOURCE_PLATFORM);
-          results.totalScraped += listings.length;
+          await saveRawListings(batchListings, SOURCE_PLATFORM);
+          results.totalScraped += batchListings.length;
+          allListings.push(...batchListings);
 
+          // Stop when the entire batch was already known (watermark reached)
+          return { stop: added === 0 };
+        });
+
+        logger.info('mobile.de scraping completed', {
+          url: searchUrl,
+          listingsFound: allListings.length
+        });
+
+        if (allListings.length > 0) {
           // Stage 2: raw → listings (mapper + upsert)
           const processResult = await processRawListings({
             limit: 5000,
@@ -117,7 +124,7 @@ function buildMobileDePageUrl(baseUrl, pageNum) {
  * Scrape une URL de recherche mobile.de
  * mobile.de a une protection anti-bot forte (Datadome, contenu JS). On privilégie scrape.do si disponible.
  */
-async function scrapeMobileDeUrl(browser, url, maxPages = 10, useScrapeDo = null) {
+async function scrapeMobileDeUrl(browser, url, maxPages = 10, useScrapeDo = null, onBatchDone = null) {
   const allListings = [];
   const useScraper = useScrapeDo ?? isScrapeDoAvailable();
 
@@ -135,6 +142,7 @@ async function scrapeMobileDeUrl(browser, url, maxPages = 10, useScrapeDo = null
         pageNums.map((pageNum) => scrapeMobileDeSearchViaScraper(buildMobileDePageUrl(url, pageNum)))
       );
       let hadEmpty = false;
+      const batchListings = [];
       for (let i = 0; i < batchResults.length; i++) {
         let scraped = batchResults[i];
         if (scraped.length === 0) hadEmpty = true;
@@ -144,10 +152,19 @@ async function scrapeMobileDeUrl(browser, url, maxPages = 10, useScrapeDo = null
           await new Promise((r) => setTimeout(r, 5000));
           scraped = await scrapeMobileDeSearchViaScraper(buildMobileDePageUrl(url, pageNums[i]));
         }
-        allListings.push(...scraped);
+        batchListings.push(...scraped);
         if (scraped.length > 0) {
           logger.info('mobile.de page scraped via scrape.do', { page: pageNums[i], found: scraped.length });
         }
+      }
+      if (onBatchDone) {
+        const { stop } = await onBatchDone(batchListings);
+        if (stop) {
+          logger.info('mobile.de: watermark reached, stopping early', { page: start });
+          break;
+        }
+      } else {
+        allListings.push(...batchListings);
       }
       if (hadEmpty && batchResults[0]?.length === 0) break;
       if (pageNums.length < concurrency) break;

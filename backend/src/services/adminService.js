@@ -1,5 +1,6 @@
 import { supabase } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
+import { PLAN_LIMITS, getPlanLimits } from '../middleware/planLimits.js';
 
 /**
  * Get admin dashboard statistics
@@ -13,20 +14,26 @@ export async function getAdminStats() {
   };
 
   try {
-    const [totalUsers, totalListings, activeListings, totalAlerts, activeAlerts] = await Promise.all([
+    // listing_totals_cache is kept accurate by statement-level triggers (one fire per batch, not per row).
+    // listing_stats_cache tracks per-source breakdown the same way.
+    const [totalUsers, listingsBySourceResult, listingTotalsResult, totalAlerts, activeAlerts] = await Promise.all([
       safeCount('users', supabase.from('users').select('*', { count: 'exact', head: true })),
-      safeCount('listings', supabase.from('listings').select('*', { count: 'exact', head: true })),
-      safeCount('listings', supabase.from('listings').select('*', { count: 'exact', head: true }).eq('status', 'active')),
+      safeSelect('listing_stats_cache', supabase.from('listing_stats_cache').select('source_platform, total_count').order('total_count', { ascending: false })),
+      safeSelect('listing_totals_cache', supabase.from('listing_totals_cache').select('total_count, active_count, updated_at').eq('id', 1).single()),
       safeCount('alerts', supabase.from('alerts').select('*', { count: 'exact', head: true })),
       safeCount('alerts', supabase.from('alerts').select('*', { count: 'exact', head: true }).eq('status', 'active'))
     ]);
+
+    const listingTotals = Array.isArray(listingTotalsResult) ? listingTotalsResult[0] : listingTotalsResult;
+    const totalListings = Number(listingTotals?.total_count || 0);
+    const activeListings = Number(listingTotals?.active_count || 0);
+    const listingsCacheUpdatedAt = listingTotals?.updated_at || null;
 
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
     let recentUsers = 0;
     let usersByPlan = [];
-    let listingsBySource = [];
 
     try {
       recentUsers = await safeCount('users', supabase
@@ -51,20 +58,11 @@ export async function getAdminStats() {
       if (user?.plan) planDistribution[user.plan] = (planDistribution[user.plan] || 0) + 1;
     });
 
-    try {
-      listingsBySource = await safeSelect('listings', supabase
-        .from('listings')
-        .select('source_platform')
-        .not('source_platform', 'is', null)
-        .limit(5000));
-    } catch (e) {
-      logger.warn('Admin stats: listingsBySource failed', { error: e.message });
-    }
-
+    // Build sourceDistribution from the cache result already fetched above
     const sourceDistribution = {};
-    (listingsBySource || []).forEach(listing => {
-      if (listing?.source_platform) {
-        sourceDistribution[listing.source_platform] = (sourceDistribution[listing.source_platform] || 0) + 1;
+    (listingsBySourceResult || []).forEach(row => {
+      if (row?.source_platform) {
+        sourceDistribution[row.source_platform] = Number(row.total_count || 0);
       }
     });
 
@@ -77,7 +75,8 @@ export async function getAdminStats() {
       listings: {
         total: totalListings ?? 0,
         active: activeListings ?? 0,
-        by_source: sourceDistribution
+        by_source: sourceDistribution,
+        cache_updated_at: listingsCacheUpdatedAt
       },
       alerts: {
         total: totalAlerts ?? 0,
@@ -133,6 +132,24 @@ async function safeSelect(table, query) {
     throw error;
   }
   return data || [];
+}
+
+async function safeRpc(fn, params = {}) {
+  const { data, error } = await supabase.rpc(fn, params);
+  if (error) {
+    logger.warn('Admin stats RPC failed, returning empty list', { fn, error: error.message });
+    return [];
+  }
+  return data || [];
+}
+
+async function safeRpcScalar(fn, params = {}) {
+  const { data, error } = await supabase.rpc(fn, params);
+  if (error) {
+    logger.warn('Admin stats RPC scalar failed, returning 0', { fn, error: error.message });
+    return 0;
+  }
+  return Number(data) || 0;
 }
 
 /**
@@ -339,21 +356,14 @@ export async function getScraperDashboardStats() {
       last_run_result: s.last_run_result
     }));
 
-    // 3. Raw listings pending (processed_at IS NULL) by source - count per known source
-    const knownSources = ['autoscout24', 'mobile.de', 'mobile_de', 'mobilede', 'leboncoin', 'largus', 'lacentrale', 'blocket', 'bilweb', 'bytbil', 'subito', 'gaspedaal', 'coches.net', 'finn', 'otomoto'];
-    const rawPendingBySource = {};
+    // 3. Raw listings pending (processed_at IS NULL) by source — single RPC call
     const normalizeRawSource = (s) => (['mobile_de', 'mobilede'].includes(s) ? 'mobile.de' : s);
-    for (const src of knownSources) {
-      const count = await safeCount('raw_listings', supabase
-        .from('raw_listings')
-        .select('*', { count: 'exact', head: true })
-        .eq('source_platform', src)
-        .is('processed_at', null));
-      if (count > 0) {
-        const key = normalizeRawSource(src);
-        rawPendingBySource[key] = (rawPendingBySource[key] || 0) + count;
-      }
-    }
+    const rawPendingData = await safeRpc('get_raw_listings_pending_by_source');
+    const rawPendingBySource = {};
+    (rawPendingData || []).forEach((row) => {
+      const key = normalizeRawSource(row.source_platform || 'unknown');
+      rawPendingBySource[key] = (rawPendingBySource[key] || 0) + Number(row.cnt || 0);
+    });
 
     // 4. mobile_de_fetch_queue - URLs en attente + en cours (spécifique mobile.de)
     const mobiledeQueuePending = await safeCount('mobile_de_fetch_queue', supabase
@@ -384,30 +394,18 @@ export async function getScraperDashboardStats() {
       siteTotalsBySource[row.source_platform] = row.total_available ?? 0;
     });
 
-    // 6. Listings total by source - use count per source (Supabase limits select to 1000 rows)
-    const listingsSources = ['autoscout24', 'mobile.de', 'mobile_de', 'mobilede', 'leboncoin', 'largus', 'lacentrale', 'blocket', 'bilweb', 'bytbil', 'subito', 'gaspedaal', 'marktplaats', 'coches.net', 'finn', 'otomoto'];
-    const listingsBySource = {};
-    const listingsCreatedLast7dBySource = {}; // actual throughput (all ingest paths: crons, queue, API)
+    // 6. Listings by source — read from pre-computed cache (instant, avoids COUNT(*) timeout)
     const normalizeListingSource = (s) => (['mobile_de', 'mobilede'].includes(s) ? 'mobile.de' : s);
-    for (const src of listingsSources) {
-      const count = await safeCount('listings', supabase
-        .from('listings')
-        .select('*', { count: 'exact', head: true })
-        .eq('source_platform', src));
-      if (count > 0) {
-        const key = normalizeListingSource(src);
-        listingsBySource[key] = (listingsBySource[key] || 0) + count;
-      }
-      const createdCount = await safeCount('listings', supabase
-        .from('listings')
-        .select('*', { count: 'exact', head: true })
-        .eq('source_platform', src)
-        .gte('created_at', listingsGrowthCutoff.toISOString()));
-      if (createdCount > 0) {
-        const key = normalizeListingSource(src);
-        listingsCreatedLast7dBySource[key] = (listingsCreatedLast7dBySource[key] || 0) + createdCount;
-      }
-    }
+    const cachedSourceCounts = await safeSelect('listing_stats_cache', supabase
+      .from('listing_stats_cache')
+      .select('source_platform, total_count, recent_14d_count'));
+    const listingsBySource = {};
+    const listingsCreatedLast7dBySource = {};
+    (cachedSourceCounts || []).forEach((row) => {
+      const key = normalizeListingSource(row.source_platform || 'unknown');
+      listingsBySource[key] = (listingsBySource[key] || 0) + Number(row.total_count || 0);
+      listingsCreatedLast7dBySource[key] = (listingsCreatedLast7dBySource[key] || 0) + Number(row.recent_14d_count || 0);
+    });
 
     // Build per-website breakdown (merge all known sources)
     // Include all known sources so they always appear, even with 0 data
@@ -464,9 +462,10 @@ export async function getScraperDashboardStats() {
       };
     }).sort((a, b) => a.source.localeCompare(b.source));
 
-    const listingsGrandTotal = await safeCount('listings', supabase
-      .from('listings')
-      .select('*', { count: 'exact', head: true }));
+    // Grand total from cache (kept accurate by statement-level triggers)
+    const grandTotalCache = await safeSelect('listing_totals_cache', supabase.from('listing_totals_cache').select('total_count').eq('id', 1).single());
+    const grandTotalRow = Array.isArray(grandTotalCache) ? grandTotalCache[0] : grandTotalCache;
+    const listingsGrandTotal = Number(grandTotalRow?.total_count || 0) || Object.values(listingsBySource).reduce((sum, n) => sum + n, 0);
 
     let totalTimeTo100Days = null;
     let totalRemaining = 0;
@@ -504,6 +503,92 @@ export async function getScraperDashboardStats() {
       crons: []
     };
   }
+}
+
+/**
+ * Get users who are at or near their plan limits (>= 80% of quota used).
+ * Returns data for the admin usage monitoring table.
+ */
+export async function getUsersNearLimits(threshold = 80) {
+  try {
+    const { data: users, error: usersError } = await supabase
+      .from('users')
+      .select('id, email, plan, created_at')
+      .order('created_at', { ascending: false });
+
+    if (usersError) throw usersError;
+
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const usersWithUsage = await Promise.all(
+      (users || []).map(async (user) => {
+        const plan = user.plan || 'starter';
+        const limits = getPlanLimits(plan);
+
+        const [searchesResult, alertsResult] = await Promise.all([
+          supabase
+            .from('user_searches')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', user.id)
+            .gte('created_at', startOfMonth.toISOString()),
+          supabase
+            .from('alerts')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', user.id)
+            .eq('status', 'active')
+        ]);
+
+        const searchesCount = searchesResult.count || 0;
+        const alertsCount = alertsResult.count || 0;
+
+        const searchesPct = limits.searches_per_month === -1 ? 0
+          : Math.round((searchesCount / limits.searches_per_month) * 100);
+        const alertsPct = limits.alerts_active === -1 ? 0
+          : Math.round((alertsCount / limits.alerts_active) * 100);
+        const maxPct = Math.max(searchesPct, alertsPct);
+
+        return {
+          id: user.id,
+          email: user.email,
+          plan,
+          created_at: user.created_at,
+          searches: {
+            count: searchesCount,
+            limit: limits.searches_per_month,
+            pct: searchesPct
+          },
+          alerts: {
+            count: alertsCount,
+            limit: limits.alerts_active,
+            pct: alertsPct
+          },
+          max_usage_pct: maxPct
+        };
+      })
+    );
+
+    return usersWithUsage
+      .filter(u => u.max_usage_pct >= threshold)
+      .sort((a, b) => b.max_usage_pct - a.max_usage_pct);
+  } catch (error) {
+    logger.error('Error getting users near limits', { error: error.message });
+    throw error;
+  }
+}
+
+/**
+ * Refresh the listing stats cache (call after scraper batches).
+ * Safe to call frequently — runs in the DB so no network timeout risk.
+ */
+export async function refreshListingStatsCache() {
+  const { error } = await supabase.rpc('refresh_listing_stats_cache');
+  if (error) {
+    logger.error('Failed to refresh listing stats cache', { error: error.message });
+    throw error;
+  }
+  logger.info('Listing stats cache refreshed');
 }
 
 /**

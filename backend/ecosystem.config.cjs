@@ -14,6 +14,7 @@ module.exports = {
       node_args: '-r dotenv/config',
       env: {
         NODE_ENV: 'production',
+        PORT: 3002,
         // PUPPETEER_EXECUTABLE_PATH doit venir de .env (ex: /snap/bin/chromium sur Ubuntu 24.04)
         // Ne pas le définir ici : sinon ça écrase le .env et /usr/bin/chromium-browser n'existe pas sur Ubuntu 24
       },

@@ -29,7 +29,7 @@ export async function addToQueue(items) {
       .eq('url', url)
       .maybeSingle();
 
-    if (existing && ['ok', 'OK', 'done'].includes(existing.status)) {
+    if (existing && ['ok', 'OK', 'done', 'gone'].includes(existing.status)) {
       skipped++;
       continue;
     }
@@ -82,8 +82,8 @@ export async function acquireNext(workerId) {
 
   const { data: rows, error } = await supabase
     .from('mobile_de_fetch_queue')
-    .select('id, url, title, year, price, mileage, images, status')
-    .in('status', ['pending', 'retry'])
+    .select('id, url, title, year, price, mileage, images, status, retry_count')
+  .in('status', ['pending', 'retry'])
     .or(`next_retry_at.is.null,next_retry_at.lte.${now}`)
     .or(`locked_until.is.null,locked_until.lt.${now}`)
     .order('created_at', { ascending: true })
@@ -104,7 +104,7 @@ export async function acquireNext(workerId) {
     })
     .eq('id', row.id)
     .eq('status', row.status)
-    .select('id, url, title, year, price, mileage, images')
+    .select('id, url, title, year, price, mileage, images, retry_count')
     .maybeSingle();
 
   if (updateError || !updated) return null;
@@ -116,7 +116,8 @@ export async function acquireNext(workerId) {
     year: updated.year,
     price: updated.price,
     mileage: updated.mileage,
-    images: updated.images || []
+    images: updated.images || [],
+    retry_count: updated.retry_count || 0
   };
 }
 
@@ -138,9 +139,10 @@ export async function releaseItem(id, status, options = {}) {
     updates.next_retry_at = nextRetryAt;
     updates.last_error = lastError;
     updates.last_attempt_at = now;
-  } else if (status === 'ok' || status === 'error') {
+  } else if (status === 'ok' || status === 'error' || status === 'gone') {
     updates.last_attempt_at = now;
     updates.last_error = lastError;
+    if (retryCount) updates.retry_count = retryCount;
   }
 
   await supabase.from('mobile_de_fetch_queue').update(updates).eq('id', id);

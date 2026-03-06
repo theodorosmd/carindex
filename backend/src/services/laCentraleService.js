@@ -403,7 +403,14 @@ async function fetchListingDetails(listingUrl, browser) {
 
   let html;
   if (isScrapeDoAvailable() && !browser) {
-    html = await fetchViaScrapeDo(listingUrl, { render: true, customWait: 4000, geoCode: 'fr' });
+    // Try cheap render=false first; fall back to render=true only if parse yields no useful data
+    html = await fetchViaScrapeDo(listingUrl, { render: false, geoCode: 'fr' });
+    const quickParse = parseDetailPage(html);
+    if (!quickParse?.price && !quickParse?.jsonBrand && !quickParse?.fullTitle) {
+      html = await fetchViaScrapeDo(listingUrl, { render: true, customWait: 4000, geoCode: 'fr' });
+    } else {
+      return quickParse;
+    }
   } else if (browser) {
     const page = await browser.newPage();
     try {
@@ -416,7 +423,14 @@ async function fetchListingDetails(listingUrl, browser) {
       await page.close();
     }
   } else {
-    html = await fetchViaScrapeDo(listingUrl, { render: true, customWait: 4000, geoCode: 'fr' });
+    // scrape.do not available, not browser — same render=false-first logic
+    html = await fetchViaScrapeDo(listingUrl, { render: false, geoCode: 'fr' });
+    const quickParse = parseDetailPage(html);
+    if (!quickParse?.price && !quickParse?.jsonBrand && !quickParse?.fullTitle) {
+      html = await fetchViaScrapeDo(listingUrl, { render: true, customWait: 4000, geoCode: 'fr' });
+    } else {
+      return quickParse;
+    }
   }
 
   return parseDetailPage(html);
