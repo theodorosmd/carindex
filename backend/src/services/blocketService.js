@@ -401,7 +401,7 @@ async function scrapeBlocketSearchViaScraper(pageUrl) {
     let listings = [];
     const seen = new Set();
 
-    $('a.sf-search-ad-link[href*="/mobility/item/"]').each((_, a) => {
+    $('a[href*="/mobility/item/"]').each((_, a) => {
       const href = $(a).attr('href');
       const idMatch = href?.match(/\/item\/(\d+)/);
       if (!idMatch || seen.has(idMatch[1])) return;
@@ -430,7 +430,7 @@ async function scrapeBlocketSearchViaScraper(pageUrl) {
       html = await fetchViaScrapeDo(pageUrl, { render: true, customWait: 4000, geoCode: 'se' });
       const $2 = cheerio.load(html);
       listings = [];
-      $2('a.sf-search-ad-link[href*="/mobility/item/"]').each((_, a) => {
+      $2('a[href*="/mobility/item/"]').each((_, a) => {
         const href = $2(a).attr('href');
         const idMatch = href?.match(/\/item\/(\d+)/);
         if (!idMatch || listings.some((l) => l.id === idMatch[1])) return;
