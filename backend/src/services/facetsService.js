@@ -86,7 +86,7 @@ export async function getFacetsService(baseFilters = {}) {
     
     // For now, use the method that loads all listings and aggregates in memory
     // TODO: Implement RPC functions in Supabase for better performance with SQL aggregation
-    const selectColumns = 'brand, model, fuel_type, transmission, steering, doors, seller_type, color, category, drivetrain, version, trim';
+    const selectColumns = 'brand, model, fuel_type, transmission, steering, doors, seller_type, color, category, drivetrain, version, trim, location_country, posted_date';
     
     // Build base query with filters (same as search, but without pagination)
     // Remove limit to get accurate counts - but this may be slow for very large datasets
@@ -139,6 +139,51 @@ export async function getFacetsService(baseFilters = {}) {
       query = query.in('seller_type', sellerTypes);
     }
 
+    if (baseFilters.steering) {
+      const steerings = Array.isArray(baseFilters.steering) ? baseFilters.steering : [baseFilters.steering];
+      const steeringMap = { left: 'LHD', right: 'RHD' };
+      const mapped = steerings.map(s => steeringMap[s] || s);
+      query = query.in('steering', mapped);
+    }
+
+    if (baseFilters.transmission) {
+      const transmissions = Array.isArray(baseFilters.transmission) ? baseFilters.transmission : [baseFilters.transmission];
+      query = query.in('transmission', transmissions);
+    }
+
+    if (baseFilters.model) {
+      const models = Array.isArray(baseFilters.model) ? baseFilters.model : [baseFilters.model];
+      query = query.in('model', models.map(m => m.toLowerCase()));
+    }
+
+    if (baseFilters.color && baseFilters.color !== 'any') {
+      query = query.ilike('color', baseFilters.color);
+    }
+
+    if (baseFilters.version) {
+      const versions = Array.isArray(baseFilters.version) ? baseFilters.version : [baseFilters.version];
+      query = query.in('version', versions);
+    }
+
+    if (baseFilters.trim) {
+      const trims = Array.isArray(baseFilters.trim) ? baseFilters.trim : [baseFilters.trim];
+      query = query.in('trim', trims);
+    }
+
+    if (baseFilters.keyword) {
+      query = query.or(`brand.ilike.%${baseFilters.keyword}%,model.ilike.%${baseFilters.keyword}%,description.ilike.%${baseFilters.keyword}%`);
+    }
+
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const thirtyDaysAgoIso = thirtyDaysAgo.toISOString();
+
+    if (baseFilters.publication_date === 'recent') {
+      query = query.gte('posted_date', thirtyDaysAgoIso);
+    } else if (baseFilters.publication_date === 'old') {
+      query = query.or(`posted_date.lt.${thirtyDaysAgoIso},posted_date.is.null`);
+    }
+
     // Get total count first - create a separate count query
     let countQuery = supabase
       .from('listings')
@@ -187,6 +232,47 @@ export async function getFacetsService(baseFilters = {}) {
     if (baseFilters.seller_type) {
       const sellerTypes = Array.isArray(baseFilters.seller_type) ? baseFilters.seller_type : [baseFilters.seller_type];
       countQuery = countQuery.in('seller_type', sellerTypes);
+    }
+
+    if (baseFilters.steering) {
+      const steerings = Array.isArray(baseFilters.steering) ? baseFilters.steering : [baseFilters.steering];
+      const steeringMap = { left: 'LHD', right: 'RHD' };
+      const mapped = steerings.map(s => steeringMap[s] || s);
+      countQuery = countQuery.in('steering', mapped);
+    }
+
+    if (baseFilters.transmission) {
+      const transmissions = Array.isArray(baseFilters.transmission) ? baseFilters.transmission : [baseFilters.transmission];
+      countQuery = countQuery.in('transmission', transmissions);
+    }
+
+    if (baseFilters.model) {
+      const models = Array.isArray(baseFilters.model) ? baseFilters.model : [baseFilters.model];
+      countQuery = countQuery.in('model', models.map(m => m.toLowerCase()));
+    }
+
+    if (baseFilters.color && baseFilters.color !== 'any') {
+      countQuery = countQuery.ilike('color', baseFilters.color);
+    }
+
+    if (baseFilters.version) {
+      const versions = Array.isArray(baseFilters.version) ? baseFilters.version : [baseFilters.version];
+      countQuery = countQuery.in('version', versions);
+    }
+
+    if (baseFilters.trim) {
+      const trims = Array.isArray(baseFilters.trim) ? baseFilters.trim : [baseFilters.trim];
+      countQuery = countQuery.in('trim', trims);
+    }
+
+    if (baseFilters.keyword) {
+      countQuery = countQuery.or(`brand.ilike.%${baseFilters.keyword}%,model.ilike.%${baseFilters.keyword}%,description.ilike.%${baseFilters.keyword}%`);
+    }
+
+    if (baseFilters.publication_date === 'recent') {
+      countQuery = countQuery.gte('posted_date', thirtyDaysAgoIso);
+    } else if (baseFilters.publication_date === 'old') {
+      countQuery = countQuery.or(`posted_date.lt.${thirtyDaysAgoIso},posted_date.is.null`);
     }
 
     const { count: totalCount, error: countError } = await countQuery;
@@ -252,6 +338,7 @@ export async function getFacetsService(baseFilters = {}) {
     const facets = {
       brands: {},
       models: {},
+      countries: {},
       fuel_types: {},
       transmissions: {},
       steering: {},
@@ -261,7 +348,8 @@ export async function getFacetsService(baseFilters = {}) {
       categories: {},
       drivetrains: {},
       versions: {},
-      trims: {}
+      trims: {},
+      publication_date: { recent: 0, old: 0 }
     };
 
     (listings || []).forEach(listing => {
@@ -274,6 +362,12 @@ export async function getFacetsService(baseFilters = {}) {
       if (listing.model) {
         const key = `${listing.brand} ${listing.model}`;
         facets.models[key] = (facets.models[key] || 0) + 1;
+      }
+
+      // Countries - only count non-null, non-empty values
+      if (listing.location_country && String(listing.location_country).trim() !== '') {
+        const code = String(listing.location_country).toUpperCase().slice(0, 2);
+        facets.countries[code] = (facets.countries[code] || 0) + 1;
       }
 
       // Fuel types - only count non-null, non-empty values
@@ -325,7 +419,63 @@ export async function getFacetsService(baseFilters = {}) {
       if (listing.trim && listing.trim.trim() !== '') {
         facets.trims[listing.trim] = (facets.trims[listing.trim] || 0) + 1;
       }
+
+      // Publication date: recent (< 30 days) vs old (>= 30 days or null)
+      if (listing.posted_date) {
+        const posted = new Date(listing.posted_date).getTime();
+        if (posted >= thirtyDaysAgo.getTime()) {
+          facets.publication_date.recent++;
+        } else {
+          facets.publication_date.old++;
+        }
+      } else {
+        facets.publication_date.old++;
+      }
     });
+
+    // Keywords facets: count listings matching each predefined keyword (separate queries)
+    const keywordFacets = [];
+    const predefinedKeywords = ['AMG', 'L1H1'];
+    const buildKeywordCountQuery = (keyword) => {
+      let q = supabase.from('listings').select('*', { count: 'exact', head: true }).eq('status', 'active');
+      q = q.or(`brand.ilike.%${keyword}%,model.ilike.%${keyword}%,description.ilike.%${keyword}%`);
+      if (baseFilters.brand) {
+        const brands = Array.isArray(baseFilters.brand) ? baseFilters.brand : [baseFilters.brand];
+        q = q.in('brand', brands.map(b => b.toLowerCase()));
+      }
+      if (baseFilters.model) {
+        const models = Array.isArray(baseFilters.model) ? baseFilters.model : [baseFilters.model];
+        q = q.in('model', models.map(m => m.toLowerCase()));
+      }
+      if (baseFilters.country) q = q.eq('location_country', baseFilters.country);
+      if (baseFilters.min_price) q = q.gte('price', baseFilters.min_price);
+      if (baseFilters.max_price) q = q.lte('price', baseFilters.max_price);
+      if (baseFilters.min_year) q = q.gte('year', baseFilters.min_year);
+      if (baseFilters.max_year) q = q.lte('year', baseFilters.max_year);
+      if (baseFilters.min_mileage) q = q.gte('mileage', baseFilters.min_mileage);
+      if (baseFilters.max_mileage) q = q.lte('mileage', baseFilters.max_mileage);
+      if (baseFilters.fuel_type) {
+        const fuels = Array.isArray(baseFilters.fuel_type) ? baseFilters.fuel_type : [baseFilters.fuel_type];
+        q = q.in('fuel_type', fuels);
+      }
+      if (baseFilters.steering) {
+        const steerings = Array.isArray(baseFilters.steering) ? baseFilters.steering : [baseFilters.steering];
+        const steeringMap = { left: 'LHD', right: 'RHD' };
+        q = q.in('steering', steerings.map(s => steeringMap[s] || s));
+      }
+      if (baseFilters.transmission) {
+        const transmissions = Array.isArray(baseFilters.transmission) ? baseFilters.transmission : [baseFilters.transmission];
+        q = q.in('transmission', transmissions);
+      }
+      return q;
+    };
+    for (const kw of predefinedKeywords) {
+      const { count: kwCount, error: kwErr } = await buildKeywordCountQuery(kw);
+      if (kwErr) logger.warn('Keyword facet count failed', { keyword: kw, error: kwErr.message });
+      keywordFacets.push({ name: kw, count: kwCount ?? 0 });
+    }
+    // "NOT SPECIFIED" = total count (all listings matching current filters)
+    keywordFacets.unshift({ name: '', count: totalCount ?? listings?.length ?? 0 });
 
     // Format response
     const result = {
@@ -335,6 +485,10 @@ export async function getFacetsService(baseFilters = {}) {
           .map(([name, count]) => ({ name, count }))
           .sort((a, b) => b.count - a.count),
         models: Object.entries(facets.models)
+          .map(([name, count]) => ({ name, count }))
+          .sort((a, b) => b.count - a.count),
+        countries: Object.entries(facets.countries)
+          .filter(([name]) => name && name.trim() !== '')
           .map(([name, count]) => ({ name, count }))
           .sort((a, b) => b.count - a.count),
         fuel_types: Object.entries(facets.fuel_types)
@@ -372,7 +526,12 @@ export async function getFacetsService(baseFilters = {}) {
         trims: Object.entries(facets.trims)
           .filter(([name]) => name && name.trim() !== '') // Filter out empty/null names
           .map(([name, count]) => ({ name, count }))
-          .sort((a, b) => b.count - a.count)
+          .sort((a, b) => b.count - a.count),
+        publication_date: [
+          { name: 'recent', count: facets.publication_date.recent },
+          { name: 'old', count: facets.publication_date.old }
+        ],
+        keywords: keywordFacets
       }
     };
     
