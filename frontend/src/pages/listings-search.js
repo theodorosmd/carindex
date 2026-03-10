@@ -15,41 +15,41 @@ export function renderListingsSearch() {
   
   app.innerHTML = `
     <!-- Navigation -->
-    <header class="fixed inset-x-0 top-0 bg-white border-b border-gray-200 z-[100] shadow-sm">
-      <nav class="container mx-auto px-4 sm:px-6 py-4">
+    <header class="fixed inset-x-0 top-0 bg-white border-b border-zinc-200 z-[100]">
+      <nav class="container mx-auto px-4 sm:px-6 py-3.5">
         <div class="flex items-center justify-between">
-          <div class="flex items-center space-x-4 shrink-0">
+          <div class="flex items-center space-x-3 shrink-0">
             <!-- Mobile menu button -->
-            <button id="mobile-menu-btn" class="lg:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100 transition shrink-0">
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <button id="mobile-menu-btn" class="lg:hidden p-2 rounded-lg text-zinc-500 hover:bg-zinc-100 transition shrink-0">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
               </svg>
             </button>
             <a href="#/" class="flex items-center space-x-2 shrink-0">
-              <div class="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
-                <span class="text-white font-bold text-lg sm:text-xl">C</span>
+              <div class="w-8 h-8 bg-zinc-900 rounded-lg flex items-center justify-center">
+                <span class="text-white font-bold text-sm">C</span>
               </div>
-              <span class="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">Carindex</span>
+              <span class="text-lg font-semibold text-zinc-900 tracking-tight">Carindex</span>
             </a>
           </div>
-          <div class="hidden lg:flex items-center space-x-4" id="nav-auth">
-            <a href="#/" class="text-gray-600 hover:text-blue-600 transition">${tr('Home', 'Accueil')}</a>
+          <div class="hidden lg:flex items-center space-x-5" id="nav-auth">
+            <a href="#/" class="text-sm text-zinc-500 hover:text-zinc-900 transition">${tr('Home', 'Accueil')}</a>
             ${(() => {
               const token = localStorage.getItem('carindex_token')
               const user = token ? JSON.parse(localStorage.getItem('carindex_user') || '{}') : null
               if (user) {
                 const isAdmin = user.role === 'admin'
                 return `
-                  <a href="#/dashboard" class="text-gray-600 hover:text-blue-600 transition">${tr('Dashboard', 'Dashboard')}</a>
-                  ${isAdmin ? `<a href="#/admin" class="text-gray-600 hover:text-red-600 transition font-semibold">${tr('Admin', 'Admin')}</a>` : ''}
-                  <span class="text-gray-600 hidden xl:inline">${user.email}</span>
+                  <a href="#/dashboard" class="text-sm text-zinc-500 hover:text-zinc-900 transition">${tr('Dashboard', 'Dashboard')}</a>
+                  ${isAdmin ? `<a href="#/admin" class="text-sm text-red-600 hover:text-red-700 transition font-medium">${tr('Admin', 'Admin')}</a>` : ''}
+                  <span class="text-sm text-zinc-400 hidden xl:inline">${user.email}</span>
                   ${renderLanguageToggle()}
-                  <button onclick="window.logout()" class="px-4 py-2 text-gray-600 hover:text-blue-600 transition">${tr('Logout', 'Déconnexion')}</button>
+                  <button onclick="window.logout()" class="text-sm text-zinc-500 hover:text-zinc-900 transition">${tr('Logout', 'Déconnexion')}</button>
                 `
               } else {
                 return `
-                  <a href="#/login" class="text-gray-600 hover:text-blue-600 transition">${tr('Login', 'Connexion')}</a>
-                  <a href="#/signup" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">${tr('Sign up', 'Inscription')}</a>
+                  <a href="#/login" class="text-sm text-zinc-500 hover:text-zinc-900 transition">${tr('Login', 'Connexion')}</a>
+                  <a href="#/signup" class="px-3 py-1.5 bg-zinc-900 text-white text-sm rounded-lg hover:bg-zinc-700 transition">${tr('Sign up', 'Inscription')}</a>
                 `
               }
             })()}
@@ -60,38 +60,38 @@ export function renderListingsSearch() {
               const token = localStorage.getItem('carindex_token')
               const user = token ? JSON.parse(localStorage.getItem('carindex_user') || '{}') : null
               if (user) {
-                return `<button id="mobile-user-menu-btn" class="p-2 rounded-lg text-gray-600 hover:bg-gray-100 transition">
-                  <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                return `<button id="mobile-user-menu-btn" class="p-2 rounded-lg text-zinc-500 hover:bg-zinc-100 transition">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
                   </svg>
                 </button>`
               } else {
-                return `<a href="#/login" class="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm">${tr('Login', 'Connexion')}</a>`
+                return `<a href="#/login" class="px-3 py-1.5 bg-zinc-900 text-white rounded-lg text-sm">${tr('Login', 'Connexion')}</a>`
               }
             })()}
           </div>
         </div>
       </nav>
       <!-- Mobile menu -->
-      <div id="mobile-menu" class="hidden lg:hidden border-t border-gray-200 bg-white">
-        <div class="px-4 py-3 space-y-2">
-          <a href="#/" class="block px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition">${tr('Home', 'Accueil')}</a>
+      <div id="mobile-menu" class="hidden lg:hidden border-t border-zinc-100 bg-white">
+        <div class="px-4 py-3 space-y-1">
+          <a href="#/" class="block px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50 rounded-lg transition">${tr('Home', 'Accueil')}</a>
           ${(() => {
             const token = localStorage.getItem('carindex_token')
             const user = token ? JSON.parse(localStorage.getItem('carindex_user') || '{}') : null
             if (user) {
               const isAdmin = user.role === 'admin'
               return `
-                <a href="#/dashboard" class="block px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition">${tr('Dashboard', 'Dashboard')}</a>
-                ${isAdmin ? `<a href="#/admin" class="block px-3 py-2 text-red-700 hover:bg-red-50 rounded-lg transition font-semibold">${tr('Admin', 'Admin')}</a>` : ''}
-                <div class="px-3 py-2 text-sm text-gray-600 border-t border-gray-200 mt-2 pt-2">${user.email}</div>
+                <a href="#/dashboard" class="block px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50 rounded-lg transition">${tr('Dashboard', 'Dashboard')}</a>
+                ${isAdmin ? `<a href="#/admin" class="block px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition font-medium">${tr('Admin', 'Admin')}</a>` : ''}
+                <div class="px-3 py-2 text-xs text-zinc-400 border-t border-zinc-100 mt-2 pt-2">${user.email}</div>
                 <div class="px-3 py-2">${renderLanguageToggle()}</div>
-                <button onclick="window.logout()" class="block w-full text-left px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition">${tr('Logout', 'Déconnexion')}</button>
+                <button onclick="window.logout()" class="block w-full text-left px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50 rounded-lg transition">${tr('Logout', 'Déconnexion')}</button>
               `
             } else {
               return `
-                <a href="#/login" class="block px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition">${tr('Login', 'Connexion')}</a>
-                <a href="#/signup" class="block px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-center">${tr('Sign up', 'Inscription')}</a>
+                <a href="#/login" class="block px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50 rounded-lg transition">${tr('Login', 'Connexion')}</a>
+                <a href="#/signup" class="block px-3 py-2 bg-zinc-900 text-white text-sm rounded-lg text-center">${tr('Sign up', 'Inscription')}</a>
               `
             }
           })()}
@@ -100,22 +100,22 @@ export function renderListingsSearch() {
     </header>
 
     <!-- Main Content -->
-    <div class="flex min-h-screen bg-gray-50 pt-[72px]">
+    <div class="flex min-h-screen bg-zinc-50 pt-[60px]">
       <!-- Mobile filters overlay -->
-      <div id="mobile-filters-overlay" class="hidden fixed inset-0 bg-black/50 z-40 lg:hidden" onclick="closeMobileFilters()"></div>
-      
+      <div id="mobile-filters-overlay" class="hidden fixed inset-0 bg-black/40 z-40 lg:hidden" onclick="closeMobileFilters()"></div>
+
       <!-- Left Sidebar - Filters -->
-      <aside class="fixed lg:sticky top-[72px] left-0 h-[calc(100vh-72px)] w-80 bg-white border-r border-gray-200 overflow-y-auto transition-transform duration-300 z-40 -translate-x-full lg:translate-x-0" id="filters-sidebar">
-        <div class="p-4 sm:p-6">
+      <aside class="fixed lg:sticky top-[60px] left-0 h-[calc(100vh-60px)] w-72 bg-white border-r border-zinc-100 overflow-y-auto transition-transform duration-300 z-40 -translate-x-full lg:translate-x-0" id="filters-sidebar">
+        <div class="p-4 sm:p-5">
           <!-- Reset Button -->
-          <button id="reset-filters" class="w-full mb-6 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm font-medium">
+          <button id="reset-filters" class="w-full mb-5 px-4 py-2 border border-zinc-200 text-zinc-600 rounded-lg hover:bg-zinc-50 transition text-sm font-medium">
             ${tr('Reset search', 'Réinitialiser la recherche')}
           </button>
           
           <!-- Pays -->
           <div class="mb-6">
-            <h3 class="text-sm font-bold text-gray-900 mb-3">${tr('COUNTRY', 'PAYS')}</h3>
-            <select id="country-filter" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <h3 class="text-xs font-semibold text-zinc-400 tracking-wider uppercase mb-3">${tr('COUNTRY', 'PAYS')}</h3>
+            <select id="country-filter" class="w-full px-3 py-2 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 bg-zinc-50">
               <option value="">${tr('All countries', 'Tous les pays')}</option>
               <!-- Countries populated dynamically from facets -->
             </select>
@@ -123,103 +123,103 @@ export function renderListingsSearch() {
 
           <!-- RHD / LHD -->
           <div class="mb-6">
-            <h3 class="text-sm font-bold text-gray-900 mb-3">RHD / LHD</h3>
+            <h3 class="text-xs font-semibold text-zinc-400 tracking-wider uppercase mb-3">RHD / LHD</h3>
             <div class="space-y-2">
               <label class="flex items-center cursor-pointer">
-                <input type="checkbox" name="steering" value="left" class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
-                <span class="ml-2 text-sm text-gray-700">${tr('LEFT-HAND DRIVE', 'VOLANT À GAUCHE')} <span class="text-gray-500">(0)</span></span>
+                <input type="checkbox" name="steering" value="left" class="w-4 h-4 text-zinc-900 border-zinc-300 rounded focus:ring-zinc-900">
+                <span class="ml-2 text-sm text-zinc-700">${tr('LEFT-HAND DRIVE', 'VOLANT À GAUCHE')} <span class="text-zinc-400">(0)</span></span>
               </label>
               <label class="flex items-center cursor-pointer">
-                <input type="checkbox" name="steering" value="right" class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
-                <span class="ml-2 text-sm text-gray-700">${tr('RIGHT-HAND DRIVE', 'VOLANT À DROITE')} <span class="text-gray-500">(0)</span></span>
+                <input type="checkbox" name="steering" value="right" class="w-4 h-4 text-zinc-900 border-zinc-300 rounded focus:ring-zinc-900">
+                <span class="ml-2 text-sm text-zinc-700">${tr('RIGHT-HAND DRIVE', 'VOLANT À DROITE')} <span class="text-zinc-400">(0)</span></span>
               </label>
             </div>
           </div>
           
           <!-- Marque -->
           <div class="mb-6">
-            <h3 class="text-sm font-bold text-gray-900 mb-3">${tr('BRAND', 'MARQUE')}</h3>
+            <h3 class="text-xs font-semibold text-zinc-400 tracking-wider uppercase mb-3">${tr('BRAND', 'MARQUE')}</h3>
             <div id="brand-list" class="space-y-2 max-h-64 overflow-y-auto">
               <!-- Dynamically populated from API -->
             </div>
-            <button class="text-xs text-blue-600 mt-2 hover:underline">${tr('SHOW MORE', 'VOIR PLUS')} ▼</button>
+            <button class="text-xs text-zinc-400 mt-2 hover:text-zinc-700 transition">${tr('Show more', 'Voir plus')} ▼</button>
           </div>
           
           <!-- Modèle -->
           <div class="mb-6">
-            <h3 class="text-sm font-bold text-gray-900 mb-3">${tr('MODEL', 'MODELE')}</h3>
+            <h3 class="text-xs font-semibold text-zinc-400 tracking-wider uppercase mb-3">${tr('MODEL', 'MODELE')}</h3>
             <div id="model-list" class="space-y-2 max-h-64 overflow-y-auto">
               <!-- Dynamically populated from API -->
             </div>
-            <button class="text-xs text-blue-600 mt-2 hover:underline">${tr('SHOW MORE', 'VOIR PLUS')} ▼</button>
+            <button class="text-xs text-zinc-400 mt-2 hover:text-zinc-700 transition">${tr('Show more', 'Voir plus')} ▼</button>
           </div>
           
           <!-- Énergie -->
           <div class="mb-6">
-            <h3 class="text-sm font-bold text-gray-900 mb-3">${tr('FUEL TYPE', 'ENERGIE')}</h3>
+            <h3 class="text-xs font-semibold text-zinc-400 tracking-wider uppercase mb-3">${tr('FUEL TYPE', 'ENERGIE')}</h3>
             <div id="fuel-list" class="space-y-2">
               <!-- Dynamically populated from API -->
             </div>
-            <button class="text-xs text-blue-600 mt-2 hover:underline">${tr('SHOW MORE', 'VOIR PLUS')} ▼</button>
+            <button class="text-xs text-zinc-400 mt-2 hover:text-zinc-700 transition">${tr('Show more', 'Voir plus')} ▼</button>
           </div>
           
           <!-- Version -->
           <div class="mb-6">
-            <h3 class="text-sm font-bold text-gray-900 mb-3">${tr('VERSION', 'VERSION')}</h3>
+            <h3 class="text-xs font-semibold text-zinc-400 tracking-wider uppercase mb-3">${tr('VERSION', 'VERSION')}</h3>
             <div id="version-list" class="space-y-2">
               <!-- Dynamically populated from API -->
             </div>
-            <button class="text-xs text-blue-600 mt-2 hover:underline">${tr('SHOW MORE', 'VOIR PLUS')} ▼</button>
+            <button class="text-xs text-zinc-400 mt-2 hover:text-zinc-700 transition">${tr('Show more', 'Voir plus')} ▼</button>
           </div>
           
           <!-- Finition -->
           <div class="mb-6">
-            <h3 class="text-sm font-bold text-gray-900 mb-3">${tr('TRIM', 'FINITION')}</h3>
+            <h3 class="text-xs font-semibold text-zinc-400 tracking-wider uppercase mb-3">${tr('TRIM', 'FINITION')}</h3>
             <div id="trim-list" class="space-y-2">
               <!-- Dynamically populated from API -->
             </div>
-            <button class="text-xs text-blue-600 mt-2 hover:underline">${tr('SHOW MORE', 'VOIR PLUS')} ▼</button>
+            <button class="text-xs text-zinc-400 mt-2 hover:text-zinc-700 transition">${tr('Show more', 'Voir plus')} ▼</button>
           </div>
           
           <!-- Boîte -->
           <div class="mb-6">
-            <h3 class="text-sm font-bold text-gray-900 mb-3">${tr('TRANSMISSION', 'BOITE')}</h3>
+            <h3 class="text-xs font-semibold text-zinc-400 tracking-wider uppercase mb-3">${tr('TRANSMISSION', 'BOITE')}</h3>
             <div id="transmission-list" class="space-y-2">
               <!-- Dynamically populated from API -->
             </div>
-            <button class="text-xs text-blue-600 mt-2 hover:underline">${tr('SHOW MORE', 'VOIR PLUS')} ▼</button>
+            <button class="text-xs text-zinc-400 mt-2 hover:text-zinc-700 transition">${tr('Show more', 'Voir plus')} ▼</button>
           </div>
           
           <!-- Portes -->
           <div class="mb-6">
-            <h3 class="text-sm font-bold text-gray-900 mb-3">${tr('DOORS', 'PORTES')}</h3>
+            <h3 class="text-xs font-semibold text-zinc-400 tracking-wider uppercase mb-3">${tr('DOORS', 'PORTES')}</h3>
             <div id="doors-list" class="space-y-2">
               <!-- Dynamically populated from API -->
             </div>
-            <button class="text-xs text-blue-600 mt-2 hover:underline">${tr('SHOW MORE', 'VOIR PLUS')} ▼</button>
+            <button class="text-xs text-zinc-400 mt-2 hover:text-zinc-700 transition">${tr('Show more', 'Voir plus')} ▼</button>
           </div>
           
           <!-- Catégorie -->
           <div class="mb-6">
-            <h3 class="text-sm font-bold text-gray-900 mb-3">${tr('CATEGORY', 'CATÉGORIE')}</h3>
+            <h3 class="text-xs font-semibold text-zinc-400 tracking-wider uppercase mb-3">${tr('CATEGORY', 'CATÉGORIE')}</h3>
             <div id="category-list" class="space-y-2">
               <!-- Dynamically populated from API -->
             </div>
-            <button class="text-xs text-blue-600 mt-2 hover:underline">${tr('SHOW MORE', 'VOIR PLUS')} ▼</button>
+            <button class="text-xs text-zinc-400 mt-2 hover:text-zinc-700 transition">${tr('Show more', 'Voir plus')} ▼</button>
           </div>
           
           <!-- Transmission -->
           <div class="mb-6">
-            <h3 class="text-sm font-bold text-gray-900 mb-3">${tr('DRIVETRAIN', 'TRANSMISSION')}</h3>
+            <h3 class="text-xs font-semibold text-zinc-400 tracking-wider uppercase mb-3">${tr('DRIVETRAIN', 'TRANSMISSION')}</h3>
             <div id="drivetrain-list" class="space-y-2">
               <!-- Dynamically populated from API -->
             </div>
-            <button class="text-xs text-blue-600 mt-2 hover:underline">${tr('SHOW MORE', 'VOIR PLUS')} ▼</button>
+            <button class="text-xs text-zinc-400 mt-2 hover:text-zinc-700 transition">${tr('Show more', 'Voir plus')} ▼</button>
           </div>
           
           <!-- Type d'annonce -->
           <div class="mb-6">
-            <h3 class="text-sm font-bold text-gray-900 mb-3">${tr('LISTING TYPE', 'TYPE D\'ANNONCE')}</h3>
+            <h3 class="text-xs font-semibold text-zinc-400 tracking-wider uppercase mb-3">${tr('LISTING TYPE', 'TYPE D\'ANNONCE')}</h3>
             <div id="seller-type-list" class="space-y-2">
               <!-- Dynamically populated from API -->
             </div>
@@ -227,56 +227,56 @@ export function renderListingsSearch() {
           
           <!-- Date de parution -->
           <div class="mb-6">
-            <h3 class="text-sm font-bold text-gray-900 mb-3">${tr('PUBLICATION DATE', 'DATE DE PARUTION')}</h3>
+            <h3 class="text-xs font-semibold text-zinc-400 tracking-wider uppercase mb-3">${tr('PUBLICATION DATE', 'DATE DE PARUTION')}</h3>
             <div class="space-y-2">
               <label class="flex items-center cursor-pointer">
-                <input type="checkbox" name="publication-date" value="recent" class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
-                <span class="ml-2 text-sm text-gray-700">${tr('LESS THAN 30 DAYS', 'MOINS DE 30 JOURS')} <span class="text-gray-500">(0)</span></span>
+                <input type="checkbox" name="publication-date" value="recent" class="w-4 h-4 text-zinc-900 border-zinc-300 rounded focus:ring-zinc-900">
+                <span class="ml-2 text-sm text-zinc-700">${tr('LESS THAN 30 DAYS', 'MOINS DE 30 JOURS')} <span class="text-zinc-400">(0)</span></span>
               </label>
               <label class="flex items-center cursor-pointer">
-                <input type="checkbox" name="publication-date" value="old" class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
-                <span class="ml-2 text-sm text-gray-700">${tr('MORE THAN 30 DAYS', 'PLUS DE 30 JOURS')} <span class="text-gray-500">(0)</span></span>
+                <input type="checkbox" name="publication-date" value="old" class="w-4 h-4 text-zinc-900 border-zinc-300 rounded focus:ring-zinc-900">
+                <span class="ml-2 text-sm text-zinc-700">${tr('MORE THAN 30 DAYS', 'PLUS DE 30 JOURS')} <span class="text-zinc-400">(0)</span></span>
               </label>
             </div>
           </div>
           
           <!-- Mot-clé -->
           <div class="mb-6">
-            <h3 class="text-sm font-bold text-gray-900 mb-3">${tr('KEYWORD', 'MOT CLE')}</h3>
+            <h3 class="text-xs font-semibold text-zinc-400 tracking-wider uppercase mb-3">${tr('KEYWORD', 'MOT CLE')}</h3>
             <div class="space-y-2">
               <label class="flex items-center cursor-pointer">
-                <input type="checkbox" name="keyword" value="" class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
-                <span class="ml-2 text-sm text-gray-700">${tr('NOT SPECIFIED', 'NON RENSEIGNE')} <span class="text-gray-500">(0)</span></span>
+                <input type="checkbox" name="keyword" value="" class="w-4 h-4 text-zinc-900 border-zinc-300 rounded focus:ring-zinc-900">
+                <span class="ml-2 text-sm text-zinc-700">${tr('NOT SPECIFIED', 'NON RENSEIGNE')} <span class="text-zinc-400">(0)</span></span>
               </label>
               <label class="flex items-center cursor-pointer">
-                <input type="checkbox" name="keyword" value="AMG" class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
-                <span class="ml-2 text-sm text-gray-700">AMG <span class="text-gray-500">(0)</span></span>
+                <input type="checkbox" name="keyword" value="AMG" class="w-4 h-4 text-zinc-900 border-zinc-300 rounded focus:ring-zinc-900">
+                <span class="ml-2 text-sm text-zinc-700">AMG <span class="text-zinc-400">(0)</span></span>
               </label>
               <label class="flex items-center cursor-pointer">
-                <input type="checkbox" name="keyword" value="L1H1" class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
-                <span class="ml-2 text-sm text-gray-700">L1H1 <span class="text-gray-500">(0)</span></span>
+                <input type="checkbox" name="keyword" value="L1H1" class="w-4 h-4 text-zinc-900 border-zinc-300 rounded focus:ring-zinc-900">
+                <span class="ml-2 text-sm text-zinc-700">L1H1 <span class="text-zinc-400">(0)</span></span>
               </label>
             </div>
-            <button class="text-xs text-blue-600 mt-2 hover:underline">${tr('SHOW MORE', 'VOIR PLUS')} ▼</button>
+            <button class="text-xs text-zinc-400 mt-2 hover:text-zinc-700 transition">${tr('Show more', 'Voir plus')} ▼</button>
           </div>
           
           <!-- Prix -->
           <div class="mb-6">
-            <h3 class="text-sm font-bold text-gray-900 mb-3">${tr('PRICE', 'PRIX')}</h3>
+            <h3 class="text-xs font-semibold text-zinc-400 tracking-wider uppercase mb-3">${tr('PRICE', 'PRIX')}</h3>
             <div class="mb-4">
-              <div class="h-16 bg-gray-100 rounded mb-2 relative" id="price-chart">
+              <div class="h-12 bg-zinc-100 rounded mb-2 relative" id="price-chart">
                 <!-- Histogram bars will be generated here -->
                 <div class="absolute inset-0 flex items-end justify-between px-1">
-                  <div class="w-1 bg-yellow-400 rounded-t" style="height: 20%"></div>
-                  <div class="w-1 bg-yellow-400 rounded-t" style="height: 40%"></div>
-                  <div class="w-1 bg-yellow-400 rounded-t" style="height: 60%"></div>
-                  <div class="w-1 bg-yellow-400 rounded-t" style="height: 80%"></div>
-                  <div class="w-1 bg-yellow-400 rounded-t" style="height: 100%"></div>
-                  <div class="w-1 bg-yellow-400 rounded-t" style="height: 90%"></div>
-                  <div class="w-1 bg-yellow-400 rounded-t" style="height: 70%"></div>
-                  <div class="w-1 bg-yellow-400 rounded-t" style="height: 50%"></div>
-                  <div class="w-1 bg-yellow-400 rounded-t" style="height: 30%"></div>
-                  <div class="w-1 bg-yellow-400 rounded-t" style="height: 10%"></div>
+                  <div class="w-1 bg-zinc-400 rounded-t" style="height: 20%"></div>
+                  <div class="w-1 bg-zinc-400 rounded-t" style="height: 40%"></div>
+                  <div class="w-1 bg-zinc-400 rounded-t" style="height: 60%"></div>
+                  <div class="w-1 bg-zinc-400 rounded-t" style="height: 80%"></div>
+                  <div class="w-1 bg-zinc-400 rounded-t" style="height: 100%"></div>
+                  <div class="w-1 bg-zinc-400 rounded-t" style="height: 90%"></div>
+                  <div class="w-1 bg-zinc-400 rounded-t" style="height: 70%"></div>
+                  <div class="w-1 bg-zinc-400 rounded-t" style="height: 50%"></div>
+                  <div class="w-1 bg-zinc-400 rounded-t" style="height: 30%"></div>
+                  <div class="w-1 bg-zinc-400 rounded-t" style="height: 10%"></div>
                 </div>
                 <div class="absolute inset-0 flex items-center">
                   <input type="range" min="1" max="400000" value="1" class="w-full h-1 bg-transparent appearance-none cursor-pointer" id="price-min">
@@ -285,12 +285,12 @@ export function renderListingsSearch() {
               </div>
               <div class="flex items-center space-x-2">
                 <div class="flex-1">
-                  <label class="text-xs text-gray-600 mb-1 block">${tr('From', 'de')}</label>
-                  <input type="number" id="price-from" value="1" min="1" max="400000" class="w-full px-2 py-1 border border-gray-300 rounded text-sm">
+                  <label class="text-xs text-zinc-500 mb-1 block">${tr('From', 'de')}</label>
+                  <input type="number" id="price-from" value="1" min="1" max="400000" class="w-full px-2 py-1 border border-zinc-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-zinc-900">
                 </div>
                 <div class="flex-1">
-                  <label class="text-xs text-gray-600 mb-1 block">${tr('To', 'à')}</label>
-                  <input type="number" id="price-to" value="400000" min="1" max="400000" class="w-full px-2 py-1 border border-gray-300 rounded text-sm">
+                  <label class="text-xs text-zinc-500 mb-1 block">${tr('To', 'à')}</label>
+                  <input type="number" id="price-to" value="400000" min="1" max="400000" class="w-full px-2 py-1 border border-zinc-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-zinc-900">
                 </div>
               </div>
             </div>
@@ -298,42 +298,42 @@ export function renderListingsSearch() {
           
           <!-- Couleur -->
           <div class="mb-6">
-            <h3 class="text-sm font-bold text-gray-900 mb-3">${tr('COLOR', 'COULEUR')}</h3>
+            <h3 class="text-xs font-semibold text-zinc-400 tracking-wider uppercase mb-3">${tr('COLOR', 'COULEUR')}</h3>
             <div class="grid grid-cols-7 gap-2">
-              <button class="w-8 h-8 rounded border-2 border-gray-300 hover:border-blue-500 transition relative" style="background: linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%); background-size: 8px 8px; background-position: 0 0, 0 4px, 4px -4px, -4px 0px;" data-color="any" title="${tr('All', 'Toutes')}"></button>
-              <button class="w-8 h-8 rounded border-2 border-gray-300 hover:border-blue-500 transition" style="background: #F5E6D3" data-color="beige" title="${tr('Beige', 'Beige')}"></button>
-              <button class="w-8 h-8 rounded border-2 border-gray-300 hover:border-blue-500 transition bg-white" data-color="white" title="${tr('White', 'Blanc')}"></button>
-              <button class="w-8 h-8 rounded border-2 border-gray-300 hover:border-blue-500 transition" style="background: #1E3A8A" data-color="blue" title="${tr('Blue', 'Bleu')}"></button>
-              <button class="w-8 h-8 rounded border-2 border-gray-300 hover:border-blue-500 transition" style="background: #6B7280" data-color="gray" title="${tr('Gray', 'Gris')}"></button>
-              <button class="w-8 h-8 rounded border-2 border-gray-300 hover:border-blue-500 transition" style="background: #FCD34D" data-color="yellow" title="${tr('Yellow', 'Jaune')}"></button>
-              <button class="w-8 h-8 rounded border-2 border-gray-300 hover:border-blue-500 transition" style="background: #92400E" data-color="brown" title="${tr('Brown', 'Marron')}"></button>
-              <button class="w-8 h-8 rounded border-2 border-gray-300 hover:border-blue-500 transition" style="background: #A78BFA" data-color="purple" title="${tr('Purple', 'Violet')}"></button>
-              <button class="w-8 h-8 rounded border-2 border-gray-300 hover:border-blue-500 transition bg-black" data-color="black" title="${tr('Black', 'Noir')}"></button>
-              <button class="w-8 h-8 rounded border-2 border-gray-300 hover:border-blue-500 transition" style="background: #F97316" data-color="orange" title="${tr('Orange', 'Orange')}"></button>
-              <button class="w-8 h-8 rounded border-2 border-gray-300 hover:border-blue-500 transition" style="background: #EC4899" data-color="pink" title="${tr('Pink', 'Rose')}"></button>
-              <button class="w-8 h-8 rounded border-2 border-gray-300 hover:border-blue-500 transition" style="background: #991B1B" data-color="red" title="${tr('Red', 'Rouge')}"></button>
-              <button class="w-8 h-8 rounded border-2 border-gray-300 hover:border-blue-500 transition" style="background: #65A30D" data-color="green" title="${tr('Green', 'Vert')}"></button>
-              <button class="w-8 h-8 rounded border-2 border-gray-300 hover:border-blue-500 transition" style="background: #7C3AED" data-color="dark-purple" title="${tr('Dark Purple', 'Violet foncé')}"></button>
+              <button class="w-7 h-7 rounded border-2 border-zinc-200 hover:border-zinc-900 transition relative" style="background: linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%); background-size: 8px 8px; background-position: 0 0, 0 4px, 4px -4px, -4px 0px;" data-color="any" title="${tr('All', 'Toutes')}"></button>
+              <button class="w-7 h-7 rounded border-2 border-zinc-200 hover:border-zinc-900 transition" style="background: #F5E6D3" data-color="beige" title="${tr('Beige', 'Beige')}"></button>
+              <button class="w-7 h-7 rounded border-2 border-zinc-200 hover:border-zinc-900 transition bg-white" data-color="white" title="${tr('White', 'Blanc')}"></button>
+              <button class="w-7 h-7 rounded border-2 border-zinc-200 hover:border-zinc-900 transition" style="background: #1E3A8A" data-color="blue" title="${tr('Blue', 'Bleu')}"></button>
+              <button class="w-7 h-7 rounded border-2 border-zinc-200 hover:border-zinc-900 transition" style="background: #6B7280" data-color="gray" title="${tr('Gray', 'Gris')}"></button>
+              <button class="w-7 h-7 rounded border-2 border-zinc-200 hover:border-zinc-900 transition" style="background: #FCD34D" data-color="yellow" title="${tr('Yellow', 'Jaune')}"></button>
+              <button class="w-7 h-7 rounded border-2 border-zinc-200 hover:border-zinc-900 transition" style="background: #92400E" data-color="brown" title="${tr('Brown', 'Marron')}"></button>
+              <button class="w-7 h-7 rounded border-2 border-zinc-200 hover:border-zinc-900 transition" style="background: #A78BFA" data-color="purple" title="${tr('Purple', 'Violet')}"></button>
+              <button class="w-7 h-7 rounded border-2 border-zinc-200 hover:border-zinc-900 transition bg-black" data-color="black" title="${tr('Black', 'Noir')}"></button>
+              <button class="w-7 h-7 rounded border-2 border-zinc-200 hover:border-zinc-900 transition" style="background: #F97316" data-color="orange" title="${tr('Orange', 'Orange')}"></button>
+              <button class="w-7 h-7 rounded border-2 border-zinc-200 hover:border-zinc-900 transition" style="background: #EC4899" data-color="pink" title="${tr('Pink', 'Rose')}"></button>
+              <button class="w-7 h-7 rounded border-2 border-zinc-200 hover:border-zinc-900 transition" style="background: #991B1B" data-color="red" title="${tr('Red', 'Rouge')}"></button>
+              <button class="w-7 h-7 rounded border-2 border-zinc-200 hover:border-zinc-900 transition" style="background: #65A30D" data-color="green" title="${tr('Green', 'Vert')}"></button>
+              <button class="w-7 h-7 rounded border-2 border-zinc-200 hover:border-zinc-900 transition" style="background: #7C3AED" data-color="dark-purple" title="${tr('Dark Purple', 'Violet foncé')}"></button>
             </div>
           </div>
           
           <!-- Kilomètres -->
           <div class="mb-6">
-            <h3 class="text-sm font-bold text-gray-900 mb-3">${tr('MILEAGE', 'KILOMETRES')}</h3>
+            <h3 class="text-xs font-semibold text-zinc-400 tracking-wider uppercase mb-3">${tr('MILEAGE', 'KILOMETRES')}</h3>
             <div class="mb-4">
-              <div class="h-16 bg-gray-100 rounded mb-2 relative" id="mileage-chart">
+              <div class="h-12 bg-zinc-100 rounded mb-2 relative" id="mileage-chart">
                 <!-- Histogram bars -->
                 <div class="absolute inset-0 flex items-end justify-between px-1">
-                  <div class="w-1 bg-yellow-400 rounded-t" style="height: 100%"></div>
-                  <div class="w-1 bg-yellow-400 rounded-t" style="height: 80%"></div>
-                  <div class="w-1 bg-yellow-400 rounded-t" style="height: 60%"></div>
-                  <div class="w-1 bg-yellow-400 rounded-t" style="height: 50%"></div>
-                  <div class="w-1 bg-yellow-400 rounded-t" style="height: 45%"></div>
-                  <div class="w-1 bg-yellow-400 rounded-t" style="height: 40%"></div>
-                  <div class="w-1 bg-yellow-400 rounded-t" style="height: 35%"></div>
-                  <div class="w-1 bg-yellow-400 rounded-t" style="height: 30%"></div>
-                  <div class="w-1 bg-yellow-400 rounded-t" style="height: 25%"></div>
-                  <div class="w-1 bg-yellow-400 rounded-t" style="height: 20%"></div>
+                  <div class="w-1 bg-zinc-400 rounded-t" style="height: 100%"></div>
+                  <div class="w-1 bg-zinc-400 rounded-t" style="height: 80%"></div>
+                  <div class="w-1 bg-zinc-400 rounded-t" style="height: 60%"></div>
+                  <div class="w-1 bg-zinc-400 rounded-t" style="height: 50%"></div>
+                  <div class="w-1 bg-zinc-400 rounded-t" style="height: 45%"></div>
+                  <div class="w-1 bg-zinc-400 rounded-t" style="height: 40%"></div>
+                  <div class="w-1 bg-zinc-400 rounded-t" style="height: 35%"></div>
+                  <div class="w-1 bg-zinc-400 rounded-t" style="height: 30%"></div>
+                  <div class="w-1 bg-zinc-400 rounded-t" style="height: 25%"></div>
+                  <div class="w-1 bg-zinc-400 rounded-t" style="height: 20%"></div>
                 </div>
                 <div class="absolute inset-0 flex items-center">
                   <input type="range" min="1" max="500000" value="1" class="w-full h-1 bg-transparent appearance-none cursor-pointer" id="mileage-min">
@@ -342,12 +342,12 @@ export function renderListingsSearch() {
               </div>
               <div class="flex items-center space-x-2">
                 <div class="flex-1">
-                  <label class="text-xs text-gray-600 mb-1 block">${tr('From', 'de')}</label>
-                  <input type="number" id="mileage-from" value="1" min="1" max="500000" class="w-full px-2 py-1 border border-gray-300 rounded text-sm">
+                  <label class="text-xs text-zinc-500 mb-1 block">${tr('From', 'de')}</label>
+                  <input type="number" id="mileage-from" value="1" min="1" max="500000" class="w-full px-2 py-1 border border-zinc-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-zinc-900">
                 </div>
                 <div class="flex-1">
-                  <label class="text-xs text-gray-600 mb-1 block">${tr('To', 'à')}</label>
-                  <input type="number" id="mileage-to" value="500000" min="1" max="500000" class="w-full px-2 py-1 border border-gray-300 rounded text-sm">
+                  <label class="text-xs text-zinc-500 mb-1 block">${tr('To', 'à')}</label>
+                  <input type="number" id="mileage-to" value="500000" min="1" max="500000" class="w-full px-2 py-1 border border-zinc-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-zinc-900">
                 </div>
               </div>
             </div>
@@ -355,21 +355,21 @@ export function renderListingsSearch() {
           
           <!-- Année -->
           <div class="mb-6">
-            <h3 class="text-sm font-bold text-gray-900 mb-3">${tr('YEAR', 'ANNEE')}</h3>
+            <h3 class="text-xs font-semibold text-zinc-400 tracking-wider uppercase mb-3">${tr('YEAR', 'ANNEE')}</h3>
             <div class="mb-4">
-              <div class="h-16 bg-gray-100 rounded mb-2 relative" id="year-chart">
+              <div class="h-12 bg-zinc-100 rounded mb-2 relative" id="year-chart">
                 <!-- Histogram bars -->
                 <div class="absolute inset-0 flex items-end justify-between px-1">
-                  <div class="w-1 bg-yellow-400 rounded-t" style="height: 10%"></div>
-                  <div class="w-1 bg-yellow-400 rounded-t" style="height: 15%"></div>
-                  <div class="w-1 bg-yellow-400 rounded-t" style="height: 20%"></div>
-                  <div class="w-1 bg-yellow-400 rounded-t" style="height: 30%"></div>
-                  <div class="w-1 bg-yellow-400 rounded-t" style="height: 50%"></div>
-                  <div class="w-1 bg-yellow-400 rounded-t" style="height: 70%"></div>
-                  <div class="w-1 bg-yellow-400 rounded-t" style="height: 90%"></div>
-                  <div class="w-1 bg-yellow-400 rounded-t" style="height: 100%"></div>
-                  <div class="w-1 bg-yellow-400 rounded-t" style="height: 95%"></div>
-                  <div class="w-1 bg-yellow-400 rounded-t" style="height: 85%"></div>
+                  <div class="w-1 bg-zinc-400 rounded-t" style="height: 10%"></div>
+                  <div class="w-1 bg-zinc-400 rounded-t" style="height: 15%"></div>
+                  <div class="w-1 bg-zinc-400 rounded-t" style="height: 20%"></div>
+                  <div class="w-1 bg-zinc-400 rounded-t" style="height: 30%"></div>
+                  <div class="w-1 bg-zinc-400 rounded-t" style="height: 50%"></div>
+                  <div class="w-1 bg-zinc-400 rounded-t" style="height: 70%"></div>
+                  <div class="w-1 bg-zinc-400 rounded-t" style="height: 90%"></div>
+                  <div class="w-1 bg-zinc-400 rounded-t" style="height: 100%"></div>
+                  <div class="w-1 bg-zinc-400 rounded-t" style="height: 95%"></div>
+                  <div class="w-1 bg-zinc-400 rounded-t" style="height: 85%"></div>
                 </div>
                 <div class="absolute inset-0 flex items-center">
                   <input type="range" min="1910" max="2026" value="1910" class="w-full h-1 bg-transparent appearance-none cursor-pointer" id="year-min">
@@ -378,12 +378,12 @@ export function renderListingsSearch() {
               </div>
               <div class="flex items-center space-x-2">
                 <div class="flex-1">
-                  <label class="text-xs text-gray-600 mb-1 block">${tr('From', 'de')}</label>
-                  <input type="number" id="year-from" value="1910" min="1910" max="2026" class="w-full px-2 py-1 border border-gray-300 rounded text-sm">
+                  <label class="text-xs text-zinc-500 mb-1 block">${tr('From', 'de')}</label>
+                  <input type="number" id="year-from" value="1910" min="1910" max="2026" class="w-full px-2 py-1 border border-zinc-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-zinc-900">
                 </div>
                 <div class="flex-1">
-                  <label class="text-xs text-gray-600 mb-1 block">${tr('To', 'à')}</label>
-                  <input type="number" id="year-to" value="2026" min="1910" max="2026" class="w-full px-2 py-1 border border-gray-300 rounded text-sm">
+                  <label class="text-xs text-zinc-500 mb-1 block">${tr('To', 'à')}</label>
+                  <input type="number" id="year-to" value="2026" min="1910" max="2026" class="w-full px-2 py-1 border border-zinc-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-zinc-900">
                 </div>
               </div>
             </div>
@@ -392,38 +392,38 @@ export function renderListingsSearch() {
       </aside>
       
       <!-- Right Content Area -->
-      <main class="flex-1">
+      <main class="flex-1 min-w-0">
         <!-- Search Bar with Autocomplete -->
-        <div class="bg-white border-b border-gray-200 sticky top-0 z-40 p-4 sm:p-6">
+        <div class="bg-white border-b border-zinc-100 sticky top-[60px] z-30 px-4 sm:px-6 py-3">
           <!-- Mobile filters button -->
-          <button id="mobile-filters-btn" class="lg:hidden w-full mb-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center justify-center space-x-2">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <button id="mobile-filters-btn" class="lg:hidden w-full mb-3 px-4 py-2 border border-zinc-200 text-zinc-700 rounded-lg hover:bg-zinc-50 transition flex items-center justify-center space-x-2 text-sm">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path>
             </svg>
             <span>${tr('Filters', 'Filtres')}</span>
           </button>
-          
-          <div class="mb-4">
+
+          <div class="mb-3">
             <div class="relative">
-              <input type="text" id="search-query" placeholder="${tr('Search by brand, model, keyword...', 'Rechercher par marque, modèle, mot-clé...')}" 
-                     class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base sm:text-lg"
+              <input type="text" id="search-query" placeholder="${tr('Search by brand, model, keyword...', 'Rechercher par marque, modèle, mot-clé...')}"
+                     class="w-full px-4 py-2.5 border border-zinc-200 rounded-lg focus:ring-2 focus:ring-zinc-900 focus:border-zinc-900 text-sm bg-zinc-50"
                      autocomplete="off">
-              <div id="autocomplete-dropdown" class="absolute z-50 w-full mt-1 bg-white border-2 border-gray-200 rounded-lg shadow-2xl max-h-96 overflow-y-auto hidden">
+              <div id="autocomplete-dropdown" class="absolute z-50 w-full mt-1 bg-white border border-zinc-200 rounded-lg shadow-lg max-h-96 overflow-y-auto hidden">
                 <!-- Autocomplete suggestions will appear here -->
               </div>
             </div>
             <!-- Active filters chips -->
-            <div id="active-filters" class="flex flex-wrap gap-2 mt-3">
+            <div id="active-filters" class="flex flex-wrap gap-1.5 mt-2">
               <!-- Active filter chips will appear here -->
             </div>
           </div>
-          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div>
-              <h1 class="text-xl sm:text-2xl font-bold text-gray-900" id="results-count">${tr('Search for a vehicle', 'Rechercher un véhicule')}</h1>
-              <p class="text-gray-600 text-xs sm:text-sm mt-1" id="results-info">${tr('Browse millions of listings from leboncoin, mobile.de, AutoScout24', 'Parcourez des millions d\'annonces depuis leboncoin, mobile.de, AutoScout24')}</p>
+              <h1 class="text-base font-semibold text-zinc-900" id="results-count">${tr('Search for a vehicle', 'Rechercher un véhicule')}</h1>
+              <p class="text-zinc-400 text-xs mt-0.5" id="results-info">${tr('Browse millions of listings from leboncoin, mobile.de, AutoScout24', 'Parcourez des millions d\'annonces depuis leboncoin, mobile.de, AutoScout24')}</p>
             </div>
-            <div class="flex items-center space-x-4">
-              <select id="sort-by" class="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm">
+            <div class="flex items-center">
+              <select id="sort-by" class="w-full sm:w-auto px-3 py-2 border border-zinc-200 rounded-lg focus:ring-2 focus:ring-zinc-900 text-sm bg-zinc-50">
                 <option value="date">${tr('Most recent', 'Plus récent')}</option>
                 <option value="price-asc">${tr('Price ascending', 'Prix croissant')}</option>
                 <option value="price-desc">${tr('Price descending', 'Prix décroissant')}</option>
@@ -432,21 +432,21 @@ export function renderListingsSearch() {
             </div>
           </div>
         </div>
-        
+
         <!-- Results Grid -->
-        <div class="p-4 sm:p-6">
-          <div id="results-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+        <div class="p-4 sm:p-5">
+          <div id="results-container" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
             <!-- Results will be inserted here -->
-            <div class="col-span-full text-center py-12">
-              <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+            <div class="col-span-full text-center py-16">
+              <svg class="mx-auto h-10 w-10 text-zinc-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
               </svg>
-              <p class="mt-4 text-gray-600">${tr('Use filters to start your search', 'Utilisez les filtres pour commencer votre recherche')}</p>
+              <p class="mt-3 text-sm text-zinc-400">${tr('Use filters to start your search', 'Utilisez les filtres pour commencer votre recherche')}</p>
             </div>
           </div>
-          
+
           <!-- Pagination -->
-          <div id="pagination" class="mt-8 flex justify-center items-center space-x-2 hidden">
+          <div id="pagination" class="mt-6 flex justify-center items-center space-x-1.5 hidden">
             <!-- Pagination will be inserted here -->
           </div>
         </div>
@@ -454,12 +454,12 @@ export function renderListingsSearch() {
     </div>
 
     <!-- Listing Detail Modal -->
-    <div id="listing-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden items-center justify-center p-4">
+    <div id="listing-modal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
       <div class="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        <div class="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between">
-          <h3 class="text-2xl font-bold text-gray-900">${tr('Listing details', 'Détails de l\'annonce')}</h3>
-          <button id="close-modal" class="text-gray-400 hover:text-gray-600">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="sticky top-0 bg-white border-b border-zinc-100 px-6 py-4 flex items-center justify-between">
+          <h3 class="text-lg font-semibold text-zinc-900">${tr('Listing details', 'Détails de l\'annonce')}</h3>
+          <button id="close-modal" class="text-zinc-400 hover:text-zinc-600 transition">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
             </svg>
           </button>
@@ -578,7 +578,7 @@ function showRefreshIndicator() {
   if (!indicator) {
     indicator = document.createElement('div')
     indicator.id = 'auto-refresh-indicator'
-    indicator.className = 'fixed top-20 right-4 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg z-50 flex items-center space-x-2 animate-pulse'
+    indicator.className = 'fixed top-20 right-4 bg-zinc-900 text-white px-4 py-2 rounded-lg z-50 flex items-center space-x-2 text-sm'
     indicator.innerHTML = `
       <svg class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
@@ -640,7 +640,7 @@ function initializeMobileMenu() {
   
   // Close button in filters sidebar (mobile)
   const closeFiltersBtn = document.createElement('button')
-  closeFiltersBtn.className = 'lg:hidden absolute top-4 right-4 p-2 text-gray-600 hover:text-gray-900'
+  closeFiltersBtn.className = 'lg:hidden absolute top-4 right-4 p-2 text-zinc-500 hover:text-zinc-900'
   closeFiltersBtn.innerHTML = `
     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
@@ -683,14 +683,14 @@ function updateAuthLinks() {
   
   if (user && user.email) {
     authLinksContainer.innerHTML = `
-      <a href="#/dashboard" class="text-gray-600 hover:text-blue-600 transition">${tr('Dashboard', 'Dashboard')}</a>
-      <span class="text-gray-600">${user.email}</span>
-      <button onclick="window.logout()" class="px-4 py-2 text-gray-600 hover:text-blue-600 transition">${tr('Logout', 'Déconnexion')}</button>
+      <a href="#/dashboard" class="text-sm text-zinc-500 hover:text-zinc-900 transition">${tr('Dashboard', 'Dashboard')}</a>
+      <span class="text-sm text-zinc-400">${user.email}</span>
+      <button onclick="window.logout()" class="text-sm text-zinc-500 hover:text-zinc-900 transition">${tr('Logout', 'Déconnexion')}</button>
     `
   } else {
     authLinksContainer.innerHTML = `
-      <a href="#/login" class="text-gray-600 hover:text-blue-600 transition">${tr('Login', 'Connexion')}</a>
-      <a href="#/signup" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">${tr('Sign up', 'Inscription')}</a>
+      <a href="#/login" class="text-sm text-zinc-500 hover:text-zinc-900 transition">${tr('Login', 'Connexion')}</a>
+      <a href="#/signup" class="px-3 py-1.5 bg-zinc-900 text-white text-sm rounded-lg hover:bg-zinc-700 transition">${tr('Sign up', 'Inscription')}</a>
     `
   }
 }
@@ -719,24 +719,24 @@ function initializeFilters() {
         else if (range.id === 'year-max') range.value = 2026
       })
       document.querySelectorAll('button[data-color]').forEach(btn => {
-        btn.classList.remove('border-blue-500', 'ring-2', 'ring-blue-500')
-        btn.classList.add('border-gray-300')
+        btn.classList.remove('border-zinc-900', 'ring-2', 'ring-zinc-900')
+        btn.classList.add('border-zinc-200')
       })
       document.getElementById('search-query').value = ''
       const countryFilter = document.getElementById('country-filter')
       if (countryFilter) countryFilter.value = ''
     })
   }
-  
+
   // Color buttons
   document.querySelectorAll('button[data-color]').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('button[data-color]').forEach(b => {
-        b.classList.remove('border-blue-500', 'ring-2', 'ring-blue-500')
-        b.classList.add('border-gray-300')
+        b.classList.remove('border-zinc-900', 'ring-2', 'ring-zinc-900')
+        b.classList.add('border-zinc-200')
       })
-      btn.classList.remove('border-gray-300')
-      btn.classList.add('border-blue-500', 'ring-2', 'ring-blue-500')
+      btn.classList.remove('border-zinc-200')
+      btn.classList.add('border-zinc-900', 'ring-2', 'ring-zinc-900')
     })
   })
   
@@ -877,8 +877,8 @@ function createFilterCheckbox(name, value, count, filterName) {
   label.className = 'flex items-center cursor-pointer'
   const displayName = name === '' || name === null || name === undefined ? tr('NOT SPECIFIED', 'NON RENSEIGNE') : name.toUpperCase()
   label.innerHTML = `
-    <input type="checkbox" name="${filterName}" value="${value || ''}" class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
-    <span class="ml-2 text-sm text-gray-700">${displayName} <span class="text-gray-500">(${formatNumber(count)})</span></span>
+    <input type="checkbox" name="${filterName}" value="${value || ''}" class="w-4 h-4 text-zinc-900 border-zinc-300 rounded focus:ring-zinc-900">
+    <span class="ml-2 text-sm text-zinc-700">${displayName} <span class="text-zinc-400">(${formatNumber(count)})</span></span>
   `
   return label
 }
@@ -897,7 +897,7 @@ function populateFilterSection(sectionId, facets, filterName, valueMapper = null
   if (!facets || facets.length === 0) {
     // Show "No data" message if no facets available
     const noDataMsg = document.createElement('div')
-    noDataMsg.className = 'text-xs text-gray-400 italic'
+    noDataMsg.className = 'text-xs text-zinc-400 italic'
     noDataMsg.textContent = tr('No data available', 'Aucune donnée disponible')
     container.appendChild(noDataMsg)
     return
@@ -1053,7 +1053,7 @@ async function loadFacets(forceNoFilters = false) {
           if (checkbox) {
             const label = checkbox.closest('label')
             if (label) {
-              const countSpan = label.querySelector('.text-gray-500')
+              const countSpan = label.querySelector('.text-zinc-400')
               if (countSpan) countSpan.textContent = `(${formatNumber(count)})`
             }
           }
@@ -1144,7 +1144,7 @@ async function loadFacets(forceNoFilters = false) {
         if (checkbox) {
           const label = checkbox.closest('label')
           if (label) {
-            const countSpan = label.querySelector('.text-gray-500')
+            const countSpan = label.querySelector('.text-zinc-400')
             if (countSpan) countSpan.textContent = `(${formatNumber(count)})`
           }
         }
@@ -1159,7 +1159,7 @@ async function loadFacets(forceNoFilters = false) {
         if (checkbox) {
           const label = checkbox.closest('label')
           if (label) {
-            const countSpan = label.querySelector('.text-gray-500')
+            const countSpan = label.querySelector('.text-zinc-400')
             if (countSpan) countSpan.textContent = `(${formatNumber(count)})`
           }
         }
@@ -1360,7 +1360,7 @@ function initializeSearch() {
       limitedSuggestions.forEach((suggestion, index) => {
         const icon = suggestion.type === 'brand' ? '🏷️' : '🚗'
         html += `
-          <div class="suggestion-item px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 flex items-center justify-between ${index === 0 ? 'bg-blue-50' : ''}" 
+          <div class="suggestion-item px-4 py-3 hover:bg-zinc-50 cursor-pointer border-b border-zinc-100 flex items-center justify-between ${index === 0 ? 'bg-zinc-50' : ''}"
                data-type="${suggestion.type}" 
                data-value="${suggestion.value}" 
                data-brand="${suggestion.brand || ''}"
@@ -1368,11 +1368,11 @@ function initializeSearch() {
             <div class="flex items-center space-x-3">
               <span class="text-xl">${icon}</span>
               <div>
-                <div class="font-medium text-gray-900">${suggestion.label}</div>
-                <div class="text-xs text-gray-500">${suggestion.type === 'brand' ? tr('Brand', 'Marque') : tr('Model', 'Modèle')}</div>
+                <div class="font-medium text-zinc-900 text-sm">${suggestion.label}</div>
+                <div class="text-xs text-zinc-400">${suggestion.type === 'brand' ? tr('Brand', 'Marque') : tr('Model', 'Modèle')}</div>
               </div>
             </div>
-            <span class="text-sm text-gray-500">${formatNumber(suggestion.count)}</span>
+            <span class="text-sm text-zinc-400">${formatNumber(suggestion.count)}</span>
           </div>
         `
       })
@@ -1425,8 +1425,8 @@ function initializeSearch() {
           const label = document.createElement('label')
           label.className = 'flex items-center space-x-2 cursor-pointer'
           label.innerHTML = `
-            <input type="checkbox" name="brand" value="${brandValue}" class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" checked>
-            <span class="text-sm text-gray-700">${value.toUpperCase()} <span class="text-gray-500">(0)</span></span>
+            <input type="checkbox" name="brand" value="${brandValue}" class="w-4 h-4 text-zinc-900 border-zinc-300 rounded focus:ring-zinc-900" checked>
+            <span class="text-sm text-zinc-700">${value.toUpperCase()} <span class="text-zinc-400">(0)</span></span>
           `
           brandList.appendChild(label)
         }
@@ -1445,8 +1445,8 @@ function initializeSearch() {
           const label = document.createElement('label')
           label.className = 'flex items-center space-x-2 cursor-pointer'
           label.innerHTML = `
-            <input type="checkbox" name="model" value="${modelValue}" class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" checked>
-            <span class="text-sm text-gray-700">${value.toUpperCase()} <span class="text-gray-500">(0)</span></span>
+            <input type="checkbox" name="model" value="${modelValue}" class="w-4 h-4 text-zinc-900 border-zinc-300 rounded focus:ring-zinc-900" checked>
+            <span class="text-sm text-zinc-700">${value.toUpperCase()} <span class="text-zinc-400">(0)</span></span>
           `
           modelList.appendChild(label)
         }
@@ -1562,12 +1562,12 @@ function initializeSearch() {
     
     // Display active filters
     if (activeFilters.length > 0) {
-      let html = `<span class="text-sm text-gray-600 mr-2">${tr('Active filters', 'Filtres actifs')}:</span>`
+      let html = `<span class="text-xs text-zinc-400 mr-1">${tr('Active filters', 'Filtres actifs')}:</span>`
       activeFilters.forEach(filter => {
         html += `
-          <span class="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800 border border-blue-200">
+          <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs bg-zinc-100 text-zinc-700 border border-zinc-200">
             ${filter.label}
-            <button onclick="removeFilter('${filter.type}', '${filter.value}')" class="ml-2 text-blue-600 hover:text-blue-800">
+            <button onclick="removeFilter('${filter.type}', '${filter.value}')" class="ml-1.5 text-zinc-400 hover:text-zinc-700">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
               </svg>
@@ -1704,7 +1704,7 @@ function initializeSearch() {
     if (yearTo && yearTo !== '2026') filters.max_year = yearTo
     
     // Get selected color
-    const colorBtn = document.querySelector('button[data-color].border-blue-500')
+    const colorBtn = document.querySelector('button[data-color].border-zinc-900')
     if (colorBtn && colorBtn.dataset.color && colorBtn.dataset.color !== 'any') {
       filters.color = colorBtn.dataset.color
     }
@@ -1746,15 +1746,15 @@ function initializeSearch() {
       }
       // Show skeleton loaders
       resultsContainer.innerHTML = Array.from({ length: 8 }, () => `
-        <div class="listing-card bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden animate-pulse">
-          <div class="h-48 bg-gray-200"></div>
+        <div class="listing-card bg-white rounded-xl border border-zinc-100 overflow-hidden animate-pulse">
+          <div class="h-48 bg-zinc-100"></div>
           <div class="p-4">
-            <div class="h-6 bg-gray-200 rounded mb-2"></div>
-            <div class="h-8 bg-gray-200 rounded mb-3 w-1/2"></div>
-            <div class="grid grid-cols-2 gap-2">
-              <div class="h-4 bg-gray-200 rounded"></div>
-              <div class="h-4 bg-gray-200 rounded"></div>
-              <div class="h-4 bg-gray-200 rounded col-span-2"></div>
+            <div class="h-5 bg-zinc-100 rounded mb-2"></div>
+            <div class="h-7 bg-zinc-100 rounded mb-3 w-1/2"></div>
+            <div class="flex gap-2">
+              <div class="h-3 bg-zinc-100 rounded w-12"></div>
+              <div class="h-3 bg-zinc-100 rounded w-16"></div>
+              <div class="h-3 bg-zinc-100 rounded w-10"></div>
             </div>
           </div>
         </div>
@@ -1928,7 +1928,7 @@ function initializeSearch() {
     resultsCount.textContent = formatNumber(total) + ' ' + tr('listings found', 'annonces trouvées')
     populateFiltersFromListings(listings)
     if (listings.length === 0) {
-      resultsContainer.innerHTML = `<div class="col-span-full text-center py-12"><svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg><p class="mt-4 text-gray-600">${tr('No results found', 'Aucun résultat trouvé')}</p><p class="text-sm text-gray-500 mt-2">${tr('Try modifying your search criteria', 'Essayez de modifier vos critères de recherche')}</p></div>`
+      resultsContainer.innerHTML = `<div class="col-span-full text-center py-16"><svg class="mx-auto h-10 w-10 text-zinc-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg><p class="mt-3 text-sm text-zinc-500">${tr('No results found', 'Aucun résultat trouvé')}</p><p class="text-xs text-zinc-400 mt-1">${tr('Try modifying your search criteria', 'Essayez de modifier vos critères de recherche')}</p></div>`
       return
     }
     
@@ -2154,28 +2154,28 @@ function initializeSearch() {
     const imageUrl = getListingImage(listing.images)
     const hasImage = !!imageUrl
     
-    let cardHTML = '<div class="listing-card bg-white rounded-lg sm:rounded-xl shadow-md sm:shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer border border-gray-100 overflow-hidden transform hover:-translate-y-1" data-id="' + listing.id + '">'
-    
+    let cardHTML = '<div class="listing-card bg-white rounded-xl cursor-pointer border border-zinc-100 hover:border-zinc-200 overflow-hidden transition-colors duration-200" data-id="' + listing.id + '">'
+
     // Image section with lazy loading - absolute positioning ensures no letterboxing
-    cardHTML += '<div class="relative aspect-[4/3] bg-gray-100 overflow-hidden">'
+    cardHTML += '<div class="relative aspect-[4/3] bg-zinc-100 overflow-hidden">'
     if (hasImage) {
       const fallbackUrl = getPlaceholderImageUrl(listing.brand, listing.model, 800, 600)
       cardHTML += '<img data-src="' + imageUrl + '" alt="' + capitalize(listing.brand) + ' ' + capitalize(listing.model) + '" class="lazy-image absolute inset-0 w-full h-full object-cover object-center block" loading="lazy" decoding="async" referrerpolicy="no-referrer" onload="if(this.naturalWidth<150||this.naturalHeight<150){this.style.display=\'none\'}" onerror="this.onerror=null; this.src=\'' + fallbackUrl + '\'; this.classList.add(\'opacity-50\')">'
-      cardHTML += '<div class="absolute inset-0 bg-gray-100 animate-pulse lazy-placeholder"></div>'
+      cardHTML += '<div class="absolute inset-0 bg-zinc-100 animate-pulse lazy-placeholder"></div>'
     } else {
-      cardHTML += '<div class="w-full h-full flex items-center justify-center text-gray-400"><svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg></div>'
+      cardHTML += '<div class="w-full h-full flex items-center justify-center text-zinc-300"><svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg></div>'
     }
     
     // Source badge (+ "X sites" when multi-source)
     const sourcesCount = (listing.sources && listing.sources.length) || 0
-    cardHTML += '<div class="absolute top-2 right-2 flex items-center space-x-1 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-lg text-xs font-medium">'
+    cardHTML += '<div class="absolute top-2 right-2 flex items-center space-x-1 bg-white/90 px-2 py-1 rounded-md text-xs">'
     cardHTML += '<span>' + sourceIcon + '</span>'
-    cardHTML += '<span class="text-gray-700">' + sourceName + (sourcesCount > 1 ? ' · ' + sourcesCount + ' ' + tr('sites', 'sites') : '') + '</span>'
+    cardHTML += '<span class="text-zinc-600">' + sourceName + (sourcesCount > 1 ? ' · ' + sourcesCount + ' ' + tr('sites', 'sites') : '') + '</span>'
     cardHTML += '</div>'
-    
+
     // Market price badge with confidence inline
     if (marketPrice) {
-      cardHTML += '<div class="absolute bottom-2 left-2 bg-blue-600 text-white px-2 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5">'
+      cardHTML += '<div class="absolute bottom-2 left-2 bg-zinc-900 text-white px-2 py-1 rounded-md text-xs font-medium flex items-center gap-1.5">'
       cardHTML += '<span>' + tr('Market price', 'Prix marché') + ': ' + marketPrice + '</span>'
       if (listing.confidence_index) {
         const confidence = listing.confidence_index
@@ -2196,11 +2196,11 @@ function initializeSearch() {
     cardHTML += '<div class="p-4">'
     
     // Title on first line
-    cardHTML += '<h3 class="text-lg font-bold text-gray-900 mb-2">' + capitalize(listing.brand) + ' ' + capitalize(listing.model) + '</h3>'
-    
+    cardHTML += '<h3 class="text-sm font-semibold text-zinc-900 mb-1.5">' + capitalize(listing.brand) + ' ' + capitalize(listing.model) + '</h3>'
+
     // Price on second line
-    cardHTML += '<div class="mb-3 flex items-center gap-2 flex-wrap">'
-    cardHTML += '<span class="text-2xl font-bold text-blue-600">' + price + '</span>'
+    cardHTML += '<div class="mb-2.5 flex items-center gap-2 flex-wrap">'
+    cardHTML += '<span class="text-xl font-bold text-zinc-900">' + price + '</span>'
     
     // Price drop badge (if price dropped in last 7 days and drop > 5%)
     if (listing.price_drop_pct && listing.price_drop_pct >= 5 && listing.last_price_drop_date) {
@@ -2211,7 +2211,7 @@ function initializeSearch() {
         const dropAmount = listing.price_drop_amount || 0
         const dropPct = Math.round(listing.price_drop_pct)
         const dropAmountFormatted = formatCurrencyLocale(dropAmount, listing.currency || 'EUR')
-        cardHTML += '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800 border border-red-200">'
+        cardHTML += '<span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-red-50 text-red-700 border border-red-100">'
         cardHTML += '<svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6"></path></svg>'
         cardHTML += tr('Price dropped', 'Prix baissé') + ' -' + dropPct + '%'
         cardHTML += '</span>'
@@ -2265,32 +2265,26 @@ function initializeSearch() {
       : null;
     
     // Details grid - only show available information (Year, Mileage, Fuel, Location)
-    cardHTML += '<div class="grid grid-cols-2 gap-2 text-sm text-gray-600 mb-2">'
-    cardHTML += '<div class="flex items-center space-x-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg><span>' + listing.year + '</span></div>'
+    cardHTML += '<div class="flex flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-500 mb-2">'
+    cardHTML += '<span>' + listing.year + '</span>'
     if (mileage) {
-      cardHTML += '<div class="flex items-center space-x-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg><span>' + mileage + '</span></div>'
+      cardHTML += '<span>' + mileage + '</span>'
     }
     if (fuelTypeDisplay) {
-      cardHTML += '<div class="flex items-center space-x-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg><span>' + fuelTypeDisplay + '</span></div>'
+      cardHTML += '<span>' + fuelTypeDisplay + '</span>'
     }
-    // Location on the same line as fuel if available, otherwise alone
+    if (transmissionDisplay) {
+      cardHTML += '<span>' + transmissionDisplay + '</span>'
+    }
     if (locationDisplay) {
-      cardHTML += '<div class="flex items-center space-x-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg><span>' + locationDisplay + '</span></div>'
+      cardHTML += '<span class="truncate max-w-[160px]">' + locationDisplay + '</span>'
     }
     cardHTML += '</div>'
-    
-    // Transmission on a separate line (3rd line)
-    if (transmissionDisplay) {
-      cardHTML += '<div class="flex items-center space-x-1 text-sm text-gray-600 mb-3">'
-      cardHTML += '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>'
-      cardHTML += '<span>' + transmissionDisplay + '</span>'
-      cardHTML += '</div>'
-    }
-    
+
     // Footer
-    cardHTML += '<div class="flex items-center justify-between pt-3 border-t border-gray-100">'
-    cardHTML += '<span class="text-xs text-gray-500">' + tr('Published', 'Publié') + ' ' + postedDate + '</span>'
-    cardHTML += '<a href="/listing/' + listing.id + '" class="text-blue-600 hover:text-blue-700 text-sm font-medium">' + tr('View', 'Voir') + ' →</a>'
+    cardHTML += '<div class="flex items-center justify-between pt-2.5 border-t border-zinc-100">'
+    cardHTML += '<span class="text-xs text-zinc-400">' + postedDate + '</span>'
+    cardHTML += '<a href="/listing/' + listing.id + '" class="text-xs text-zinc-500 hover:text-zinc-900 font-medium transition">' + tr('View', 'Voir') + ' →</a>'
     cardHTML += '</div>'
     cardHTML += '</div>'
     cardHTML += '</div>'
@@ -2314,7 +2308,7 @@ function initializeSearch() {
     let modalHTML = '<div class="grid md:grid-cols-2 gap-6">'
     modalHTML += '<div>'
     modalHTML += '<div class="rounded-xl overflow-hidden mb-4 relative" id="image-carousel">'
-    modalHTML += '<div class="relative h-64 bg-gray-200">'
+    modalHTML += '<div class="relative h-64 bg-zinc-100">'
     modalHTML += '<img id="main-carousel-image" src="' + mainImage + '" alt="' + listing.brand + ' ' + listing.model + '" class="w-full h-full object-cover" referrerpolicy="no-referrer">'
     if (filteredImages.length > 1) {
       modalHTML += '<button id="carousel-prev" class="absolute left-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white rounded-full p-2 transition"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg></button>'
@@ -2326,23 +2320,23 @@ function initializeSearch() {
     if (otherImages.length > 0) {
       modalHTML += '<div class="grid grid-cols-3 gap-2" id="thumbnail-grid">'
       otherImages.forEach((img, index) => {
-        modalHTML += '<img src="' + img + '" alt="" class="thumbnail-image w-full h-24 object-cover rounded-lg cursor-pointer hover:opacity-75 border-2 border-transparent hover:border-blue-500 transition" data-index="' + (index + 1) + '" referrerpolicy="no-referrer">'
+        modalHTML += '<img src="' + img + '" alt="" class="thumbnail-image w-full h-24 object-cover rounded-lg cursor-pointer hover:opacity-75 border-2 border-transparent hover:border-zinc-900 transition" data-index="' + (index + 1) + '" referrerpolicy="no-referrer">'
       })
       modalHTML += '</div>'
     }
     modalHTML += '</div>'
     
     modalHTML += '<div>'
-    modalHTML += '<h2 class="text-3xl font-bold text-gray-900 mb-2">' + listing.year + ' ' + capitalize(listing.brand) + ' ' + capitalize(listing.model) + '</h2>'
-    modalHTML += '<div class="text-4xl font-bold text-blue-600 mb-4">' + price + '</div>'
-    
+    modalHTML += '<h2 class="text-2xl font-bold text-zinc-900 mb-2">' + listing.year + ' ' + capitalize(listing.brand) + ' ' + capitalize(listing.model) + '</h2>'
+    modalHTML += '<div class="text-3xl font-bold text-zinc-900 mb-4">' + price + '</div>'
+
     if (marketPrice) {
-      modalHTML += '<div class="bg-blue-50 rounded-lg p-4 mb-4">'
+      modalHTML += '<div class="bg-zinc-50 border border-zinc-100 rounded-lg p-4 mb-4">'
       modalHTML += '<div class="flex items-center justify-between gap-3">'
       modalHTML += '<div class="flex-1">'
-      modalHTML += '<span class="text-sm text-gray-600">' + tr('Estimated market price', 'Prix marché estimé') + '</span>'
+      modalHTML += '<span class="text-xs text-zinc-500">' + tr('Estimated market price', 'Prix marché estimé') + '</span>'
       modalHTML += '<div class="flex items-baseline gap-2 mt-1">'
-      modalHTML += '<span class="text-lg sm:text-xl font-bold text-blue-600">' + marketPrice + '</span>'
+      modalHTML += '<span class="text-lg sm:text-xl font-bold text-zinc-900">' + marketPrice + '</span>'
       if (listing.confidence_index) {
         const confidence = listing.confidence_index
         let confColor = 'text-red-600'
@@ -2363,26 +2357,26 @@ function initializeSearch() {
     const rawModalFuel = listing.fuel_type ? listing.fuel_type.toLowerCase().trim() : ''
     const modalFuelDisplay = rawModalFuel ? (modalFuelMap[rawModalFuel] || rawModalFuel.split(/[/\s]+/).map(p => modalFuelMap[p.trim()] || p.toUpperCase()).join('/')) : null
     modalHTML += '<div class="grid grid-cols-2 gap-4 mb-6">'
-    modalHTML += '<div class="bg-gray-50 rounded-lg p-3"><div class="text-sm text-gray-600">' + tr('Year', 'Année') + '</div><div class="text-lg font-semibold">' + listing.year + '</div></div>'
-    modalHTML += '<div class="bg-gray-50 rounded-lg p-3"><div class="text-sm text-gray-600">' + tr('Mileage', 'Kilométrage') + '</div><div class="text-lg font-semibold">' + mileage + ' km</div></div>'
+    modalHTML += '<div class="bg-zinc-50 rounded-lg p-3 border border-zinc-100"><div class="text-xs text-zinc-500">' + tr('Year', 'Année') + '</div><div class="text-base font-semibold text-zinc-900">' + listing.year + '</div></div>'
+    modalHTML += '<div class="bg-zinc-50 rounded-lg p-3 border border-zinc-100"><div class="text-xs text-zinc-500">' + tr('Mileage', 'Kilométrage') + '</div><div class="text-base font-semibold text-zinc-900">' + mileage + ' km</div></div>'
     if (modalFuelDisplay) {
-      modalHTML += '<div class="bg-gray-50 rounded-lg p-3"><div class="text-sm text-gray-600">' + tr('Fuel', 'Carburant') + '</div><div class="text-lg font-semibold">' + modalFuelDisplay + '</div></div>'
+      modalHTML += '<div class="bg-zinc-50 rounded-lg p-3 border border-zinc-100"><div class="text-xs text-zinc-500">' + tr('Fuel', 'Carburant') + '</div><div class="text-base font-semibold text-zinc-900">' + modalFuelDisplay + '</div></div>'
     }
     const modalLocationCity = listing.location_city || listing.location?.city || listing.location_region
     const modalLocationCountry = listing.location_country || listing.location?.country || 'FR'
     const modalLocationDisplay = modalLocationCity ? (modalLocationCity + ', ' + modalLocationCountry) : modalLocationCountry
-    modalHTML += '<div class="bg-gray-50 rounded-lg p-3"><div class="text-sm text-gray-600">' + tr('Location', 'Localisation') + '</div><div class="text-lg font-semibold">' + modalLocationDisplay + '</div></div>'
+    modalHTML += '<div class="bg-zinc-50 rounded-lg p-3 border border-zinc-100"><div class="text-xs text-zinc-500">' + tr('Location', 'Localisation') + '</div><div class="text-base font-semibold text-zinc-900">' + modalLocationDisplay + '</div></div>'
     modalHTML += '</div>'
     
     const sources = (listing.sources && listing.sources.length > 0 ? listing.sources.filter(function (s) { return s.url }) : null) || (listing.url ? [{ platform: listing.source_platform || listing.source, url: listing.url }] : [])
-    const linkDisclaimer = '<p class="mt-2 text-xs text-gray-500">' + tr('The seller may have removed this listing. If the link shows an error, the car may no longer be available.', 'Le vendeur peut avoir retiré cette annonce. Si le lien affiche une erreur, le véhicule n\'est peut-être plus disponible.') + '</p>'
+    const linkDisclaimer = '<p class="mt-2 text-xs text-zinc-400">' + tr('The seller may have removed this listing. If the link shows an error, the car may no longer be available.', 'Le vendeur peut avoir retiré cette annonce. Si le lien affiche une erreur, le véhicule n\'est peut-être plus disponible.') + '</p>'
     modalHTML += '<div class="flex flex-col space-y-2">'
     if (sources.length === 1) {
-      modalHTML += '<a href="' + sources[0].url + '" target="_blank" rel="noopener noreferrer" class="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition text-center">' + tr('View original listing', 'Voir l\'annonce originale') + '</a>' + linkDisclaimer
+      modalHTML += '<a href="' + sources[0].url + '" target="_blank" rel="noopener noreferrer" class="flex-1 px-6 py-3 bg-zinc-900 text-white rounded-lg font-semibold hover:bg-zinc-700 transition text-center">' + tr('View original listing', 'Voir l\'annonce originale') + '</a>' + linkDisclaimer
     } else if (sources.length > 1) {
-      modalHTML += '<div class="text-sm font-medium text-gray-700 mb-1">' + tr('Contact seller', 'Contacter le vendeur') + ' :</div>'
+      modalHTML += '<div class="text-sm font-medium text-zinc-700 mb-1">' + tr('Contact seller', 'Contacter le vendeur') + ' :</div>'
       sources.forEach(function (s) {
-        modalHTML += '<a href="' + s.url + '" target="_blank" rel="noopener noreferrer" class="flex items-center justify-between px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition text-center"><span>' + getSourceName(s.platform) + '</span><span>→</span></a>'
+        modalHTML += '<a href="' + s.url + '" target="_blank" rel="noopener noreferrer" class="flex items-center justify-between px-6 py-3 bg-zinc-900 text-white rounded-lg font-semibold hover:bg-zinc-700 transition text-center"><span>' + getSourceName(s.platform) + '</span><span>→</span></a>'
       })
       modalHTML += linkDisclaimer
     }
@@ -2418,10 +2412,10 @@ function initializeSearch() {
       // Update thumbnail selection
       thumbnails.forEach((thumb, i) => {
         if (i === index - 1) {
-          thumb.classList.add('border-blue-500')
+          thumb.classList.add('border-zinc-900')
           thumb.classList.remove('border-transparent')
         } else {
-          thumb.classList.remove('border-blue-500')
+          thumb.classList.remove('border-zinc-900')
           thumb.classList.add('border-transparent')
         }
       })
@@ -2478,22 +2472,22 @@ function initializeSearch() {
     
     // Previous button
     if (page > 1) {
-      paginationHTML += '<button class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50" onclick="window.changePage(' + (page - 1) + ')">' + tr('Previous', 'Précédent') + '</button>'
+      paginationHTML += '<button class="px-3 py-1.5 border border-zinc-200 rounded-lg text-sm text-zinc-600 hover:bg-zinc-50 transition" onclick="window.changePage(' + (page - 1) + ')">' + tr('Previous', 'Précédent') + '</button>'
     } else {
-      paginationHTML += '<button disabled class="px-4 py-2 border border-gray-300 rounded-lg opacity-50 cursor-not-allowed">' + tr('Previous', 'Précédent') + '</button>'
+      paginationHTML += '<button disabled class="px-3 py-1.5 border border-zinc-100 rounded-lg text-sm text-zinc-300 cursor-not-allowed">' + tr('Previous', 'Précédent') + '</button>'
     }
-    
+
     // Page numbers
     for (let i = Math.max(1, page - 2); i <= Math.min(totalPages, page + 2); i++) {
       const isActive = i === page
-      paginationHTML += '<button class="px-4 py-2 border border-gray-300 rounded-lg ' + (isActive ? 'bg-blue-600 text-white' : 'hover:bg-gray-50') + '" onclick="window.changePage(' + i + ')">' + i + '</button>'
+      paginationHTML += '<button class="w-9 h-9 rounded-lg text-sm border ' + (isActive ? 'bg-zinc-900 text-white border-zinc-900' : 'border-zinc-200 text-zinc-600 hover:bg-zinc-50') + ' transition" onclick="window.changePage(' + i + ')">' + i + '</button>'
     }
-    
+
     // Next button
     if (page < totalPages) {
-      paginationHTML += '<button class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50" onclick="window.changePage(' + (page + 1) + ')">' + tr('Next', 'Suivant') + '</button>'
+      paginationHTML += '<button class="px-3 py-1.5 border border-zinc-200 rounded-lg text-sm text-zinc-600 hover:bg-zinc-50 transition" onclick="window.changePage(' + (page + 1) + ')">' + tr('Next', 'Suivant') + '</button>'
     } else {
-      paginationHTML += '<button disabled class="px-4 py-2 border border-gray-300 rounded-lg opacity-50 cursor-not-allowed">' + tr('Next', 'Suivant') + '</button>'
+      paginationHTML += '<button disabled class="px-3 py-1.5 border border-zinc-100 rounded-lg text-sm text-zinc-300 cursor-not-allowed">' + tr('Next', 'Suivant') + '</button>'
     }
     
     pagination.innerHTML = paginationHTML

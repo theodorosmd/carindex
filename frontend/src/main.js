@@ -258,6 +258,11 @@ function route() {
     }
     renderAuctionMarginCalculator()
   } else if (effectivePath === '/' || effectivePath === '/index.html' || effectivePath === '') {
+    // Redirect bare / to #/ so hash routing takes over
+    if (!window.location.hash) {
+      window.location.replace('/#/')
+      return
+    }
     renderLandingPage()
   } else {
     // Default to landing page
