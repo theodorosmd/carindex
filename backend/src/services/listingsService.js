@@ -1,6 +1,7 @@
 import { supabase } from '../config/supabase.js';
 import { calculateMarketPrice } from './marketPriceService.js';
 import { getListingSources } from './listingSourcesService.js';
+import { expandFuelCanonicalToRaw, expandTransmissionCanonicalToRaw } from '../utils/listingNormalize.js';
 
 export async function searchListingsService(filters, userPlan = null) {
   const {
@@ -90,37 +91,26 @@ export async function searchListingsService(filters, userPlan = null) {
       query = query.eq('location_country', country);
     }
 
-    // Fuel type (support array)
+    // Fuel type (support array) - expand canonical (DIESEL, PETROL) to raw DB values
     if (fuel_type) {
-      const fuels = Array.isArray(fuel_type) ? fuel_type : [fuel_type];
-      query = query.in('fuel_type', fuels);
+      const canonicals = Array.isArray(fuel_type) ? fuel_type.filter(Boolean) : [fuel_type];
+      const rawValues = canonicals.flatMap(c => expandFuelCanonicalToRaw(c)).filter(Boolean);
+      if (rawValues.length > 0) query = query.in('fuel_type', rawValues);
     }
 
-    // Transmission (support array)
+    // Transmission (support array) - expand canonical (AUTOMATIC, MANUAL) to raw DB values
     if (transmission) {
-      const transmissions = Array.isArray(transmission) ? transmission : [transmission];
-      const transmissionMap = {
-        'automatic': 'automatic',
-        'manual': 'manual'
-      };
-      const mappedTransmissions = transmissions.map(t => transmissionMap[t] || t);
-      query = query.in('transmission', mappedTransmissions);
+      const canonicals = Array.isArray(transmission) ? transmission.filter(Boolean) : [transmission];
+      const rawValues = canonicals.flatMap(c => expandTransmissionCanonicalToRaw(c)).filter(Boolean);
+      if (rawValues.length > 0) query = query.in('transmission', rawValues);
     }
 
-    // Steering (support array)
+    // Steering (support array) - LHD / RHD only
     if (steering) {
       const steerings = Array.isArray(steering) ? steering : [steering];
-      const hasUnspecified = steerings.includes('unspecified');
-      const filtered = steerings.filter(s => s !== 'unspecified');
       const steeringMap = { left: 'LHD', right: 'RHD' };
-      const mapped = filtered.map(s => steeringMap[s] || s).filter(Boolean);
-      if (mapped.length > 0 && hasUnspecified) {
-        query = query.or(mapped.map(m => `steering.eq.${m}`).join(',') + ',steering.is.null');
-      } else if (hasUnspecified) {
-        query = query.or('steering.is.null,steering.eq.');
-      } else if (mapped.length > 0) {
-        query = query.in('steering', mapped);
-      }
+      const mapped = steerings.map(s => steeringMap[s] || s).filter(Boolean);
+      if (mapped.length > 0) query = query.in('steering', mapped);
     }
 
     // Doors (support array)

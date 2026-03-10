@@ -133,10 +133,6 @@ export function renderListingsSearch() {
                 <input type="checkbox" name="steering" value="right" class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
                 <span class="ml-2 text-sm text-gray-700">${tr('RIGHT-HAND DRIVE', 'VOLANT À DROITE')} <span class="text-gray-500">(0)</span></span>
               </label>
-              <label class="flex items-center cursor-pointer">
-                <input type="checkbox" name="steering" value="unspecified" class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
-                <span class="ml-2 text-sm text-gray-700">${tr('NOT SPECIFIED', 'NON RENSEIGNÉ')} <span class="text-gray-500">(0)</span></span>
-              </label>
             </div>
           </div>
           
@@ -1052,7 +1048,6 @@ async function loadFacets(forceNoFilters = false) {
         let value = ''
         if (nameUpper === 'LHD' || nameUpper === 'LEFT') value = 'left'
         else if (nameUpper === 'RHD' || nameUpper === 'RIGHT') value = 'right'
-        else if (nameUpper === 'UNSPECIFIED' || name === 'unspecified') value = 'unspecified'
         if (value) {
           const checkbox = document.querySelector(`input[name="steering"][value="${value}"]`)
           if (checkbox) {
@@ -1853,21 +1848,42 @@ function initializeSearch() {
   // Make searchListings available globally AFTER it's defined
   window.searchListings = searchListings
   
+  // Normalize fuel/transmission for fallback (matches backend canonical grouping)
+  function normalizeFuelForFallback(raw) {
+    const k = (raw || '').toLowerCase()
+    if (/diesel/i.test(k)) return 'DIESEL'
+    if (/benz|petrol|gasolin|essence|bensin/i.test(k)) return 'PETROL'
+    if (/elektro|elektrisch|electr|elettric|eléctric/i.test(k) && /benz|petrol/i.test(k)) return 'HYBRID'
+    if (/elektro|elektrisch|electr|elettric|eléctric/i.test(k)) return 'ELECTRIC'
+    if (/gpl|lpg|autogas/i.test(k)) return 'LPG'
+    if (/hybrid|plug-in|plugin/i.test(k)) return 'HYBRID'
+    return (raw || '').toUpperCase()
+  }
+  function normalizeTransmissionForFallback(raw) {
+    const k = (raw || '').toLowerCase()
+    if (/auto|automat|tronic|dsg|schalt|handges/i.test(k)) return /schalt|handges|manu|bvm/i.test(k) ? 'MANUAL' : 'AUTOMATIC'
+    if (/manu|schalt|handges|bvm/i.test(k)) return 'MANUAL'
+    return (raw || '').toUpperCase()
+  }
+
   // Fallback: populate filters from search results when facets API fails or returns empty
   function populateFiltersFromListings(listings) {
     if (!listings || listings.length === 0) return
     const brands = {}
     const countries = {}
     const fuelTypes = {}
-    const steeringCounts = { left: 0, right: 0, unspecified: 0 }
+    const transmissionTypes = {}
     listings.forEach(l => {
       if (l.brand) brands[l.brand] = (brands[l.brand] || 0) + 1
       if (l.location_country) countries[l.location_country] = (countries[l.location_country] || 0) + 1
-      if (l.fuel_type) fuelTypes[l.fuel_type] = (fuelTypes[l.fuel_type] || 0) + 1
-      const s = (l.steering || '').toUpperCase()
-      if (s === 'LHD' || s === 'LEFT') steeringCounts.left++
-      else if (s === 'RHD' || s === 'RIGHT') steeringCounts.right++
-      else steeringCounts.unspecified++
+      if (l.fuel_type) {
+        const c = normalizeFuelForFallback(l.fuel_type)
+        fuelTypes[c] = (fuelTypes[c] || 0) + 1
+      }
+      if (l.transmission) {
+        const c = normalizeTransmissionForFallback(l.transmission)
+        transmissionTypes[c] = (transmissionTypes[c] || 0) + 1
+      }
     })
     const countryNames = { FR: 'France', SE: 'Suède', DE: 'Allemagne', BE: 'Belgique', NL: 'Pays-Bas', IT: 'Italie', ES: 'Espagne', AT: 'Autriche', CH: 'Suisse' }
     const brandList = document.querySelector('#brand-list')
@@ -1893,18 +1909,18 @@ function initializeSearch() {
     const fuelList = document.querySelector('#fuel-list')
     if (fuelList && Object.keys(fuelTypes).length > 0) {
       if (!fuelList.querySelector('label')) {
-        const fuelMap = { petrol: tr('PETROL', 'ESSENCE'), gasolina: tr('PETROL', 'ESSENCE'), diesel: tr('DIESEL', 'DIESEL'), benzine: tr('PETROL', 'ESSENCE'), benzin: tr('PETROL', 'ESSENCE'), hybrid: tr('HYBRID', 'HYBRIDE'), electric: tr('ELECTRIC', 'ÉLECTRIQUE') }
+        const fuelMap = { petrol: tr('PETROL', 'ESSENCE'), diesel: tr('DIESEL', 'DIESEL'), hybrid: tr('HYBRID', 'HYBRIDE'), electric: tr('ELECTRIC', 'ÉLECTRIQUE'), lpg: tr('LPG', 'LPG'), cng: tr('CNG', 'CNG') }
         populateFilterSection('fuel-list', Object.entries(fuelTypes).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count), 'fuel', n => n.toLowerCase(), n => fuelMap[n?.toLowerCase()] || n?.toUpperCase())
       }
     }
-    const leftSpan = document.querySelector('input[name="steering"][value="left"]')?.closest('label')?.querySelector('.text-gray-500')
-    const rightSpan = document.querySelector('input[name="steering"][value="right"]')?.closest('label')?.querySelector('.text-gray-500')
-    const unspecSpan = document.querySelector('input[name="steering"][value="unspecified"]')?.closest('label')?.querySelector('.text-gray-500')
-    if (leftSpan && (steeringCounts.left > 0 || steeringCounts.right > 0 || steeringCounts.unspecified > 0)) {
-      leftSpan.textContent = `(${formatNumber(steeringCounts.left)})`
-      if (rightSpan) rightSpan.textContent = `(${formatNumber(steeringCounts.right)})`
-      if (unspecSpan) unspecSpan.textContent = `(${formatNumber(steeringCounts.unspecified)})`
+    const transmissionList = document.querySelector('#transmission-list')
+    if (transmissionList && Object.keys(transmissionTypes).length > 0) {
+      if (!transmissionList.querySelector('label')) {
+        const transmissionMap = { automatic: tr('AUTOMATIC', 'AUTOMATIQUE'), manual: tr('MANUAL', 'MANUELLE') }
+        populateFilterSection('transmission-list', Object.entries(transmissionTypes).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count), 'transmission', n => n.toLowerCase(), n => transmissionMap[n?.toLowerCase()] || n?.toUpperCase())
+      }
     }
+    // Steering counts come only from facets API (never from search results - avoids showing page-size counts like 24 instead of full DB counts)
   }
 
   // Display results with virtual scrolling for large lists

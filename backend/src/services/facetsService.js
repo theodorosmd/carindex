@@ -1,6 +1,7 @@
 import { supabase } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import { facetsCache } from '../utils/cache.js';
+import { normalizeFuelType, normalizeTransmission, expandFuelCanonicalToRaw, expandTransmissionCanonicalToRaw } from '../utils/listingNormalize.js';
 
 /**
  * Clear facets cache (useful for debugging or after data updates)
@@ -130,8 +131,9 @@ export async function getFacetsService(baseFilters = {}) {
     }
 
     if (baseFilters.fuel_type) {
-      const fuels = Array.isArray(baseFilters.fuel_type) ? baseFilters.fuel_type : [baseFilters.fuel_type];
-      query = query.in('fuel_type', fuels);
+      const canonicals = Array.isArray(baseFilters.fuel_type) ? baseFilters.fuel_type.filter(Boolean) : [baseFilters.fuel_type];
+      const rawValues = canonicals.flatMap(c => expandFuelCanonicalToRaw(c)).filter(Boolean);
+      if (rawValues.length > 0) query = query.in('fuel_type', rawValues);
     }
 
     if (baseFilters.seller_type) {
@@ -141,22 +143,15 @@ export async function getFacetsService(baseFilters = {}) {
 
     if (baseFilters.steering) {
       const steerings = Array.isArray(baseFilters.steering) ? baseFilters.steering : [baseFilters.steering];
-      const hasUnspecified = steerings.includes('unspecified');
-      const filtered = steerings.filter(s => s !== 'unspecified');
       const steeringMap = { left: 'LHD', right: 'RHD' };
-      const mapped = filtered.map(s => steeringMap[s] || s).filter(Boolean);
-      if (mapped.length > 0 && hasUnspecified) {
-        query = query.or(mapped.map(m => `steering.eq.${m}`).join(',') + ',steering.is.null');
-      } else if (hasUnspecified) {
-        query = query.or('steering.is.null,steering.eq.');
-      } else if (mapped.length > 0) {
-        query = query.in('steering', mapped);
-      }
+      const mapped = steerings.map(s => steeringMap[s] || s).filter(Boolean);
+      if (mapped.length > 0) query = query.in('steering', mapped);
     }
 
     if (baseFilters.transmission) {
-      const transmissions = Array.isArray(baseFilters.transmission) ? baseFilters.transmission : [baseFilters.transmission];
-      query = query.in('transmission', transmissions);
+      const canonicals = Array.isArray(baseFilters.transmission) ? baseFilters.transmission.filter(Boolean) : [baseFilters.transmission];
+      const rawValues = canonicals.flatMap(c => expandTransmissionCanonicalToRaw(c)).filter(Boolean);
+      if (rawValues.length > 0) query = query.in('transmission', rawValues);
     }
 
     if (baseFilters.doors) {
@@ -241,8 +236,9 @@ export async function getFacetsService(baseFilters = {}) {
     }
 
     if (baseFilters.fuel_type) {
-      const fuels = Array.isArray(baseFilters.fuel_type) ? baseFilters.fuel_type : [baseFilters.fuel_type];
-      countQuery = countQuery.in('fuel_type', fuels);
+      const canonicals = Array.isArray(baseFilters.fuel_type) ? baseFilters.fuel_type.filter(Boolean) : [baseFilters.fuel_type];
+      const rawValues = canonicals.flatMap(c => expandFuelCanonicalToRaw(c)).filter(Boolean);
+      if (rawValues.length > 0) countQuery = countQuery.in('fuel_type', rawValues);
     }
 
     if (baseFilters.seller_type) {
@@ -252,22 +248,15 @@ export async function getFacetsService(baseFilters = {}) {
 
     if (baseFilters.steering) {
       const steerings = Array.isArray(baseFilters.steering) ? baseFilters.steering : [baseFilters.steering];
-      const hasUnspecified = steerings.includes('unspecified');
-      const filtered = steerings.filter(s => s !== 'unspecified');
       const steeringMap = { left: 'LHD', right: 'RHD' };
-      const mapped = filtered.map(s => steeringMap[s] || s).filter(Boolean);
-      if (mapped.length > 0 && hasUnspecified) {
-        countQuery = countQuery.or(mapped.map(m => `steering.eq.${m}`).join(',') + ',steering.is.null');
-      } else if (hasUnspecified) {
-        countQuery = countQuery.or('steering.is.null,steering.eq.');
-      } else if (mapped.length > 0) {
-        countQuery = countQuery.in('steering', mapped);
-      }
+      const mapped = steerings.map(s => steeringMap[s] || s).filter(Boolean);
+      if (mapped.length > 0) countQuery = countQuery.in('steering', mapped);
     }
 
     if (baseFilters.transmission) {
-      const transmissions = Array.isArray(baseFilters.transmission) ? baseFilters.transmission : [baseFilters.transmission];
-      countQuery = countQuery.in('transmission', transmissions);
+      const canonicals = Array.isArray(baseFilters.transmission) ? baseFilters.transmission.filter(Boolean) : [baseFilters.transmission];
+      const rawValues = canonicals.flatMap(c => expandTransmissionCanonicalToRaw(c)).filter(Boolean);
+      if (rawValues.length > 0) countQuery = countQuery.in('transmission', rawValues);
     }
 
     if (baseFilters.doors) {
@@ -394,23 +383,27 @@ export async function getFacetsService(baseFilters = {}) {
         facets.countries[code] = (facets.countries[code] || 0) + 1;
       }
 
-      // Fuel types - only count non-null, non-empty values
+      // Fuel types - normalize to canonical (DIESEL, PETROL, etc.) to group language variants
       if (listing.fuel_type && listing.fuel_type.trim() !== '') {
-        facets.fuel_types[listing.fuel_type] = (facets.fuel_types[listing.fuel_type] || 0) + 1;
+        const canonical = normalizeFuelType(listing.fuel_type);
+        if (canonical) {
+          facets.fuel_types[canonical] = (facets.fuel_types[canonical] || 0) + 1;
+        }
       }
 
-      // Transmissions - only count non-null, non-empty values
+      // Transmissions - normalize to canonical (AUTOMATIC, MANUAL) to group language variants
       if (listing.transmission && listing.transmission.trim() !== '') {
-        facets.transmissions[listing.transmission] = (facets.transmissions[listing.transmission] || 0) + 1;
+        const canonical = normalizeTransmission(listing.transmission);
+        if (canonical) {
+          facets.transmissions[canonical] = (facets.transmissions[canonical] || 0) + 1;
+        }
       }
 
-      // Steering - count LHD, RHD, and null/empty as "unspecified"
+      // Steering - count LHD, RHD only (exclude null/empty)
       if (listing.steering && String(listing.steering).trim() !== '') {
         const code = String(listing.steering).toUpperCase().slice(0, 3);
-        const key = (code === 'LHD' || code === 'LEFT') ? 'LHD' : (code === 'RHD' || code === 'RIGHT') ? 'RHD' : code;
-        facets.steering[key] = (facets.steering[key] || 0) + 1;
-      } else {
-        facets.steering.unspecified = (facets.steering.unspecified || 0) + 1;
+        const key = (code === 'LHD' || code === 'LEFT') ? 'LHD' : (code === 'RHD' || code === 'RIGHT') ? 'RHD' : null;
+        if (key) facets.steering[key] = (facets.steering[key] || 0) + 1;
       }
 
       // Doors - only count non-null values
@@ -483,26 +476,20 @@ export async function getFacetsService(baseFilters = {}) {
       if (baseFilters.min_mileage) q = q.gte('mileage', baseFilters.min_mileage);
       if (baseFilters.max_mileage) q = q.lte('mileage', baseFilters.max_mileage);
       if (baseFilters.fuel_type) {
-        const fuels = Array.isArray(baseFilters.fuel_type) ? baseFilters.fuel_type : [baseFilters.fuel_type];
-        q = q.in('fuel_type', fuels);
+        const canonicals = Array.isArray(baseFilters.fuel_type) ? baseFilters.fuel_type.filter(Boolean) : [baseFilters.fuel_type];
+        const rawValues = canonicals.flatMap(c => expandFuelCanonicalToRaw(c)).filter(Boolean);
+        if (rawValues.length > 0) q = q.in('fuel_type', rawValues);
       }
       if (baseFilters.steering) {
         const steerings = Array.isArray(baseFilters.steering) ? baseFilters.steering : [baseFilters.steering];
-        const hasUnspecified = steerings.includes('unspecified');
-        const filtered = steerings.filter(s => s !== 'unspecified');
         const steeringMap = { left: 'LHD', right: 'RHD' };
-        const mapped = filtered.map(s => steeringMap[s] || s).filter(Boolean);
-        if (mapped.length > 0 && hasUnspecified) {
-          q = q.or(mapped.map(m => `steering.eq.${m}`).join(',') + ',steering.is.null');
-        } else if (hasUnspecified) {
-          q = q.or('steering.is.null,steering.eq.');
-        } else if (mapped.length > 0) {
-          q = q.in('steering', mapped);
-        }
+        const mapped = steerings.map(s => steeringMap[s] || s).filter(Boolean);
+        if (mapped.length > 0) q = q.in('steering', mapped);
       }
       if (baseFilters.transmission) {
-        const transmissions = Array.isArray(baseFilters.transmission) ? baseFilters.transmission : [baseFilters.transmission];
-        q = q.in('transmission', transmissions);
+        const canonicals = Array.isArray(baseFilters.transmission) ? baseFilters.transmission.filter(Boolean) : [baseFilters.transmission];
+        const rawValues = canonicals.flatMap(c => expandTransmissionCanonicalToRaw(c)).filter(Boolean);
+        if (rawValues.length > 0) q = q.in('transmission', rawValues);
       }
       if (baseFilters.doors) {
         const doorsArray = Array.isArray(baseFilters.doors) ? baseFilters.doors : [baseFilters.doors];

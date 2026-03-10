@@ -59,9 +59,8 @@ export async function getFacets(req, res, next) {
     
     logger.info('Facets response', { 
       total: result.total,
-      brandsCount: result.facets.brands.length,
-      sampleBrands: result.facets.brands.slice(0, 5).map(b => `${b.name}: ${b.count}`),
-      allBrands: result.facets.brands.map(b => `${b.name}: ${b.count}`)
+      brandsCount: result.facets?.brands?.length ?? 0,
+      sampleBrands: (result.facets?.brands ?? []).slice(0, 5).map(b => `${b.name}: ${b.count}`)
     });
     
     res.json(result);
