@@ -156,18 +156,24 @@ const COUNTY_TO_REGION = {
 
 /**
  * Scrape Bilweb via scrape.do
- * URL structure: /sok?sida=N (server-side rendered, no JS needed)
- * Card selector: .Card-Wrapper
+ * Bilweb is an SPA — pagination uses ?offset=N&limit=30 (not ?sida=N which is ignored server-side).
+ * Each page HTML has 60 Card-Wrapper elements but only 30 unique listings (each card duplicated in DOM).
+ * Card selector: .Card-Wrapper > .Card[id]
  */
 async function scrapeBilwebViaScrapeDo(baseUrl, maxPages = 50) {
   const listings = [];
   const seen = new Set();
+  const PAGE_SIZE = 30;
 
-  // Normalise base URL: use /sok for flat pagination, strip trailing slash
-  const sokBase = baseUrl.replace(/\/$/, '').replace(/\/bilar$/, '/sok');
+  // Normalise base URL: strip www (bilweb.se → no redirect), use /sok
+  const sokBase = baseUrl
+    .replace(/^https?:\/\/www\.bilweb\.se/, 'https://bilweb.se')
+    .replace(/\/$/, '')
+    .replace(/\/bilar$/, '/sok');
 
-  for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
-    const url = pageNum === 1 ? sokBase : `${sokBase}?sida=${pageNum}`;
+  for (let pageNum = 0; pageNum < maxPages; pageNum++) {
+    const offset = pageNum * PAGE_SIZE;
+    const url = `${sokBase}?offset=${offset}&limit=${PAGE_SIZE}&order_by=timestamp&order=desc`;
 
     let html;
     try {
