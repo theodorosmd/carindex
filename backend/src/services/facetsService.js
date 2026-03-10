@@ -92,7 +92,7 @@ export async function getFacetsService(baseFilters = {}) {
     // Remove limit to get accurate counts - but this may be slow for very large datasets
     let query = supabase
       .from('listings')
-      .select(selectColumns, { count: 'exact' })
+      .select(selectColumns, { count: 'planned' })
       .eq('status', 'active');
 
     // Apply base filters (same logic as searchListingsService)
@@ -189,10 +189,13 @@ export async function getFacetsService(baseFilters = {}) {
       query = query.or(`posted_date.lt.${thirtyDaysAgoIso},posted_date.is.null`);
     }
 
+    // Order for consistent sampling (Supabase 1000-row limit per request)
+    query = query.order('id', { ascending: true });
+
     // Get total count first - create a separate count query
     let countQuery = supabase
       .from('listings')
-      .select('*', { count: 'exact', head: true })
+      .select('*', { count: 'planned', head: true })
       .eq('status', 'active');
 
     // Apply same filters to count query
@@ -292,14 +295,12 @@ export async function getFacetsService(baseFilters = {}) {
       throw countError;
     }
 
-    // For facets, we need to aggregate by each field
-    // Instead of loading all data, we'll use multiple queries with distinct values
-    // This is more efficient for large datasets
-    
-    // Get all matching listings for aggregation - use pagination to fetch all results
+    // Supabase returns max 1000 rows per request. With 500K+ listings, loading all = 500+ requests = timeout.
+    // Sample first 3000 rows (3 requests, ~3-6s) for facet values; totalCount stays accurate.
+    const FACETS_SAMPLE_LIMIT = 3000;
+    const pageSize = 1000; // Supabase default max per request
     let allListings = [];
     let offset = 0;
-    const pageSize = 10000; // Fetch in batches
     let hasMore = true;
 
     while (hasMore) {
@@ -314,35 +315,32 @@ export async function getFacetsService(baseFilters = {}) {
       if (listings && listings.length > 0) {
         allListings = allListings.concat(listings);
         offset += listings.length;
-        
-        // If we got less than pageSize, we've reached the end
-        if (listings.length < pageSize) {
+
+        if (listings.length < pageSize) hasMore = false;
+        if (totalCount != null && allListings.length >= totalCount) hasMore = false;
+        if (allListings.length >= FACETS_SAMPLE_LIMIT) {
+          logger.info('Facets: Reached sample limit, using first ' + FACETS_SAMPLE_LIMIT + ' for counts');
           hasMore = false;
         }
-        
-        // Also check if we have the total count
-        if (totalCount !== null && totalCount !== undefined) {
-          if (allListings.length >= totalCount) {
-            hasMore = false;
-          }
-        }
       } else {
-        hasMore = false;
-      }
-      
-      // Safety limit: don't fetch more than 1 million records for facets
-      if (allListings.length >= 1000000) {
-        logger.warn('Facets: Reached safety limit of 1M records, using sample for counts');
         hasMore = false;
       }
     }
 
     const listings = allListings;
-    
+    const sampleSize = listings.length;
+    const scaleFactor = (totalCount > 0 && sampleSize > 0 && sampleSize < totalCount)
+      ? totalCount / sampleSize
+      : 1;
+
     logger.info('Facets: Loaded listings for aggregation', { 
-      count: listings.length, 
-      totalCount 
+      sampleSize, 
+      totalCount,
+      scaleFactor: scaleFactor > 1 ? scaleFactor.toFixed(1) : 1
     });
+
+    // Scale counts to approximate full dataset when using sample
+    const scale = (n) => Math.round(n * scaleFactor);
 
     // Calculate facets
     const facets = {
@@ -491,61 +489,61 @@ export async function getFacetsService(baseFilters = {}) {
     // "NOT SPECIFIED" = total count (all listings matching current filters)
     keywordFacets.unshift({ name: '', count: totalCount ?? listings?.length ?? 0 });
 
-    // Format response
+    // Format response (scale counts when using sample)
     const result = {
       total: totalCount || listings?.length || 0,
       facets: {
         brands: Object.entries(facets.brands)
-          .map(([name, count]) => ({ name, count }))
+          .map(([name, count]) => ({ name, count: scale(count) }))
           .sort((a, b) => b.count - a.count),
         models: Object.entries(facets.models)
-          .map(([name, count]) => ({ name, count }))
+          .map(([name, count]) => ({ name, count: scale(count) }))
           .sort((a, b) => b.count - a.count),
         countries: Object.entries(facets.countries)
           .filter(([name]) => name && name.trim() !== '')
-          .map(([name, count]) => ({ name, count }))
+          .map(([name, count]) => ({ name, count: scale(count) }))
           .sort((a, b) => b.count - a.count),
         fuel_types: Object.entries(facets.fuel_types)
-          .filter(([name]) => name && name.trim() !== '') // Filter out empty/null names
-          .map(([name, count]) => ({ name, count }))
+          .filter(([name]) => name && name.trim() !== '')
+          .map(([name, count]) => ({ name, count: scale(count) }))
           .sort((a, b) => b.count - a.count),
         transmissions: Object.entries(facets.transmissions)
-          .filter(([name]) => name && name.trim() !== '') // Filter out empty/null names
-          .map(([name, count]) => ({ name, count }))
+          .filter(([name]) => name && name.trim() !== '')
+          .map(([name, count]) => ({ name, count: scale(count) }))
           .sort((a, b) => b.count - a.count),
         steering: Object.entries(facets.steering)
-          .map(([name, count]) => ({ name, count }))
+          .map(([name, count]) => ({ name, count: scale(count) }))
           .sort((a, b) => b.count - a.count),
         doors: Object.entries(facets.doors)
-          .map(([name, count]) => ({ name: `${name} portes`, count }))
+          .map(([name, count]) => ({ name: `${name} portes`, count: scale(count) }))
           .sort((a, b) => b.count - a.count),
         seller_types: Object.entries(facets.seller_types)
-          .map(([name, count]) => ({ name, count }))
+          .map(([name, count]) => ({ name, count: scale(count) }))
           .sort((a, b) => b.count - a.count),
         colors: Object.entries(facets.colors)
-          .map(([name, count]) => ({ name, count }))
+          .map(([name, count]) => ({ name, count: scale(count) }))
           .sort((a, b) => b.count - a.count),
         categories: Object.entries(facets.categories)
-          .filter(([name]) => name && name.trim() !== '') // Filter out empty/null names
-          .map(([name, count]) => ({ name, count }))
+          .filter(([name]) => name && name.trim() !== '')
+          .map(([name, count]) => ({ name, count: scale(count) }))
           .sort((a, b) => b.count - a.count),
         drivetrains: Object.entries(facets.drivetrains)
-          .filter(([name]) => name && name.trim() !== '') // Filter out empty/null names
-          .map(([name, count]) => ({ name, count }))
+          .filter(([name]) => name && name.trim() !== '')
+          .map(([name, count]) => ({ name, count: scale(count) }))
           .sort((a, b) => b.count - a.count),
         versions: Object.entries(facets.versions)
-          .filter(([name]) => name && name.trim() !== '') // Filter out empty/null names
-          .map(([name, count]) => ({ name, count }))
+          .filter(([name]) => name && name.trim() !== '')
+          .map(([name, count]) => ({ name, count: scale(count) }))
           .sort((a, b) => b.count - a.count),
         trims: Object.entries(facets.trims)
-          .filter(([name]) => name && name.trim() !== '') // Filter out empty/null names
-          .map(([name, count]) => ({ name, count }))
+          .filter(([name]) => name && name.trim() !== '')
+          .map(([name, count]) => ({ name, count: scale(count) }))
           .sort((a, b) => b.count - a.count),
         publication_date: [
-          { name: 'recent', count: facets.publication_date.recent },
-          { name: 'old', count: facets.publication_date.old }
+          { name: 'recent', count: scale(facets.publication_date.recent) },
+          { name: 'old', count: scale(facets.publication_date.old) }
         ],
-        keywords: keywordFacets
+        keywords: keywordFacets // counts from separate queries, already accurate
       }
     };
     

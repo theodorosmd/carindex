@@ -480,8 +480,8 @@ export function renderListingsSearch() {
     initializeMobileMenu()
     generateHistograms()
     updateAuthLinks()
-    // Load facets and initial listings
-    loadFacets()
+    // Load facets (no filters on init so we always get base counts) and initial listings
+    loadFacets(true)
     loadInitialListings()
     if (window.updateActiveFilters) {
       setTimeout(() => window.updateActiveFilters(), 200)
@@ -946,14 +946,18 @@ function buildFacetsQueryParams(filters = {}) {
 }
 
 // Load facets from API and create all filters dynamically (uses current filters for dynamic counts)
-async function loadFacets() {
+// Pass forceNoFilters=true on initial load to always get base facets (avoids empty when URL has stale filters)
+async function loadFacets(forceNoFilters = false) {
   try {
-    const filters = window.getFilters ? window.getFilters() : {}
+    const filters = forceNoFilters ? {} : (window.getFilters ? window.getFilters() : {})
     const queryString = buildFacetsQueryParams(filters)
     const url = queryString ? `/api/v1/facets?${queryString}` : '/api/v1/facets'
     const response = await fetch(url)
     if (!response.ok) {
-      console.warn('Failed to load facets:', response.status)
+      console.warn('Failed to load facets:', response.status, url)
+      if (forceNoFilters === false && Object.keys(filters).length > 0) {
+        return loadFacets(true)
+      }
       return
     }
     

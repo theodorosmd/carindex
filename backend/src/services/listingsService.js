@@ -35,9 +35,11 @@ export async function searchListingsService(filters, userPlan = null) {
     const selectColumns = 'id, brand, model, year, mileage, price, currency, location_city, location_region, location_country, fuel_type, transmission, steering, doors, color, url, images, posted_date, source_platform, status, specifications, price_drop_pct, price_drop_amount, last_price_drop_date';
     
     // Start building the query
+    // Use 'planned' count for large tables (509K+ rows) - exact count triggers statement timeout
+    const countOption = 'planned';
     let query = supabase
       .from('listings')
-      .select(selectColumns, { count: 'exact' })
+      .select(selectColumns, { count: countOption })
       .eq('status', 'active');
 
     // Text search using full-text search
