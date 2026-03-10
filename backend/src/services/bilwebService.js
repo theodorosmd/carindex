@@ -26,7 +26,7 @@ export async function runBilwebScraper(searchUrls, options = {}, progressCallbac
       const urls = Array.isArray(searchUrls) ? searchUrls : [searchUrls];
       for (const searchUrl of urls) {
         try {
-          const listings = await scrapeBilwebViaScrapeDo(searchUrl, options.maxPages || 10);
+          const listings = await scrapeBilwebViaScrapeDo(searchUrl, options.maxPages || 50);
           if (listings.length > 0) {
             await saveRawListings(listings, 'bilweb');
             for (const listing of listings) {
@@ -129,85 +129,104 @@ export async function runBilwebScraper(searchUrls, options = {}, progressCallbac
   }
 }
 
+// Swedish county slug → region name
+const COUNTY_TO_REGION = {
+  'stockholms-lan': 'Stockholm',
+  'vastra-gotalands-lan': 'Västra Götaland',
+  'skane-lan': 'Skåne',
+  'ostergotlands-lan': 'Östergötland',
+  'jonkopings-lan': 'Jönköping',
+  'kronobergs-lan': 'Kronoberg',
+  'kalmar-lan': 'Kalmar',
+  'gotlands-lan': 'Gotland',
+  'blekinge-lan': 'Blekinge',
+  'hallands-lan': 'Halland',
+  'varmlands-lan': 'Värmland',
+  'orebro-lan': 'Örebro',
+  'vastmanlands-lan': 'Västmanland',
+  'dalarnas-lan': 'Dalarna',
+  'gavleborgs-lan': 'Gävleborg',
+  'vasternorrlands-lan': 'Västernorrland',
+  'jamtlands-lan': 'Jämtland',
+  'vasterbottens-lan': 'Västerbotten',
+  'norrbottens-lan': 'Norrbotten',
+  'sodermanlands-lan': 'Södermanland',
+  'uppsala-lan': 'Uppsala',
+};
+
 /**
- * Scrape Bilweb via scrape.do when Puppeteer fails (anti-bot fallback)
+ * Scrape Bilweb via scrape.do
+ * URL structure: /sok?sida=N (server-side rendered, no JS needed)
+ * Card selector: .Card-Wrapper
  */
-async function scrapeBilwebViaScrapeDo(baseUrl, maxPages = 10) {
+async function scrapeBilwebViaScrapeDo(baseUrl, maxPages = 50) {
   const listings = [];
   const seen = new Set();
 
+  // Normalise base URL: use /sok for flat pagination, strip trailing slash
+  const sokBase = baseUrl.replace(/\/$/, '').replace(/\/bilar$/, '/sok');
+
   for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
-    const url = pageNum === 1 ? baseUrl : (baseUrl + (baseUrl.includes('?') ? '&' : '?') + `page=${pageNum}`);
+    const url = pageNum === 1 ? sokBase : `${sokBase}?sida=${pageNum}`;
 
     let html;
     try {
       html = await fetchViaScrapeDo(url, { render: false, geoCode: 'se' });
-      const $first = cheerio.load(html);
-      const cardsFirst = $first('a[href*="/bil/"], a[href*="/vehicle/"]').closest('.vehicle-item, .car-item, [data-vehicle], article, .listing-card, li');
-      const itemsFirst = cardsFirst.length ? cardsFirst : $first('a[href*="/bil/"], a[href*="/vehicle/"]');
-      const hasListings = itemsFirst.length > 0;
-      if (!hasListings && html?.length > 500) {
-        html = await fetchViaScrapeDo(url, { render: true, customWait: 4000, geoCode: 'se' });
-      }
     } catch (err) {
       logger.warn('Bilweb scrape.do fetch failed', { page: pageNum, error: err.message });
       break;
     }
 
     const $ = cheerio.load(html);
-    const cards = $('a[href*="/bil/"], a[href*="/vehicle/"]').closest('.vehicle-item, .car-item, [data-vehicle], article, .listing-card, li');
-    const items = cards.length ? cards : $('a[href*="/bil/"], a[href*="/vehicle/"]');
+    const cards = $('.Card-Wrapper');
+
+    if (cards.length === 0) {
+      logger.info('Bilweb: no cards found, stopping', { page: pageNum });
+      break;
+    }
 
     const pageListings = [];
-    items.each((_, el) => {
-      const $el = $(el);
-      const link = $el.find('a[href*="/bil/"], a[href*="/vehicle/"]').first().attr('href') || $el.attr('href');
-      if (!link) return;
-      const fullUrl = link.startsWith('http') ? link : `https://www.bilweb.se${link}`;
-      if (seen.has(fullUrl)) return;
-      seen.add(fullUrl);
+    cards.each((_, el) => {
+      const $card = $(el);
+      const $inner = $card.find('.Card').first();
+      const listingId = $inner.attr('id');
+      if (!listingId || seen.has(listingId)) return;
+      seen.add(listingId);
 
-      const title = $el.find('.title, .vehicle-title, h2, h3').first().text().trim() || $el.text().trim().substring(0, 100);
-      const priceText = $el.find('.price, .vehicle-price, [data-price]').first().text().trim();
-      const image = $el.find('img').first().attr('src');
-      pageListings.push({ url: fullUrl, title, priceText, location: null, image });
+      const $link = $card.find('a.go_to_detail').first();
+      const cardUrl = $link.attr('href');
+      if (!cardUrl) return;
+
+      const title = $link.text().trim();
+      const priceText = $card.find('.Card-mainPrice').first().text().trim();
+      const dealer = $card.find('.Card-firm').first().text().replace(/\s+/g, ' ').trim().split('\n')[0].trim();
+      const image = $card.find('.Card-image img').attr('data-src') || $card.find('.Card-image img').attr('src') || null;
+
+      // Parse Card-carData dt/dd pairs
+      const specs = {};
+      const $dl = $card.find('.Card-carData').first();
+      $dl.find('dt').each((i, dt) => {
+        const key = $(dt).text().trim().toLowerCase().replace(':', '');
+        const $dd = $dl.find('dd').eq(i);
+        if (key === 'drivmedel') {
+          // Fuel type is encoded as an icon class: Icon--diesel, Icon--bensin, Icon--el, etc.
+          const iconClass = $dd.find('[class*="Icon--"]').attr('class') || '';
+          const m = iconClass.match(/Icon--(\w+)/);
+          specs[key] = m ? m[1] : $dd.text().trim();
+        } else {
+          specs[key] = $dd.text().trim();
+        }
+      });
+
+      // Extract county from URL path for region mapping
+      const countyMatch = cardUrl.match(/bilweb\.se\/([^/]+)\//);
+      const county = countyMatch ? countyMatch[1] : null;
+
+      pageListings.push({ url: cardUrl, listingId, title, priceText, dealer, image, specs, county });
     });
 
-    if (pageListings.length === 0 && pageNum === 1) {
-      $('a[href*="/bil/"], a[href*="/vehicle/"]').each((_, el) => {
-        const href = $(el).attr('href');
-        if (!href) return;
-        const fullUrl = href.startsWith('http') ? href : `https://www.bilweb.se${href}`;
-        if (seen.has(fullUrl)) return;
-        seen.add(fullUrl);
-        const card = $(el).closest('article, li, .card, [class*="listing"]');
-        const title = card.find('h2, h3, .title').first().text().trim() || $(el).text().trim().substring(0, 80);
-        pageListings.push({ url: fullUrl, title, priceText: card.find('[class*="price"]').text().trim(), location: null, image: null });
-      });
-    }
-
-    for (const item of pageListings) {
-      try {
-        const detailHtml = await fetchViaScrapeDo(item.url, { geoCode: 'se' });
-        const $d = cheerio.load(detailHtml);
-        const specs = {};
-        $d('.spec-row, .specification-row, tr').each((_, row) => {
-          const label = $d(row).find('td:first-child, .label').first().text().trim().toLowerCase();
-          const value = $d(row).find('td:last-child, .value').last().text().trim();
-          if (label && value) specs[label] = value;
-        });
-        const details = {
-          specifications: specs,
-          description: $d('.description, .vehicle-description, [data-description]').first().text().trim() || null,
-          images: $d('.gallery img, .images img, [data-image]').map((_, img) => $d(img).attr('src')).get().filter(Boolean)
-        };
-        listings.push({ ...item, ...details });
-      } catch (err) {
-        logger.warn('Bilweb detail fetch failed', { url: item.url });
-        listings.push(item);
-      }
-      await new Promise(r => setTimeout(r, 500));
-    }
+    listings.push(...pageListings);
+    logger.info('Bilweb page scraped', { page: pageNum, count: pageListings.length });
 
     if (pageListings.length === 0) break;
     await new Promise(r => setTimeout(r, 1500));
@@ -341,48 +360,53 @@ async function fetchBilwebListingDetails(browser, listingUrl) {
  * Exported for rawListingsProcessorService
  */
 export function mapBilwebDataToListing(item) {
-  // Extract brand and model from title
-  const titleParts = (item.title || '').split(' ');
+  // Title: "Volvo V60 D3 Momentum" → brand=Volvo, model=V60
+  const titleParts = (item.title || '').split(/\s+/);
   const brand = titleParts[0] || null;
-  const model = titleParts.slice(1, 3).join(' ') || null;
+  const model = titleParts[1] || null;
 
-  // Extract year
-  const yearMatch = (item.title || '').match(/\b(19|20)\d{2}\b/);
-  const year = yearMatch ? parseInt(yearMatch[0]) : (item.specifications?.['år'] || item.specifications?.['year']);
+  // Year: from new specs.år or legacy specifications
+  const yearRaw = item.specs?.['år'] || item.specifications?.['år'] || item.specifications?.['year'];
+  const year = yearRaw ? parseInt(yearRaw) : null;
 
-  // Extract price
-  const priceText = (item.priceText || '').replace(/\s/g, '').replace(/[^\d]/g, '');
-  const price = priceText ? parseFloat(priceText) : null;
+  // Price: "159 000 kr" → 159000
+  const priceStr = (item.priceText || '').replace(/\s/g, '').replace(/[^\d]/g, '');
+  const price = priceStr ? parseFloat(priceStr) : null;
 
-  // Extract mileage
-  const mileageText = item.specifications?.['miltal'] || item.specifications?.['mileage'] || '';
-  const mileage = mileageText ? parseInt(mileageText.replace(/\s/g, '').replace(/[^\d]/g, '')) : null;
+  // Mileage: bilweb shows "mil" (Swedish mil = 10 km) → convert to km
+  const milText = item.specs?.['mil'] || item.specifications?.['miltal'] || item.specifications?.['mileage'] || '';
+  const milRaw = milText ? parseInt(milText.replace(/\s/g, '').replace(/[^\d]/g, '')) : null;
+  const mileage = milRaw != null && !isNaN(milRaw) ? milRaw * 10 : null;
 
-  // Extract fuel type
-  const fuelType = item.specifications?.['bränsle'] || item.specifications?.['fuel'] || null;
+  // Fuel type from icon slug (diesel, bensin, el, hybrid, gas) or legacy specs
+  const fuelRaw = item.specs?.['drivmedel'] || item.specifications?.['bränsle'] || item.specifications?.['fuel'] || null;
 
-  // Extract transmission
-  const transmission = item.specifications?.['växellåda'] || item.specifications?.['transmission'] || null;
+  // Transmission from specs
+  const transRaw = item.specs?.['växellåda'] || item.specifications?.['växellåda'] || item.specifications?.['transmission'] || null;
+
+  // Location from county slug
+  const county = item.county || null;
+  const location_region = COUNTY_TO_REGION[county] || null;
 
   return {
     source_platform: 'bilweb',
-    source_listing_id: extractListingIdFromUrl(item.url),
+    source_listing_id: item.listingId || extractListingIdFromUrl(item.url),
     brand: normalizeBrand(brand),
     model: normalizeModel(model),
-    year: year ? parseInt(year) : null,
+    year,
     mileage,
     price,
     currency: 'SEK',
-    location_city: extractCity(item.location),
-    location_region: extractRegion(item.location),
+    location_city: null,
+    location_region,
     location_country: 'SE',
-    seller_type: item.sellerType || 'dealer',
-    fuel_type: normalizeFuelType(fuelType),
-    transmission: normalizeTransmission(transmission),
+    seller_type: item.dealer ? 'dealer' : (item.sellerType || null),
+    fuel_type: normalizeFuelType(fuelRaw),
+    transmission: normalizeTransmission(transRaw),
     url: item.url,
-    images: (item.images && item.images.length > 0) ? item.images : (item.image ? [item.image] : []),
-    specifications: item.specifications || {},
-    description: item.description,
+    images: item.image ? [item.image] : (item.images || []),
+    specifications: item.specs || item.specifications || {},
+    description: item.description || null,
     posted_date: new Date().toISOString()
   };
 }
@@ -483,13 +507,18 @@ function normalizeModel(model) {
 function normalizeFuelType(fuelType) {
   if (!fuelType) return null;
   const fuelMap = {
-    'bensin': 'petrol',
-    'diesel': 'diesel',
-    'el': 'electric',
-    'hybrid': 'hybrid',
-    'plug-in hybrid': 'plug-in hybrid'
+    'bensin': 'PETROL',
+    'gasoline': 'PETROL',
+    'diesel': 'DIESEL',
+    'el': 'ELECTRIC',
+    'electric': 'ELECTRIC',
+    'hybrid': 'HYBRID',
+    'plug-in hybrid': 'HYBRID',
+    'laddhybrid': 'HYBRID',
+    'gas': 'GAS',
+    'etanol': 'GAS',
   };
-  return fuelMap[fuelType.toLowerCase()] || fuelType.toLowerCase();
+  return fuelMap[fuelType.toLowerCase()] || fuelType.toUpperCase();
 }
 
 function normalizeTransmission(transmission) {

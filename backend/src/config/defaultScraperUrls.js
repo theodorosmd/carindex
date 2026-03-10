@@ -86,10 +86,10 @@ export const DEFAULT_SCRAPER_URLS = {
     'https://www.blocket.se/mobility/search/car'
   ],
   bilweb: [
-    'https://www.bilweb.se/bilar'
+    'https://www.bilweb.se/sok'
   ],
   bytbil: [
-    'https://www.bytbil.com/bilar'
+    'https://www.bytbil.com/'
   ],
   finn: [
     'https://www.finn.no/mobility/search/car?registration_class=1'
