@@ -15,17 +15,17 @@ export function renderListingsSearch() {
   
   app.innerHTML = `
     <!-- Navigation -->
-    <header class="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
+    <header class="fixed inset-x-0 top-0 bg-white border-b border-gray-200 z-[100] shadow-sm">
       <nav class="container mx-auto px-4 sm:px-6 py-4">
         <div class="flex items-center justify-between">
-          <div class="flex items-center space-x-4">
+          <div class="flex items-center space-x-4 shrink-0">
             <!-- Mobile menu button -->
-            <button id="mobile-menu-btn" class="lg:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100 transition">
+            <button id="mobile-menu-btn" class="lg:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100 transition shrink-0">
               <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
               </svg>
             </button>
-            <a href="#/" class="flex items-center space-x-2">
+            <a href="#/" class="flex items-center space-x-2 shrink-0">
               <div class="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
                 <span class="text-white font-bold text-lg sm:text-xl">C</span>
               </div>
@@ -100,12 +100,12 @@ export function renderListingsSearch() {
     </header>
 
     <!-- Main Content -->
-    <div class="flex min-h-screen bg-gray-50">
+    <div class="flex min-h-screen bg-gray-50 pt-[72px]">
       <!-- Mobile filters overlay -->
       <div id="mobile-filters-overlay" class="hidden fixed inset-0 bg-black/50 z-40 lg:hidden" onclick="closeMobileFilters()"></div>
       
       <!-- Left Sidebar - Filters -->
-      <aside class="fixed lg:sticky top-0 left-0 h-screen w-80 bg-white border-r border-gray-200 overflow-y-auto transition-transform duration-300 z-50 -translate-x-full lg:translate-x-0" id="filters-sidebar">
+      <aside class="fixed lg:sticky top-[72px] left-0 h-[calc(100vh-72px)] w-80 bg-white border-r border-gray-200 overflow-y-auto transition-transform duration-300 z-40 -translate-x-full lg:translate-x-0" id="filters-sidebar">
         <div class="p-4 sm:p-6">
           <!-- Reset Button -->
           <button id="reset-filters" class="w-full mb-6 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm font-medium">
@@ -117,8 +117,7 @@ export function renderListingsSearch() {
             <h3 class="text-sm font-bold text-gray-900 mb-3">${tr('COUNTRY', 'PAYS')}</h3>
             <select id="country-filter" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option value="">${tr('All countries', 'Tous les pays')}</option>
-              <option value="FR">${tr('France', 'France')}</option>
-              <option value="SE">${tr('Sweden', 'Suède')}</option>
+              <!-- Countries populated dynamically from facets -->
             </select>
           </div>
 
@@ -941,6 +940,45 @@ async function loadFacets() {
     const data = await response.json()
     const facets = data.facets || {}
     
+    // Countries - populate select dynamically (all countries from DB)
+    const countryNames = {
+      FR: tr('France', 'France'),
+      SE: tr('Sweden', 'Suède'),
+      DE: tr('Germany', 'Allemagne'),
+      BE: tr('Belgium', 'Belgique'),
+      NL: tr('Netherlands', 'Pays-Bas'),
+      IT: tr('Italy', 'Italie'),
+      ES: tr('Spain', 'Espagne'),
+      AT: tr('Austria', 'Autriche'),
+      CH: tr('Switzerland', 'Suisse'),
+      LU: tr('Luxembourg', 'Luxembourg'),
+      GB: tr('United Kingdom', 'Royaume-Uni'),
+      DK: tr('Denmark', 'Danemark'),
+      NO: tr('Norway', 'Norvège'),
+      FI: tr('Finland', 'Finlande'),
+      PL: tr('Poland', 'Pologne'),
+      PT: tr('Portugal', 'Portugal'),
+      CZ: tr('Czech Republic', 'Tchéquie'),
+      RO: tr('Romania', 'Roumanie'),
+      HU: tr('Hungary', 'Hongrie')
+    }
+    if (facets.countries && facets.countries.length > 0) {
+      const countrySelect = document.getElementById('country-filter')
+      if (countrySelect) {
+        countrySelect.innerHTML = ''
+        const allOpt = document.createElement('option')
+        allOpt.value = ''
+        allOpt.textContent = tr('All countries', 'Tous les pays')
+        countrySelect.appendChild(allOpt)
+        facets.countries.forEach(({ name, count }) => {
+          const option = document.createElement('option')
+          option.value = name
+          option.textContent = `${countryNames[name] || name} (${formatNumber(count)})`
+          countrySelect.appendChild(option)
+        })
+      }
+    }
+
     // Brands - create dynamically (value in lowercase for backend, display in uppercase)
     if (facets.brands && facets.brands.length > 0) {
       populateFilterSection('brand-list', facets.brands, 'brand', 
