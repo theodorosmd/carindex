@@ -15,6 +15,7 @@ import { runSubitoScraper } from '../services/subitoService.js';
 import { createScraperRun, updateScraperRun } from '../services/ingestRunsService.js';
 import { DEFAULT_SCRAPER_URLS } from '../config/defaultScraperUrls.js';
 import { logger } from '../utils/logger.js';
+import { isCircuitOpen, recordSuccess, recordFailure } from '../utils/circuitBreaker.js';
 
 dotenv.config();
 
@@ -141,6 +142,12 @@ async function runOneSource([source, searchUrls], index, total) {
   let runId = null;
   let lastError = null;
 
+  // Circuit breaker: skip if too many recent consecutive failures
+  if (isCircuitOpen(source)) {
+    console.log(`[${index + 1}/${total}] ⏸  ${label}: circuit ouvert (trop d'échecs consécutifs) — skip 30 min`);
+    return { name: label, source, scraped: 0, saved: 0, status: 'skipped', error: 'circuit open' };
+  }
+
   console.log(`[${index + 1}/${total}] 🏃 Démarrage ${label}...`);
 
   try {
@@ -172,6 +179,7 @@ async function runOneSource([source, searchUrls], index, total) {
         }
       }
 
+      recordSuccess(source);
       console.log(`   ✅ ${label}: ${scraped} scrapées, ${saved} sauvegardées`);
       return { name: label, source, scraped, saved, status: 'success' };
     } catch (err) {
@@ -195,6 +203,7 @@ async function runOneSource([source, searchUrls], index, total) {
       logger.warn('Could not update scraper run', { error: upErr.message });
     }
   }
+  recordFailure(source);
   logger.error('Scraper failed', { name: label, source, error: lastError?.message });
   console.log(`   ❌ ${label}: ${lastError?.message}`);
   return { name: label, source, scraped: 0, saved: 0, status: 'error', error: lastError?.message };

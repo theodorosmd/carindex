@@ -2,6 +2,7 @@ import { supabase } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import openaiService from './openaiService.js';
 import { upsertListingsBatch } from './ingestService.js';
+import { normalizeFuelType, normalizeTransmission } from '../utils/listingNormalize.js';
 import { mapAutoscout24DataToListing } from './autoscout24Service.js';
 import { mapMobileDeDataToListing } from './mobiledeService.js';
 import { mapLeBonCoinDataToListing } from './leboncoinService.js';
@@ -39,14 +40,39 @@ const MAPPERS = {
   otomoto: mapOtomotoDataToListing
 };
 
+const MAX_SAFE_MILEAGE = 2_147_483_647; // PostgreSQL int4 max
+
+const AI_ENRICHABLE = new Set(['largus', 'leboncoin', 'marktplaats', '2ememain', 'finn', 'otomoto']);
+
+/**
+ * Apply post-processing normalizations common to all sources:
+ * - Mileage cap (PostgreSQL int4 safe range)
+ * - Canonical fuel_type (DIESEL, PETROL, ELECTRIC, HYBRID, LPG, CNG)
+ * - Canonical transmission (AUTOMATIC, MANUAL)
+ */
+function postProcess(listing) {
+  if (listing.mileage != null) {
+    const parsed = parseInt(listing.mileage, 10);
+    listing.mileage = isNaN(parsed) ? null : Math.min(parsed, MAX_SAFE_MILEAGE);
+  }
+  if (listing.fuel_type) {
+    listing.fuel_type = normalizeFuelType(listing.fuel_type);
+  }
+  if (listing.transmission) {
+    listing.transmission = normalizeTransmission(listing.transmission);
+  }
+  return listing;
+}
+
 /**
  * Stage 2 – Process raw_listings into listings
- * Applies platform-specific mappers and business logic, then upserts to listings
+ * Applies platform-specific mappers, post-processing normalization, parallel AI enrichment,
+ * then upserts to listings.
  *
  * @param {Object} options
  * @param {number} options.limit - Max raw listings to process (default 1000)
  * @param {string} [options.sourcePlatform] - Only process this platform
- * @returns {{ processed: number, created: number, updated: number, errors: number }}
+ * @returns {{ processed: number, created: number, updated: number, skipped: number, errors: number }}
  */
 export async function processRawListings(options = {}) {
   const limit = options.limit ?? 1000;
@@ -71,11 +97,15 @@ export async function processRawListings(options = {}) {
   }
 
   if (!rawRows || rawRows.length === 0) {
-    return { processed: 0, created: 0, updated: 0, errors: 0 };
+    return { processed: 0, created: 0, updated: 0, skipped: 0, errors: 0 };
   }
 
   const mappedListings = [];
   const processedIds = [];
+  // Listings that need AI enrichment: [{listing (ref), rowInfo}]
+  const enrichmentTargets = [];
+
+  const aiEnabled = !(process.env.DISABLE_AI_ENRICHMENT === 'true') && !!process.env.OPENAI_API_KEY;
 
   for (const row of rawRows) {
     try {
@@ -94,9 +124,17 @@ export async function processRawListings(options = {}) {
         continue;
       }
 
-      const AI_ENRICHABLE = ['largus', 'leboncoin', 'marktplaats', '2ememain', 'finn', 'otomoto'];
-      const aiEnabled = !(process.env.DISABLE_AI_ENRICHMENT === 'true');
-      if (AI_ENRICHABLE.includes(row.source_platform) && process.env.OPENAI_API_KEY && aiEnabled) {
+      // Post-processing: mileage cap + canonical fuel/transmission
+      listing = postProcess(listing);
+
+      listing = {
+        ...listing,
+        source_platform: row.source_platform,
+        source_listing_id: String(row.source_listing_id)
+      };
+
+      // Collect AI enrichment candidates (don't await yet)
+      if (aiEnabled && AI_ENRICHABLE.has(row.source_platform)) {
         const missingCritical = !listing.brand || !listing.model;
         const missingSpecs = [
           !listing.transmission,
@@ -106,24 +144,12 @@ export async function processRawListings(options = {}) {
           !listing.category,
           listing.displacement == null
         ].filter(Boolean).length;
-        const hasMissing = missingCritical || missingSpecs >= 3;
-        if (hasMissing && listing.description) {
-          try {
-            const aiFilled = await openaiService.fillMissingListingFields(listing);
-            for (const [k, v] of Object.entries(aiFilled)) {
-              if (v != null && (listing[k] == null || listing[k] === '')) listing[k] = v;
-            }
-          } catch (err) {
-            logger.debug('AI enrichment skipped', { source_platform: row.source_platform, source_listing_id: row.source_listing_id, error: err.message });
-          }
+        if ((missingCritical || missingSpecs >= 3) && listing.description) {
+          enrichmentTargets.push(listing);
         }
       }
 
-      mappedListings.push({
-        ...listing,
-        source_platform: row.source_platform,
-        source_listing_id: String(row.source_listing_id)
-      });
+      mappedListings.push(listing);
       processedIds.push(row.id);
     } catch (err) {
       logger.warn('Error mapping raw listing', {
@@ -134,8 +160,33 @@ export async function processRawListings(options = {}) {
     }
   }
 
+  // Parallel AI enrichment (batch concurrency to avoid overwhelming OpenAI)
+  if (enrichmentTargets.length > 0) {
+    const concurrency = parseInt(process.env.AI_ENRICHMENT_CONCURRENCY || '5', 10);
+    for (let i = 0; i < enrichmentTargets.length; i += concurrency) {
+      const batch = enrichmentTargets.slice(i, i + concurrency);
+      await Promise.allSettled(batch.map(async (listing) => {
+        try {
+          const aiFilled = await openaiService.fillMissingListingFields(listing);
+          for (const [k, v] of Object.entries(aiFilled)) {
+            if (v != null && (listing[k] == null || listing[k] === '')) listing[k] = v;
+          }
+          // Re-normalize after AI fill (AI may return raw language values)
+          if (listing.fuel_type) listing.fuel_type = normalizeFuelType(listing.fuel_type);
+          if (listing.transmission) listing.transmission = normalizeTransmission(listing.transmission);
+        } catch (err) {
+          logger.debug('AI enrichment skipped', {
+            source_platform: listing.source_platform,
+            source_listing_id: listing.source_listing_id,
+            error: err.message
+          });
+        }
+      }));
+    }
+  }
+
   if (mappedListings.length === 0) {
-    return { processed: 0, created: 0, updated: 0, errors: rawRows.length };
+    return { processed: 0, created: 0, updated: 0, skipped: 0, errors: rawRows.length };
   }
 
   const createOnly = options.createOnly === true || process.env.INGEST_CREATE_ONLY === 'true';
@@ -157,6 +208,7 @@ export async function processRawListings(options = {}) {
 
   logger.info('Processed raw listings', {
     processed: processedIds.length,
+    aiEnriched: enrichmentTargets.length,
     created: result.created,
     updated: result.updated,
     skipped: result.skipped || 0,

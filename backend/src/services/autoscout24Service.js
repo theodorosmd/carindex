@@ -4,6 +4,7 @@ import { processRawListings } from './rawListingsProcessorService.js';
 import { fetchViaScrapeDo, isScrapeDoAvailable } from '../utils/scrapeDo.js';
 import * as cheerio from 'cheerio';
 import { launchBrowser } from '../utils/puppeteerLaunch.js';
+import { parseBrandModelFromTitle } from '../utils/brandUtils.js';
 
 const SOURCE_PLATFORM = 'autoscout24';
 const BASE_URL = 'https://www.autoscout24.com';
@@ -83,6 +84,31 @@ export async function runAutoScout24Scraper(searchUrls, options = {}, progressCa
 }
 
 /**
+ * Optionally enrich a batch of listings with detail page data.
+ * Enabled by default; disable via AUTOSCOUT24_ENRICH_DETAILS=false.
+ * Only enriches listings missing >= 2 key spec fields, capped at
+ * AUTOSCOUT24_DETAIL_ENRICH_MAX per batch (default: 5).
+ */
+async function maybeEnrichDetails(listings, browser) {
+  if (process.env.AUTOSCOUT24_ENRICH_DETAILS === 'false') return listings;
+
+  const maxEnrich = parseInt(process.env.AUTOSCOUT24_DETAIL_ENRICH_MAX || '5', 10);
+  const KEY_FIELDS = ['power_hp', 'transmission', 'color', 'doors'];
+  const needsEnrich = (item) =>
+    KEY_FIELDS.filter((f) => item[f] == null || item[f] === '').length >= 2;
+
+  const toEnrich = listings.filter(needsEnrich).slice(0, maxEnrich);
+  if (toEnrich.length === 0) return listings;
+
+  logger.info('AutoScout24: enriching detail pages', { count: toEnrich.length, ofBatch: listings.length });
+
+  const enriched = await enrichListingsWithDetails(toEnrich, browser);
+  const enrichedById = new Map(enriched.map((e) => [e.url, e]));
+
+  return listings.map((item) => enrichedById.get(item.url) || item);
+}
+
+/**
  * Scrape AutoScout24 page-by-page, enrich with details, call onPageDone each batch
  */
 async function scrapeAutoscout24Streaming(baseUrl, maxPages, onPageDone) {
@@ -147,7 +173,10 @@ async function scrapeAutoscout24Streaming(baseUrl, maxPages, onPageDone) {
           logger.info('AutoScout24 no more listings found, stopping', { page });
           return;
         }
-        if (listings.length > 0) await onPageDone(listings, page);
+        if (listings.length > 0) {
+          const enriched = await maybeEnrichDetails(listings, browser);
+          await onPageDone(enriched, page);
+        }
       }
       if (batchResults[0]?.listings?.length === 0) break;
       await new Promise((r) => setTimeout(r, 1500 + Math.random() * 1000));
@@ -382,9 +411,9 @@ function parseDetailPage(html) {
       const item = Array.isArray(json) ? json.find((x) => x['@type'] === 'Vehicle' || x['@type'] === 'Car') : json;
       if (!item || !['Vehicle', 'Car', 'Product'].includes(item['@type'])) return;
       if (item.name && !data.brand) {
-        const parts = String(item.name).split(/\s+/);
-        if (parts[0]) data.brand = parts[0];
-        if (parts[1]) data.model = parts.slice(1).join(' ');
+        const { brand, model } = parseBrandModelFromTitle(String(item.name));
+        if (brand) data.brand = brand;
+        if (model) data.model = model;
       }
       if (item.brand) data.brand = typeof item.brand === 'object' ? item.brand?.name : item.brand;
       if (item.model) data.model = item.model;

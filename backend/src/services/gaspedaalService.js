@@ -4,6 +4,7 @@ import { processRawListings } from './rawListingsProcessorService.js';
 import { fetchViaScrapeDo, isScrapeDoAvailable, isPageBlocked } from '../utils/scrapeDo.js';
 import * as cheerio from 'cheerio';
 import { launchBrowser } from '../utils/puppeteerLaunch.js';
+import { DUTCH_PROVINCE_TO_REGION } from '../utils/locationUtils.js';
 
 const SOURCE_PLATFORM = 'gaspedaal';
 
@@ -366,22 +367,8 @@ function extractBodyType(text) {
   return null;
 }
 
-// ─── Dutch province code to region mapping ───
-
-const PROVINCE_TO_REGION = {
-  'DR': 'Drenthe',
-  'FL': 'Flevoland',
-  'FR': 'Friesland',
-  'GE': 'Gelderland',
-  'GR': 'Groningen',
-  'LI': 'Limburg',
-  'NB': 'Noord-Brabant',
-  'NH': 'Noord-Holland',
-  'OV': 'Overijssel',
-  'UT': 'Utrecht',
-  'ZE': 'Zeeland',
-  'ZH': 'Zuid-Holland',
-};
+// ─── Dutch province code to region mapping (imported from locationUtils) ───
+const PROVINCE_TO_REGION = DUTCH_PROVINCE_TO_REGION;
 
 // ─── Dutch field mappings ───
 

@@ -5,6 +5,7 @@ import { processRawListings } from './rawListingsProcessorService.js';
 import { fetchViaScrapeDo, isScrapeDoAvailable, isPageBlocked } from '../utils/scrapeDo.js';
 import * as cheerio from 'cheerio';
 import { launchBrowser } from '../utils/puppeteerLaunch.js';
+import { SWEDISH_CITY_TO_REGION } from '../utils/locationUtils.js';
 
 const SOURCE_PLATFORM = 'blocket';
 
@@ -638,133 +639,8 @@ export function mapBlocketDataToListing(item) {
 
 // Helper functions (same pattern as Bytbil)
 
-const SWEDISH_CITY_TO_REGION = {
-  'stockholm': 'Stockholms län', 'solna': 'Stockholms län', 'sundbyberg': 'Stockholms län',
-  'sollentuna': 'Stockholms län', 'järfälla': 'Stockholms län', 'täby': 'Stockholms län',
-  'danderyd': 'Stockholms län', 'nacka': 'Stockholms län', 'lidingö': 'Stockholms län',
-  'huddinge': 'Stockholms län', 'botkyrka': 'Stockholms län', 'haninge': 'Stockholms län',
-  'tyresö': 'Stockholms län', 'värmdö': 'Stockholms län', 'gustavsberg': 'Stockholms län',
-  'vällingby': 'Stockholms län', 'bandhagen': 'Stockholms län', 'kista': 'Stockholms län',
-  'saltsjö-boo': 'Stockholms län', 'segeltorp': 'Stockholms län', 'kungens kurva': 'Stockholms län',
-  'bromma': 'Stockholms län', 'hägersten': 'Stockholms län', 'enskede': 'Stockholms län',
-  'farsta': 'Stockholms län', 'skärholmen': 'Stockholms län', 'älvsjö': 'Stockholms län',
-  'spånga': 'Stockholms län', 'hässelby': 'Stockholms län', 'åkersberga': 'Stockholms län',
-  'märsta': 'Stockholms län', 'sigtuna': 'Stockholms län', 'upplands väsby': 'Stockholms län',
-  'norrtälje': 'Stockholms län', 'södertälje': 'Stockholms län', 'nynäshamn': 'Stockholms län',
-  'vallentuna': 'Stockholms län', 'arlandastad': 'Stockholms län', 'rosersberg': 'Stockholms län',
-  'kungsängen': 'Stockholms län', 'brandbergen': 'Stockholms län', 'handen': 'Stockholms län',
-  'norsborg': 'Stockholms län', 'tullinge': 'Stockholms län', 'tumba': 'Stockholms län',
-  'skogås': 'Stockholms län', 'rydboholm': 'Stockholms län', 'österhaninge': 'Stockholms län',
-  'österskär': 'Stockholms län', 'angered': 'Västra Götalands län',
-
-  'göteborg': 'Västra Götalands län', 'mölndal': 'Västra Götalands län',
-  'borås': 'Västra Götalands län', 'trollhättan': 'Västra Götalands län',
-  'uddevalla': 'Västra Götalands län', 'skövde': 'Västra Götalands län',
-  'lidköping': 'Västra Götalands län', 'alingsås': 'Västra Götalands län',
-  'kungsbacka': 'Hallands län', 'kungälv': 'Västra Götalands län',
-  'lerum': 'Västra Götalands län', 'partille': 'Västra Götalands län',
-  'kinna': 'Västra Götalands län', 'svenljunga': 'Västra Götalands län',
-  'askim': 'Västra Götalands län', 'hisings backa': 'Västra Götalands län',
-  'stora höga': 'Västra Götalands län', 'vänersborg': 'Västra Götalands län',
-  'mariestad': 'Västra Götalands län', 'falköping': 'Västra Götalands län',
-  'stenungsund': 'Västra Götalands län', 'strömstad': 'Västra Götalands län',
-  'hisings kärra': 'Västra Götalands län', 'herrljunga': 'Västra Götalands län',
-  'mölnlycke': 'Västra Götalands län', 'sävedalen': 'Västra Götalands län',
-  'västra frölunda': 'Västra Götalands län', 'ytterby': 'Västra Götalands län',
-  'öckerö': 'Västra Götalands län', 'skene': 'Västra Götalands län',
-  'rångedala': 'Västra Götalands län', 'ulricehamn': 'Västra Götalands län',
-  'tranemo': 'Västra Götalands län', 'tidaholm': 'Västra Götalands län',
-  'stenstorp': 'Västra Götalands län', 'vara': 'Västra Götalands län',
-  'vargön': 'Västra Götalands län', 'kungshamn': 'Västra Götalands län',
-  'skee': 'Västra Götalands län', 'karlsborg': 'Västra Götalands län',
-  'målsryd': 'Västra Götalands län', 'torup': 'Västra Götalands län',
-  'åmål': 'Västra Götalands län',
-
-  'malmö': 'Skåne län', 'helsingborg': 'Skåne län', 'lund': 'Skåne län',
-  'kristianstad': 'Skåne län', 'landskrona': 'Skåne län', 'trelleborg': 'Skåne län',
-  'ängelholm': 'Skåne län', 'eslöv': 'Skåne län', 'hässleholm': 'Skåne län',
-  'ystad': 'Skåne län', 'tomelilla': 'Skåne län', 'simrishamn': 'Skåne län',
-  'gärsnäs': 'Skåne län', 'viken': 'Skåne län', 'ödåkra': 'Skåne län',
-  'staffanstorp': 'Skåne län', 'lomma': 'Skåne län', 'höganäs': 'Skåne län',
-  'klippan': 'Skåne län', 'svalöv': 'Skåne län', 'sjöbo': 'Skåne län',
-  'arlöv': 'Skåne län', 'bromölla': 'Skåne län', 'genarp': 'Skåne län',
-  'hasslarp': 'Skåne län', 'hörby': 'Skåne län', 'mörarp': 'Skåne län',
-  'nävlinge': 'Skåne län', 'osby': 'Skåne län', 'svedala': 'Skåne län',
-  'vellinge': 'Skåne län',
-
-  'uppsala': 'Uppsala län', 'bålsta': 'Uppsala län', 'knivsta': 'Uppsala län',
-  'enköping': 'Uppsala län', 'tierp': 'Uppsala län',
-  'alunda': 'Uppsala län', 'järlåsa': 'Uppsala län', 'östhammar': 'Uppsala län',
-
-  'västerås': 'Västmanlands län', 'sala': 'Västmanlands län', 'köping': 'Västmanlands län',
-  'arboga': 'Västmanlands län', 'hallstahammar': 'Västmanlands län',
-  'surahammar': 'Västmanlands län', 'kungsör': 'Västmanlands län',
-
-  'örebro': 'Örebro län', 'hallsberg': 'Örebro län', 'kumla': 'Örebro län',
-  'lindesberg': 'Örebro län', 'karlskoga': 'Örebro län',
-
-  'linköping': 'Östergötlands län', 'norrköping': 'Östergötlands län',
-  'motala': 'Östergötlands län', 'mjölby': 'Östergötlands län',
-  'mantorp': 'Östergötlands län', 'skänninge': 'Östergötlands län',
-  'åtvidaberg': 'Östergötlands län',
-
-  'jönköping': 'Jönköpings län', 'huskvarna': 'Jönköpings län',
-  'nässjö': 'Jönköpings län', 'vetlanda': 'Jönköpings län',
-  'skillingaryd': 'Jönköpings län', 'tranås': 'Jönköpings län',
-  'gislaved': 'Jönköpings län', 'värnamo': 'Jönköpings län',
-  'eksjö': 'Jönköpings län', 'hillerstorp': 'Jönköpings län',
-  'sävsjö': 'Jönköpings län', 'taberg': 'Jönköpings län',
-
-  'växjö': 'Kronobergs län', 'ljungby': 'Kronobergs län', 'alvesta': 'Kronobergs län',
-  'älmhult': 'Kronobergs län',
-
-  'kalmar': 'Kalmar län', 'nybro': 'Kalmar län', 'oskarshamn': 'Kalmar län',
-  'västervik': 'Kalmar län', 'vimmerby': 'Kalmar län',
-  'borgholm': 'Kalmar län',
-
-  'karlskrona': 'Blekinge län', 'karlshamn': 'Blekinge län',
-  'ronneby': 'Blekinge län', 'olofström': 'Blekinge län', 'sölvesborg': 'Blekinge län',
-  'mörrum': 'Blekinge län',
-
-  'halmstad': 'Hallands län', 'varberg': 'Hallands län',
-  'falkenberg': 'Hallands län', 'laholm': 'Hallands län',
-
-  'karlstad': 'Värmlands län', 'kristinehamn': 'Värmlands län',
-  'arvika': 'Värmlands län', 'hagfors': 'Värmlands län', 'sunne': 'Värmlands län',
-  'edsvalla': 'Värmlands län', 'skattkärr': 'Värmlands län',
-
-  'falun': 'Dalarnas län', 'borlänge': 'Dalarnas län', 'mora': 'Dalarnas län',
-  'ludvika': 'Dalarnas län', 'avesta': 'Dalarnas län', 'leksand': 'Dalarnas län',
-  'rättvik': 'Dalarnas län', 'smedjebacken': 'Dalarnas län', 'säter': 'Dalarnas län',
-  'vansbro': 'Dalarnas län', 'krylbo': 'Dalarnas län',
-
-  'gävle': 'Gävleborgs län', 'sandviken': 'Gävleborgs län',
-  'hudiksvall': 'Gävleborgs län', 'bollnäs': 'Gävleborgs län', 'söderhamn': 'Gävleborgs län',
-  'hofors': 'Gävleborgs län', 'valbo': 'Gävleborgs län',
-
-  'sundsvall': 'Västernorrlands län', 'härnösand': 'Västernorrlands län',
-  'timrå': 'Västernorrlands län', 'örnsköldsvik': 'Västernorrlands län',
-  'kramfors': 'Västernorrlands län', 'sollefteå': 'Västernorrlands län',
-  'ånge': 'Västernorrlands län', 'sundsbruk': 'Västernorrlands län',
-
-  'östersund': 'Jämtlands län', 'sveg': 'Jämtlands län',
-  'bräcke': 'Jämtlands län', 'frösön': 'Jämtlands län',
-
-  'umeå': 'Västerbottens län', 'skellefteå': 'Västerbottens län',
-  'lycksele': 'Västerbottens län', 'dorotea': 'Västerbottens län',
-  'fredrika': 'Västerbottens län', 'moliden': 'Västerbottens län',
-  'vindeln': 'Västerbottens län', 'vännäs': 'Västerbottens län',
-
-  'luleå': 'Norrbottens län', 'piteå': 'Norrbottens län', 'boden': 'Norrbottens län',
-  'kiruna': 'Norrbottens län', 'gällivare': 'Norrbottens län', 'kalix': 'Norrbottens län',
-
-  'nyköping': 'Södermanlands län', 'eskilstuna': 'Södermanlands län',
-  'katrineholm': 'Södermanlands län', 'strängnäs': 'Södermanlands län',
-  'flen': 'Södermanlands län', 'oxelösund': 'Södermanlands län',
-  'björkvik': 'Södermanlands län',
-
-  'visby': 'Gotlands län'
-};
+// ─── Swedish city to region mapping (imported from locationUtils) ───
+// SWEDISH_CITY_TO_REGION is imported above
 
 function resolveSwedishRegion(city) {
   if (!city) return null;
