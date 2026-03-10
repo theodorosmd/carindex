@@ -1185,7 +1185,7 @@ window.triggerScraper = async function(source, inputId) {
   button.textContent = 'Scraping...'
 
   let runId = null
-  let pollInterval = null
+  scraperPollInterval = null
 
   try {
     console.log(`🚀 Starting scraper for ${source} with URL:`, searchUrl)
@@ -1214,7 +1214,7 @@ window.triggerScraper = async function(source, inputId) {
     runId = data.runId
     if (runId) {
       // Poll for status updates
-      pollInterval = setInterval(async () => {
+      scraperPollInterval = setInterval(async () => {
         try {
           const statusResponse = await fetch(`/api/v1/scraper/run/${runId}/status`, {
             headers: { 'Authorization': `Bearer ${token}` }
@@ -1231,11 +1231,13 @@ window.triggerScraper = async function(source, inputId) {
                 const itemsScraped = stats.itemsScraped || 0
                 progressDiv.textContent = `Status: Running • ${itemsScraped.toLocaleString('en-US')} listings scraped...`
               } else if (status === 'SUCCEEDED') {
-                clearInterval(pollInterval)
+                clearInterval(scraperPollInterval)
+                scraperPollInterval = null
                 // Final result will be in the original response
                 updateScraperStatusComplete(source, data, statusDiv, button)
               } else if (status === 'FAILED' || status === 'ABORTED' || status === 'TIMED-OUT') {
-                clearInterval(pollInterval)
+                clearInterval(scraperPollInterval)
+                scraperPollInterval = null
                 statusDiv.innerHTML = `
                   <div class="text-red-600">
                     <div class="font-semibold">❌ Scraping ${status === 'FAILED' ? 'failed' : status === 'TIMED-OUT' ? 'timed out' : 'cancelled'}</div>
@@ -1260,7 +1262,10 @@ window.triggerScraper = async function(source, inputId) {
     }
 
   } catch (error) {
-    if (pollInterval) clearInterval(pollInterval)
+    if (scraperPollInterval) {
+      clearInterval(scraperPollInterval)
+      scraperPollInterval = null
+    }
     console.error('❌ Scraper error:', error)
     statusDiv.innerHTML = `
       <div class="text-red-600">
@@ -1371,6 +1376,23 @@ function updateScrapingHistory() {
 
 // Scraper Dashboard - auto-refresh interval (cleared on page unload)
 let scraperDashboardRefreshInterval = null
+let scraperPollInterval = null
+
+/** Clear all admin dashboard timers. Call before navigating away. */
+export function cleanupAdminDashboard() {
+  if (scraperPollInterval) {
+    clearInterval(scraperPollInterval)
+    scraperPollInterval = null
+  }
+  if (scraperDashboardRefreshInterval) {
+    clearInterval(scraperDashboardRefreshInterval)
+    scraperDashboardRefreshInterval = null
+  }
+  if (autoRefreshTimer) {
+    clearTimeout(autoRefreshTimer)
+    autoRefreshTimer = null
+  }
+}
 
 const SOURCE_NAMES = {
   'autoscout24': 'AutoScout24',
@@ -2621,9 +2643,18 @@ window.resumeAutoScraperNow = async function(id) {
   const token = getAuthToken()
   if (!token) return
 
-  const scraper = await fetch(`/api/v1/admin/auto-scrapers/${id}`, {
-    headers: { 'Authorization': `Bearer ${token}` }
-  }).then(r => r.json()).then(d => d.scraper).catch(() => null)
+  let scraper
+  try {
+    const res = await fetch(`/api/v1/admin/auto-scrapers/${id}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    const data = await res.json()
+    scraper = data.scraper
+  } catch (err) {
+    console.error('Failed to load scraper:', err)
+    alert('Failed to load scraper. Please try again.')
+    return
+  }
 
   if (!scraper) {
     alert('Error: Scraper not found')
@@ -2686,9 +2717,18 @@ window.runAutoScraperNow = async function(id) {
   const token = getAuthToken()
   if (!token) return
 
-  const scraper = await fetch(`/api/v1/admin/auto-scrapers/${id}`, {
-    headers: { 'Authorization': `Bearer ${token}` }
-  }).then(r => r.json()).then(d => d.scraper).catch(() => null)
+  let scraper
+  try {
+    const res = await fetch(`/api/v1/admin/auto-scrapers/${id}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    const data = await res.json()
+    scraper = data.scraper
+  } catch (err) {
+    console.error('Failed to load scraper:', err)
+    alert('Failed to load scraper. Please try again.')
+    return
+  }
 
   const isRunning = scraper?.last_run_status === 'running'
   const message = isRunning 

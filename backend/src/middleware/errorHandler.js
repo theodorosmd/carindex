@@ -65,7 +65,8 @@ export function errorHandler(err, req, res, next) {
     error: {
       code,
       message,
-      ...(process.env.NODE_ENV === 'development' && {
+      ...(err.details && { details: err.details }),
+      ...(process.env.NODE_ENV === 'development' && !err.details && {
         details: err.message,
         stack: err.stack
       })

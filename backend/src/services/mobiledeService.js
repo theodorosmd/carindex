@@ -22,7 +22,7 @@ export async function runMobileDeScraper(searchUrls, options = {}, progressCallb
   };
 
   try {
-    const maxPages = options.maxPages ?? parseInt(process.env.MOBILEDE_MAX_PAGES || '100', 10);
+    const maxPages = options.maxPages ?? parseInt(process.env.MOBILEDE_MAX_PAGES || '200', 10);
     const useScrapeDo = isScrapeDoAvailable();
 
     logger.info('Starting mobile.de scraper', { searchUrls, options, useScrapeDo });
@@ -33,16 +33,15 @@ export async function runMobileDeScraper(searchUrls, options = {}, progressCallb
     }
 
     const urls = Array.isArray(searchUrls) ? searchUrls : [searchUrls];
+    const parallelUrls = parseInt(process.env.MOBILEDE_PARALLEL_URLS || '2', 10) || 1;
 
-    for (const searchUrl of urls) {
+    async function scrapeOneUrl(searchUrl) {
       try {
         logger.info('Scraping mobile.de URL', { url: searchUrl });
-
         const allListings = [];
         await scrapeMobileDeUrl(browser, searchUrl, maxPages, useScrapeDo, async (batchListings) => {
           if (batchListings.length === 0) return { stop: false };
 
-          // Alimenter la queue pour les workers (remplace Oleg)
           const queueItems = batchListings.map((l) => ({
             url: l.url,
             title: l.title,
@@ -54,42 +53,45 @@ export async function runMobileDeScraper(searchUrls, options = {}, progressCallb
           const { added } = await addToQueue(queueItems);
           if (added > 0) logger.debug('mobile.de: added to queue', { added, batch: batchListings.length });
 
-          // Stage 1: raw_listings (pour debugging, re-processing)
           await saveRawListings(batchListings, SOURCE_PLATFORM);
-          results.totalScraped += batchListings.length;
           allListings.push(...batchListings);
-
-          // Stop when the entire batch was already known (watermark reached)
-          return { stop: added === 0 };
+          // Watermark: stop when batch was 100% déjà connu (économise crédits scrape.do)
+          // Par défaut: backfill complet (scrape toutes les pages). MOBILEDE_USE_WATERMARK=true pour arrêter tôt.
+          const useWatermark = process.env.MOBILEDE_USE_WATERMARK === 'true';
+          return { stop: useWatermark && added === 0 };
         });
-
-        logger.info('mobile.de scraping completed', {
-          url: searchUrl,
-          listingsFound: allListings.length
-        });
-
-        if (allListings.length > 0) {
-          // Stage 2: raw → listings (mapper + upsert)
-          const processResult = await processRawListings({
-            limit: 5000,
-            sourcePlatform: SOURCE_PLATFORM
-          });
-          results.saved += (processResult.created || 0) + (processResult.updated || 0) + (processResult.sourceAdded || 0);
-        }
-
-        results.processedUrls.push(searchUrl);
-
-        if (progressCallback) {
-          await progressCallback({
-            totalScraped: results.totalScraped,
-            totalSaved: results.saved,
-            status: 'RUNNING',
-            processedUrls: results.processedUrls
-          });
-        }
+        return { searchUrl, allListings, error: null };
       } catch (error) {
         logger.error('Error scraping mobile.de URL', { url: searchUrl, error: error.message });
-        results.errors++;
+        return { searchUrl, allListings: [], error };
+      }
+    }
+
+    for (let i = 0; i < urls.length; i += parallelUrls) {
+      const batch = urls.slice(i, i + parallelUrls);
+      const batchResults = await Promise.all(batch.map((url) => scrapeOneUrl(url)));
+      for (const { searchUrl, allListings, error } of batchResults) {
+        if (error) results.errors++;
+        results.totalScraped += allListings.length;
+        results.processedUrls.push(searchUrl);
+        if (allListings.length > 0) {
+          logger.info('mobile.de scraping completed', { url: searchUrl, listingsFound: allListings.length });
+        }
+      }
+      if (batchResults.some((r) => r.allListings.length > 0)) {
+        const processResult = await processRawListings({
+          limit: 10000,
+          sourcePlatform: SOURCE_PLATFORM
+        });
+        results.saved += (processResult.created || 0) + (processResult.updated || 0) + (processResult.sourceAdded || 0);
+      }
+      if (progressCallback) {
+        await progressCallback({
+          totalScraped: results.totalScraped,
+          totalSaved: results.saved,
+          status: 'RUNNING',
+          processedUrls: results.processedUrls
+        });
       }
     }
 
@@ -130,8 +132,8 @@ async function scrapeMobileDeUrl(browser, url, maxPages = 10, useScrapeDo = null
 
   // 1. Si scrape.do est dispo : l'utiliser en priorité (mobile.de bloque souvent Puppeteer)
   if (useScraper) {
-    const concurrency = parseInt(process.env.MOBILEDE_CONCURRENT_PAGES || '8', 10) || 1;
-    const batchDelayMs = parseInt(process.env.MOBILEDE_BATCH_DELAY_MS || '1200', 10) || 0;
+    const concurrency = parseInt(process.env.MOBILEDE_CONCURRENT_PAGES || '12', 10) || 1;
+    const batchDelayMs = parseInt(process.env.MOBILEDE_BATCH_DELAY_MS || '800', 10) || 0;
     logger.info('mobile.de: using scrape.do (parallel)', { concurrency, maxPages, batchDelayMs });
     for (let start = 1; start <= maxPages; start += concurrency) {
       const pageNums = [];

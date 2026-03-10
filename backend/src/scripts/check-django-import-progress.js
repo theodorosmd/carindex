@@ -14,7 +14,11 @@ import { fileURLToPath } from 'url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 async function main() {
-  const baseUrl = process.env.DJANGO_MOBILEDE_BASE_URL || 'http://75.119.141.234:8002';
+  const baseUrl = process.env.DJANGO_MOBILEDE_BASE_URL;
+  if (!baseUrl) {
+    console.error('DJANGO_MOBILEDE_BASE_URL required. Set in .env (see .env.example).');
+    process.exit(1);
+  }
   const query = process.env.DJANGO_API_CARS_QUERY || '';
 
   console.log('🔍 Vérification de l\'avancement Django import...\n');

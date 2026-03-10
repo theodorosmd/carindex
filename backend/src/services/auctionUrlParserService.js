@@ -18,10 +18,24 @@ export async function parseAuctionUrl(url) {
     switch (source) {
       case 'kvd':
         return await parseKvdUrl(url);
+      case 'bytbil':
+        return await parseBytbilUrl(url);
+      case 'blocket':
+        return await parseBlocketUrl(url);
+      case 'bilweb':
+        return await parseBilwebUrl(url);
+      case 'autoscout24':
+        return await parseAutoScout24Url(url);
+      case 'mobile_de':
+        return await parseMobileDeUrl(url);
+      case 'leboncoin':
+        return await parseLeboncoinListingUrl(url);
+      case 'lacentrale':
+        return await parseLaCentraleUrl(url);
       case 'swedish_auction':
         return await parseSwedishAuctionUrl(url);
       default:
-        throw new Error(`Unsupported auction source: ${source}`);
+        return await parseGenericListingUrl(url);
     }
   } catch (error) {
     logger.error('Error parsing auction URL', {
@@ -33,24 +47,43 @@ export async function parseAuctionUrl(url) {
 }
 
 /**
- * Detect auction source from URL
+ * Detect source from URL
  */
 function detectAuctionSource(url) {
   const lowerUrl = url.toLowerCase();
   
-  if (lowerUrl.includes('kvd.se') || lowerUrl.includes('kvd')) {
+  if (lowerUrl.includes('kvd.se')) {
     return 'kvd';
+  }
+  if (lowerUrl.includes('bytbil.com')) {
+    return 'bytbil';
+  }
+  if (lowerUrl.includes('blocket.se')) {
+    return 'blocket';
+  }
+  if (lowerUrl.includes('bilweb.se')) {
+    return 'bilweb';
+  }
+  if (lowerUrl.includes('autoscout24.')) {
+    return 'autoscout24';
+  }
+  if (lowerUrl.includes('mobile.de') || lowerUrl.includes('suchen.mobile.de')) {
+    return 'mobile_de';
+  }
+  if (lowerUrl.includes('leboncoin.fr')) {
+    return 'leboncoin';
+  }
+  if (lowerUrl.includes('lacentrale.fr')) {
+    return 'lacentrale';
   }
   if (lowerUrl.includes('auktionsverket.se') || 
       lowerUrl.includes('auctionet.se') ||
-      lowerUrl.includes('bilwebauktion.se') ||
-      lowerUrl.includes('swedish') ||
-      lowerUrl.includes('auktion')) {
+      lowerUrl.includes('bilwebauktion.se')) {
     return 'swedish_auction';
   }
   
-  // Default to KVD if unknown
-  return 'kvd';
+  // Generic fallback for any other URL
+  return 'generic';
 }
 
 /**
@@ -193,6 +226,597 @@ async function parseKvdUrl(url) {
     logger.error('Error parsing KVD URL', { error: error.message, url });
     throw new Error(`Failed to parse KVD URL: ${error.message}`);
   }
+}
+
+/**
+ * Fetch a URL with common browser-like headers
+ */
+async function fetchPageHtml(url) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'sv-SE,sv;q=0.9,en-US;q=0.8,en;q=0.7,fr;q=0.6',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1'
+      },
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status} ${response.statusText}`);
+    }
+    return await response.text();
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') throw new Error('Request timed out after 30 seconds');
+    throw err;
+  }
+}
+
+/**
+ * Extract JSON-LD structured data from HTML (schema.org/Car or schema.org/Product)
+ */
+function extractJsonLd(html) {
+  const results = [];
+  const scriptPattern = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+  let match;
+  while ((match = scriptPattern.exec(html)) !== null) {
+    try {
+      const data = JSON.parse(match[1]);
+      if (Array.isArray(data)) {
+        results.push(...data);
+      } else {
+        results.push(data);
+      }
+    } catch {
+      // ignore malformed JSON
+    }
+  }
+  return results;
+}
+
+/**
+ * Extract car data from JSON-LD schema.org objects
+ */
+function extractFromJsonLd(jsonLdObjects) {
+  const car = jsonLdObjects.find(o =>
+    o['@type'] === 'Car' || o['@type'] === 'Vehicle' ||
+    o['@type'] === 'Product' || o['@type'] === 'Offer'
+  );
+  if (!car) return {};
+  
+  const offer = car.offers || car;
+  const priceRaw = offer.price || car.price;
+  const price = priceRaw ? parseFloat(String(priceRaw).replace(/[^\d.]/g, '')) : null;
+  
+  const mileageRaw = car.mileageFromOdometer?.value || car.mileageFromOdometer;
+  const mileage = mileageRaw ? parseInt(String(mileageRaw).replace(/[^\d]/g, '')) : null;
+  
+  return {
+    brand: car.brand?.name || car.manufacturer?.name || car.brand || null,
+    model: car.model || null,
+    year: car.modelDate || car.vehicleModelDate || car.productionDate || null,
+    mileage_raw: mileage,
+    mileage_unit: car.mileageFromOdometer?.unitCode || 'KMT',
+    fuel_type: car.fuelType || null,
+    transmission: car.vehicleTransmission || null,
+    color: car.color || null,
+    power_kw: car.vehicleEngine?.enginePower?.value || null,
+    vin: car.vehicleIdentificationNumber || null,
+    price,
+    priceCurrency: offer.priceCurrency || car.priceCurrency || null,
+    co2Emissions: car.emissionsCO2 || null,
+  };
+}
+
+/**
+ * Normalize fuel type string to internal enum
+ */
+function normalizeFuelTypeString(raw) {
+  if (!raw) return null;
+  const s = raw.toLowerCase();
+  if (s.includes('el') || s.includes('electric') || s.includes('électr')) return 'electric';
+  if (s.includes('hybrid')) return 'hybrid';
+  if (s.includes('diesel')) return 'diesel';
+  if (s.includes('bensin') || s.includes('petrol') || s.includes('essence') || s.includes('gasoline') || s.includes('benzin')) return 'petrol';
+  if (s.includes('gpl') || s.includes('lpg') || s.includes('gas')) return 'gpl';
+  return null;
+}
+
+/**
+ * Normalize transmission string to internal enum
+ */
+function normalizeTransmissionString(raw) {
+  if (!raw) return null;
+  const s = raw.toLowerCase();
+  if (s.includes('automat') || s.includes('automatic') || s.includes('automatique')) return 'automatic';
+  if (s.includes('manuell') || s.includes('manual') || s.includes('manuelle')) return 'manual';
+  return null;
+}
+
+/**
+ * Convert price to SEK based on currency
+ * Uses approximate rates: 1 EUR ≈ 11.5 SEK, 1 DKK ≈ 1.54 SEK
+ */
+function convertToSek(price, currency) {
+  if (!price || !currency) return price;
+  const c = currency.toUpperCase();
+  if (c === 'SEK') return Math.round(price);
+  if (c === 'EUR') return Math.round(price * 11.5);
+  if (c === 'DKK') return Math.round(price * 1.54);
+  if (c === 'NOK') return Math.round(price * 0.95);
+  return price; // unknown currency, return as-is
+}
+
+/**
+ * Parse Bytbil listing URL
+ * Example: https://www.bytbil.com/stockholms-lan/personbil-macan-.../18934035
+ */
+async function parseBytbilUrl(url) {
+  try {
+    logger.info('Fetching Bytbil URL', { url });
+    const html = await fetchPageHtml(url);
+    
+    // Try JSON-LD first
+    const jsonLd = extractFromJsonLd(extractJsonLd(html));
+    
+    // Bytbil-specific patterns
+    const brand = jsonLd.brand ||
+      extractFromHtml(html, /(?:Märke|Brand)[^<]*<\/[^>]+>[^<]*<[^>]+>\s*([^<]+)/i) ||
+      extractFromHtml(html, /data-brand="([^"]+)"/i);
+    const model = jsonLd.model ||
+      extractFromHtml(html, /(?:Modell|Model)[^<]*<\/[^>]+>[^<]*<[^>]+>\s*([^<]+)/i) ||
+      extractFromHtml(html, /data-model="([^"]+)"/i);
+    const yearRaw = jsonLd.year ||
+      extractFromHtml(html, /Årsmodell[^<]*<\/[^>]+>[^<]*<[^>]+>\s*(\d{4})/i) ||
+      extractFromHtml(html, /Årsmodell[:\s]+(\d{4})/i);
+    const year = yearRaw ? parseInt(String(yearRaw)) : null;
+    
+    // Mileage: "12 500 mil" (Swedish miles) or "125 000 km"
+    let mileage = null;
+    const kmMatch = html.match(/Miltal[^<]*<\/[^>]+>[^<]*<[^>]+>\s*([\d\s]+)\s*km/i) ||
+                    html.match(/Miltal[:\s]+([\d\s]+)\s*km/i);
+    const milMatch = html.match(/Miltal[^<]*<\/[^>]+>[^<]*<[^>]+>\s*([\d\s]+)\s*mil/i) ||
+                     html.match(/Miltal[:\s]+([\d\s]+)\s*mil/i) ||
+                     html.match(/([\d\s]+)\s*mil\b/i);
+    if (kmMatch) {
+      mileage = parseInt(kmMatch[1].replace(/\s/g, ''));
+    } else if (milMatch) {
+      const mil = parseInt(milMatch[1].replace(/\s/g, ''));
+      mileage = mil >= 100 ? mil * 10 : mil; // Swedish miles × 10 = km
+    } else if (jsonLd.mileage_raw) {
+      const unit = (jsonLd.mileage_unit || '').toUpperCase();
+      mileage = unit === 'SMI' ? jsonLd.mileage_raw * 1.60934 : jsonLd.mileage_raw;
+    }
+    
+    // Power
+    const powerMatch = html.match(/(\d{2,4})\s*hk/i) || html.match(/(\d{2,4})\s*hp/i);
+    const kwMatch2 = html.match(/(\d{2,4})\s*kW/i);
+    let power_hp = null;
+    if (powerMatch) power_hp = parseInt(powerMatch[1]);
+    else if (kwMatch2) power_hp = Math.round(parseInt(kwMatch2[1]) * 1.36);
+    
+    // Fuel
+    const fuelRaw = extractFromHtml(html, /Drivmedel[^<]*<\/[^>]+>[^<]*<[^>]+>\s*([^<]+)/i) ||
+                    extractFromHtml(html, /Bränsle[^<]*<\/[^>]+>[^<]*<[^>]+>\s*([^<]+)/i) ||
+                    jsonLd.fuel_type;
+    const fuel_type = normalizeFuelTypeString(fuelRaw);
+    
+    // Transmission
+    const transRaw = extractFromHtml(html, /Växellåda[^<]*<\/[^>]+>[^<]*<[^>]+>\s*([^<]+)/i) ||
+                     jsonLd.transmission;
+    const transmission = normalizeTransmissionString(transRaw);
+    
+    // Price (SEK)
+    const priceMatch = html.match(/([\d\s]+)\s*kr/i);
+    const price_sek = jsonLd.price
+      ? convertToSek(jsonLd.price, jsonLd.priceCurrency || 'SEK')
+      : priceMatch ? parseInt(priceMatch[1].replace(/\s/g, '')) : null;
+    
+    // CO2
+    const co2Match = html.match(/(\d+)\s*g\/km[^<]*CO[₂2]/i) || html.match(/CO[₂2][^<]*?(\d+)\s*g\/km/i);
+    const co2 = co2Match ? parseInt(co2Match[1]) : jsonLd.co2Emissions ? parseInt(jsonLd.co2Emissions) : null;
+    
+    // First registration date
+    const firstRegMatch = html.match(/I trafik[^<]*<\/[^>]+>[^<]*<[^>]+>\s*(\d{4}-\d{2}-\d{2})/i) ||
+                          html.match(/I trafik[:\s]+(\d{4}-\d{2}-\d{2})/i);
+    const firstRegistrationDate = firstRegMatch ? firstRegMatch[1] : null;
+    
+    const data = {
+      source: 'bytbil',
+      source_listing_id: url.match(/-(\d{6,})(?:\?|$)/)?.[1] || url.split('/').pop().split('?')[0],
+      url,
+      brand,
+      model,
+      year,
+      mileage: mileage ? Math.round(mileage) : null,
+      power_hp,
+      fuel_type,
+      transmission,
+      auction_price_sek: price_sek,
+      auction_fee_eur: 0,
+      color: jsonLd.color || null,
+      vin: jsonLd.vin || null,
+      vat_deductible: false, // Bytbil dealer listings are typically margin scheme
+      co2_g_km_wltp: co2,
+      first_registration_date: firstRegistrationDate,
+    };
+    
+    logger.info('Parsed Bytbil listing', { brand: data.brand, model: data.model, year: data.year, mileage: data.mileage, price_sek });
+    return normalizeAuctionData(data);
+  } catch (error) {
+    logger.error('Error parsing Bytbil URL', { error: error.message, url });
+    throw new Error(`Failed to parse Bytbil URL: ${error.message}`);
+  }
+}
+
+/**
+ * Parse Blocket listing URL
+ * Example: https://www.blocket.se/annons/...
+ */
+async function parseBlocketUrl(url) {
+  try {
+    logger.info('Fetching Blocket URL', { url });
+    const html = await fetchPageHtml(url);
+    const jsonLd = extractFromJsonLd(extractJsonLd(html));
+    
+    // Blocket embeds a __NEXT_DATA__ JSON blob
+    let nextData = null;
+    const nextDataMatch = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i);
+    if (nextDataMatch) {
+      try { nextData = JSON.parse(nextDataMatch[1]); } catch {}
+    }
+    
+    const listing = nextData?.props?.pageProps?.listing || nextData?.props?.pageProps?.ad || {};
+    
+    const brand = jsonLd.brand || listing.brand || listing.make ||
+      extractFromHtml(html, /Märke[^<]*<\/[^>]+>[^<]*<[^>]+>\s*([^<]+)/i);
+    const model = jsonLd.model || listing.model ||
+      extractFromHtml(html, /Modell[^<]*<\/[^>]+>[^<]*<[^>]+>\s*([^<]+)/i);
+    
+    const yearRaw = jsonLd.year || listing.year || listing.modelYear ||
+      extractFromHtml(html, /Årsmodell[:\s]*(\d{4})/i);
+    const year = yearRaw ? parseInt(String(yearRaw)) : null;
+    
+    const mileageRaw = listing.mileage || jsonLd.mileage_raw ||
+      (() => {
+        const m = html.match(/Miltal[^<]*<\/[^>]+>[^<]*<[^>]+>\s*([\d\s]+)\s*mil/i) ||
+                  html.match(/([\d\s]+)\s*mil\b/i);
+        return m ? parseInt(m[1].replace(/\s/g, '')) * 10 : null;
+      })();
+    
+    const powerMatch = html.match(/(\d{2,4})\s*hk/i);
+    const power_hp = powerMatch ? parseInt(powerMatch[1]) : null;
+    
+    const fuelRaw = listing.fuelType || jsonLd.fuel_type ||
+      extractFromHtml(html, /Drivmedel[^<]*<\/[^>]+>[^<]*<[^>]+>\s*([^<]+)/i);
+    const fuel_type = normalizeFuelTypeString(fuelRaw);
+    
+    const transRaw = listing.transmission || jsonLd.transmission ||
+      extractFromHtml(html, /Växellåda[^<]*<\/[^>]+>[^<]*<[^>]+>\s*([^<]+)/i);
+    const transmission = normalizeTransmissionString(transRaw);
+    
+    const priceRaw = listing.price?.amount || listing.price || jsonLd.price;
+    const priceCurrency = listing.price?.currency || jsonLd.priceCurrency || 'SEK';
+    const price_sek = priceRaw ? convertToSek(parseFloat(String(priceRaw).replace(/[^\d.]/g, '')), priceCurrency) : null;
+    
+    const co2Match = html.match(/(\d+)\s*g\/km/i);
+    const co2 = co2Match ? parseInt(co2Match[1]) : null;
+    
+    const data = {
+      source: 'blocket',
+      source_listing_id: url.match(/\/annons\/([a-z0-9-]+)/i)?.[1] || url.split('/').pop().split('?')[0],
+      url,
+      brand,
+      model,
+      year,
+      mileage: mileageRaw ? Math.round(mileageRaw) : null,
+      power_hp,
+      fuel_type,
+      transmission,
+      auction_price_sek: price_sek,
+      auction_fee_eur: 0,
+      vat_deductible: false,
+      co2_g_km_wltp: co2,
+    };
+    logger.info('Parsed Blocket listing', { brand: data.brand, model: data.model, year: data.year });
+    return normalizeAuctionData(data);
+  } catch (error) {
+    logger.error('Error parsing Blocket URL', { error: error.message, url });
+    throw new Error(`Failed to parse Blocket URL: ${error.message}`);
+  }
+}
+
+/**
+ * Parse Bilweb listing URL
+ */
+async function parseBilwebUrl(url) {
+  try {
+    logger.info('Fetching Bilweb URL', { url });
+    const html = await fetchPageHtml(url);
+    const jsonLd = extractFromJsonLd(extractJsonLd(html));
+    const data = await buildFromHtmlAndJsonLd(html, jsonLd, url, 'bilweb');
+    return normalizeAuctionData(data);
+  } catch (error) {
+    logger.error('Error parsing Bilweb URL', { error: error.message, url });
+    throw new Error(`Failed to parse Bilweb URL: ${error.message}`);
+  }
+}
+
+/**
+ * Parse AutoScout24 listing URL
+ * Example: https://www.autoscout24.de/offers/...
+ */
+async function parseAutoScout24Url(url) {
+  try {
+    logger.info('Fetching AutoScout24 URL', { url });
+    const html = await fetchPageHtml(url);
+    
+    // AutoScout24 embeds vehicle data in a __NEXT_DATA__ / window.__INITIAL_STATE__ blob
+    let vehicleData = null;
+    const nextDataMatch = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i);
+    if (nextDataMatch) {
+      try {
+        const nd = JSON.parse(nextDataMatch[1]);
+        vehicleData = nd?.props?.pageProps?.listingDetails || nd?.props?.pageProps?.vehicle;
+      } catch {}
+    }
+    
+    const jsonLd = extractFromJsonLd(extractJsonLd(html));
+    const jld = extractFromJsonLd(jsonLd ? [jsonLd] : extractJsonLd(html));
+    
+    const brand = vehicleData?.vehicle?.make || jld.brand ||
+      extractFromHtml(html, /"make":"([^"]+)"/i);
+    const model = vehicleData?.vehicle?.model || jld.model ||
+      extractFromHtml(html, /"model":"([^"]+)"/i);
+    const year = vehicleData?.vehicle?.firstRegistrationYear || vehicleData?.vehicle?.year ||
+      (jld.year ? parseInt(String(jld.year)) : null) ||
+      (html.match(/"firstRegistrationYear":(\d{4})/)?.[1] ? parseInt(html.match(/"firstRegistrationYear":(\d{4})/)[1]) : null);
+    const mileage = vehicleData?.vehicle?.mileage ||
+      (html.match(/"mileage":(\d+)/)?.[1] ? parseInt(html.match(/"mileage":(\d+)/)[1]) : null) ||
+      jld.mileage_raw;
+    const powerKw = vehicleData?.vehicle?.power || null;
+    const power_hp = powerKw ? Math.round(powerKw * 1.36) : null;
+    const fuelRaw = vehicleData?.vehicle?.fuel || jld.fuel_type ||
+      extractFromHtml(html, /"fuelType":"([^"]+)"/i);
+    const fuel_type = normalizeFuelTypeString(fuelRaw);
+    const transRaw = vehicleData?.vehicle?.transmission || jld.transmission ||
+      extractFromHtml(html, /"transmission":"([^"]+)"/i);
+    const transmission = normalizeTransmissionString(transRaw);
+    const priceRaw = vehicleData?.price?.amount || vehicleData?.price ||
+      (html.match(/"price":(\d+)/)?.[1] ? parseInt(html.match(/"price":(\d+)/)[1]) : null) ||
+      jld.price;
+    const priceCurrency = vehicleData?.price?.currency || jld.priceCurrency || 'EUR';
+    const price_sek = priceRaw ? convertToSek(parseFloat(priceRaw), priceCurrency) : null;
+    const co2Match = html.match(/(\d+)\s*g\/km/i) || html.match(/"co2Emission":(\d+)/i);
+    const co2 = co2Match ? parseInt(co2Match[1]) : null;
+    const vatRaw = vehicleData?.vatDeductible ?? vehicleData?.vat;
+    const vat_deductible = vatRaw === true || vatRaw === 'true';
+    
+    const data = {
+      source: 'autoscout24',
+      source_listing_id: url.match(/\/offers\/([a-z0-9-]+)/i)?.[1] || url.split('/').pop().split('?')[0],
+      url, brand, model, year,
+      mileage: mileage ? Math.round(mileage) : null,
+      power_hp, fuel_type, transmission,
+      auction_price_sek: price_sek,
+      auction_fee_eur: 0,
+      vat_deductible,
+      co2_g_km_wltp: co2,
+    };
+    logger.info('Parsed AutoScout24 listing', { brand, model, year, mileage });
+    return normalizeAuctionData(data);
+  } catch (error) {
+    logger.error('Error parsing AutoScout24 URL', { error: error.message, url });
+    throw new Error(`Failed to parse AutoScout24 URL: ${error.message}`);
+  }
+}
+
+/**
+ * Parse Mobile.de listing URL
+ */
+async function parseMobileDeUrl(url) {
+  try {
+    logger.info('Fetching Mobile.de URL', { url });
+    const html = await fetchPageHtml(url);
+    const jsonLd = extractFromJsonLd(extractJsonLd(html));
+    const data = await buildFromHtmlAndJsonLd(html, jsonLd, url, 'mobile_de');
+    return normalizeAuctionData(data);
+  } catch (error) {
+    logger.error('Error parsing Mobile.de URL', { error: error.message, url });
+    throw new Error(`Failed to parse Mobile.de URL: ${error.message}`);
+  }
+}
+
+/**
+ * Parse Leboncoin listing URL (individual ad, not search)
+ */
+async function parseLeboncoinListingUrl(url) {
+  try {
+    logger.info('Fetching Leboncoin listing URL', { url });
+    const html = await fetchPageHtml(url);
+    const jsonLd = extractFromJsonLd(extractJsonLd(html));
+    
+    // Leboncoin embeds data in a <script id="__NEXT_DATA__"> block
+    let adData = null;
+    const nextDataMatch = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i);
+    if (nextDataMatch) {
+      try {
+        const nd = JSON.parse(nextDataMatch[1]);
+        adData = nd?.props?.pageProps?.ad || nd?.props?.pageProps?.listing;
+      } catch {}
+    }
+    
+    const jld = extractFromJsonLd(extractJsonLd(html)).length > 0
+      ? extractFromJsonLd(extractJsonLd(html))
+      : {};
+    
+    const attrs = adData?.attributes || {};
+    const getAttr = (key) => attrs?.[key]?.value || attrs?.[key]?.values?.[0]?.value;
+    
+    const brand = getAttr('brand') || getAttr('make') || jld[0]?.brand?.name || null;
+    const model = getAttr('model') || jld[0]?.model || null;
+    const year = getAttr('regdate')?.slice(0,4) ? parseInt(getAttr('regdate').slice(0,4)) :
+                 getAttr('year') ? parseInt(getAttr('year')) : null;
+    const mileageRaw = getAttr('mileage') ? parseInt(getAttr('mileage')) : null;
+    const fuelRaw = getAttr('fuel_type') || getAttr('fuel') || null;
+    const fuel_type = normalizeFuelTypeString(fuelRaw);
+    const transRaw = getAttr('gearbox') || null;
+    const transmission = normalizeTransmissionString(transRaw);
+    const priceRaw = adData?.price?.[0] || adData?.price;
+    const price_sek = priceRaw ? convertToSek(parseFloat(priceRaw), 'EUR') : null;
+    
+    const data = {
+      source: 'leboncoin',
+      source_listing_id: url.match(/\/(\d+)(?:\?|$)/)?.[1] || adData?.list_id || url.split('/').pop().split('?')[0],
+      url, brand, model, year,
+      mileage: mileageRaw,
+      fuel_type, transmission,
+      auction_price_sek: price_sek,
+      auction_fee_eur: 0,
+      vat_deductible: false,
+    };
+    logger.info('Parsed Leboncoin listing', { brand, model, year });
+    return normalizeAuctionData(data);
+  } catch (error) {
+    logger.error('Error parsing Leboncoin URL', { error: error.message, url });
+    throw new Error(`Failed to parse Leboncoin URL: ${error.message}`);
+  }
+}
+
+/**
+ * Parse La Centrale listing URL
+ */
+async function parseLaCentraleUrl(url) {
+  try {
+    logger.info('Fetching La Centrale URL', { url });
+    const html = await fetchPageHtml(url);
+    const jsonLd = extractFromJsonLd(extractJsonLd(html));
+    const data = await buildFromHtmlAndJsonLd(html, jsonLd, url, 'lacentrale');
+    return normalizeAuctionData(data);
+  } catch (error) {
+    logger.error('Error parsing La Centrale URL', { error: error.message, url });
+    throw new Error(`Failed to parse La Centrale URL: ${error.message}`);
+  }
+}
+
+/**
+ * Generic car listing parser using JSON-LD and common HTML patterns
+ * Works as a fallback for any car listing site
+ */
+async function parseGenericListingUrl(url) {
+  try {
+    logger.info('Fetching generic listing URL', { url });
+    const html = await fetchPageHtml(url);
+    const jsonLdObjects = extractJsonLd(html);
+    const jld = extractFromJsonLd(jsonLdObjects);
+    const data = await buildFromHtmlAndJsonLd(html, jld, url, 'generic');
+    return normalizeAuctionData(data);
+  } catch (error) {
+    logger.error('Error parsing generic listing URL', { error: error.message, url });
+    throw new Error(`Failed to parse listing URL: ${error.message}`);
+  }
+}
+
+/**
+ * Build a listing data object from raw HTML + JSON-LD data
+ * Used as a shared helper for less structured sources
+ */
+async function buildFromHtmlAndJsonLd(html, jld, url, source) {
+  // Brand
+  const brand = jld.brand ||
+    extractFromHtml(html, /"make"\s*:\s*"([^"]+)"/i) ||
+    extractFromHtml(html, /(?:Märke|Marque|Marca|Brand|Make)[^<]*<\/[^>]+>[^<]*<[^>]+>\s*([^<\n]+)/i) ||
+    extractFromHtml(html, /(?:Märke|Marque|Marca|Brand|Make)[:\s]+([^\n<,]+)/i);
+  
+  // Model
+  const model = jld.model ||
+    extractFromHtml(html, /"model"\s*:\s*"([^"]+)"/i) ||
+    extractFromHtml(html, /(?:Modell|Modèle|Modelo|Model)[^<]*<\/[^>]+>[^<]*<[^>]+>\s*([^<\n]+)/i) ||
+    extractFromHtml(html, /(?:Modell|Modèle|Modelo|Model)[:\s]+([^\n<,]+)/i);
+  
+  // Year
+  const yearRaw = jld.year ||
+    extractFromHtml(html, /"modelDate"\s*:\s*"?(\d{4})"?/i) ||
+    extractFromHtml(html, /(?:Årsmodell|Année|Año|Year|Baujahr)[^<]*<\/[^>]+>[^<]*<[^>]+>\s*(\d{4})/i) ||
+    extractFromHtml(html, /(?:Årsmodell|Année|Año|Year|Baujahr)[:\s]+(\d{4})/i);
+  const year = yearRaw ? parseInt(String(yearRaw)) : null;
+  
+  // Mileage
+  let mileage = null;
+  if (jld.mileage_raw) {
+    const unit = (jld.mileage_unit || '').toUpperCase();
+    mileage = unit === 'SMI' ? Math.round(jld.mileage_raw * 1.60934) : jld.mileage_raw;
+  }
+  if (!mileage) {
+    const kmMatch = html.match(/(?:Miltal|Kilomètre|Kilómetro|Mileage|Kilometerstand)[^<]*?(\d[\d\s]{2,9})\s*km/i);
+    const milMatch = html.match(/(?:Miltal)[^<]*?(\d[\d\s]{2,7})\s*mil/i);
+    if (kmMatch) mileage = parseInt(kmMatch[1].replace(/\s/g, ''));
+    else if (milMatch) {
+      const mil = parseInt(milMatch[1].replace(/\s/g, ''));
+      mileage = mil >= 100 ? mil * 10 : mil;
+    } else {
+      const genericKm = html.match(/([\d\s]{4,10})\s*km\b/i);
+      if (genericKm) {
+        const v = parseInt(genericKm[1].replace(/\s/g, ''));
+        if (v >= 1000 && v < 1000000) mileage = v;
+      }
+    }
+  }
+  
+  // Power
+  const powerHpMatch = html.match(/(\d{2,4})\s*(?:hk|hp|ch|ps)\b/i);
+  const powerKwMatch = html.match(/(\d{2,4})\s*kW\b/i);
+  let power_hp = null;
+  if (powerHpMatch) power_hp = parseInt(powerHpMatch[1]);
+  else if (powerKwMatch) power_hp = Math.round(parseInt(powerKwMatch[1]) * 1.36);
+  
+  // Fuel
+  const fuelRaw = jld.fuel_type ||
+    extractFromHtml(html, /(?:Drivmedel|Bränsle|Carburant|Combustible|Fuel|Kraftstoff)[^<]*<\/[^>]+>[^<]*<[^>]+>\s*([^<\n]+)/i) ||
+    extractFromHtml(html, /(?:Drivmedel|Bränsle|Carburant|Combustible|Fuel|Kraftstoff)[:\s]+([^\n<,]+)/i);
+  const fuel_type = normalizeFuelTypeString(fuelRaw);
+  
+  // Transmission
+  const transRaw = jld.transmission ||
+    extractFromHtml(html, /(?:Växellåda|Boîte de vitesse|Cambio|Gearbox|Getriebe)[^<]*<\/[^>]+>[^<]*<[^>]+>\s*([^<\n]+)/i) ||
+    extractFromHtml(html, /(?:Växellåda|Boîte de vitesse|Cambio|Gearbox|Getriebe)[:\s]+([^\n<,]+)/i);
+  const transmission = normalizeTransmissionString(transRaw);
+  
+  // Price
+  let price_sek = null;
+  if (jld.price && jld.priceCurrency) {
+    price_sek = convertToSek(jld.price, jld.priceCurrency);
+  } else {
+    const sekMatch = html.match(/([\d\s]{4,10})\s*(?:kr|SEK)\b/i);
+    const eurMatch = html.match(/([\d\s]{4,10})\s*(?:€|EUR)\b/i);
+    if (sekMatch) price_sek = parseInt(sekMatch[1].replace(/\s/g, ''));
+    else if (eurMatch) price_sek = convertToSek(parseInt(eurMatch[1].replace(/\s/g, '')), 'EUR');
+  }
+  
+  // CO2
+  const co2Match = html.match(/(\d{1,3})\s*g\/km/i);
+  const co2 = co2Match ? parseInt(co2Match[1]) : jld.co2Emissions ? parseInt(String(jld.co2Emissions)) : null;
+  
+  // VIN
+  const vin = jld.vin || extractFromHtml(html, /\b([A-HJ-NPR-Z0-9]{17})\b/);
+  
+  return {
+    source,
+    source_listing_id: url.split('/').pop().split('?')[0],
+    url, brand, model, year,
+    mileage: mileage ? Math.round(mileage) : null,
+    power_hp, fuel_type, transmission,
+    auction_price_sek: price_sek,
+    auction_fee_eur: 0,
+    vat_deductible: false,
+    co2_g_km_wltp: co2,
+    vin,
+  };
 }
 
 /**

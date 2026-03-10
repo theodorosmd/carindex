@@ -37,6 +37,9 @@ router.get('/', (req, res, next) => {
   listEvaluations(req, res, next);
 });
 
+// GET /api/v1/evaluations/batch-status - Get batch processing status (must be before /:id)
+router.get('/batch-status', getBatchStatus);
+
 // GET /api/v1/evaluations/:id - Get specific evaluation
 router.get('/:id', param('id').isUUID().withMessage('id must be a valid UUID'), validateRequest, getEvaluation);
 
@@ -60,8 +63,5 @@ router.post('/batch',
   validateRequest,
   batchCreateEvaluations
 );
-
-// GET /api/v1/evaluations/batch-status - Get batch processing status
-router.get('/batch-status', getBatchStatus);
 
 export const evaluationsRoutes = router;

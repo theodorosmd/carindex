@@ -99,9 +99,11 @@ async function main() {
   let mobiledePending = 0;
   let mobiledeProcessing = 0;
   try {
-    mobiledePending = await safeCount('mobilede_fetch_queue', supabase.from('mobilede_fetch_queue').select('*').in('status', ['pending', 'retry']));
-    mobiledeProcessing = await safeCount('mobilede_fetch_queue', supabase.from('mobilede_fetch_queue').select('*').eq('status', 'processing'));
-  } catch (_) {}
+    mobiledePending = await safeCount('mobile_de_fetch_queue', supabase.from('mobile_de_fetch_queue').select('*').in('status', ['pending', 'retry']));
+    mobiledeProcessing = await safeCount('mobile_de_fetch_queue', supabase.from('mobile_de_fetch_queue').select('*').eq('status', 'processing'));
+  } catch (err) {
+    console.warn('Could not count mobile_de_fetch_queue:', err?.message || err);
+  }
 
   // 5. Site totals (objectif)
   const { data: siteTotals } = await supabase.from('source_site_totals').select('source_platform, total_available');

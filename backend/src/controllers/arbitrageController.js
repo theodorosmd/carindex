@@ -28,7 +28,7 @@ const COUNTRY_NAMES = {
 /**
  * Comparaison des prix par pays
  */
-export async function getPriceComparisonEndpoint(req, res) {
+export async function getPriceComparisonEndpoint(req, res, next) {
   try {
     const { brand, model, year } = req.query;
     if (!brand || !model) {
@@ -51,17 +51,14 @@ export async function getPriceComparisonEndpoint(req, res) {
     });
   } catch (error) {
     logger.error('Error in price comparison', { error: error.message });
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 }
 
 /**
  * Opportunités d'arbitrage (analyse par paires de pays)
  */
-export async function getArbitrageOpportunitiesEndpoint(req, res) {
+export async function getArbitrageOpportunitiesEndpoint(req, res, next) {
   try {
     const { brand, model, year, minMarginEur = 2000, minMarginPct = 5, limit = 50 } = req.query;
 
@@ -88,17 +85,14 @@ export async function getArbitrageOpportunitiesEndpoint(req, res) {
     });
   } catch (error) {
     logger.error('Error finding arbitrage opportunities', { error: error.message });
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 }
 
 /**
  * Annonces avec opportunité d'arbitrage (listings réels)
  */
-export async function getListingsArbitrageEndpoint(req, res) {
+export async function getListingsArbitrageEndpoint(req, res, next) {
   try {
     const { brand, model, year, buyCountry, sellCountry, minMarginEur = 1500, limit = 20 } = req.query;
 
@@ -126,17 +120,14 @@ export async function getListingsArbitrageEndpoint(req, res) {
     });
   } catch (error) {
     logger.error('Error finding listings arbitrage', { error: error.message });
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 }
 
 /**
  * Simulateur de coûts d'import
  */
-export async function getImportCostSimulatorEndpoint(req, res) {
+export async function getImportCostSimulatorEndpoint(req, res, next) {
   try {
     const { purchasePrice, buyCountry, sellCountry, isProfessional = true, reconditioningEur } = req.query;
 
@@ -167,17 +158,14 @@ export async function getImportCostSimulatorEndpoint(req, res) {
     });
   } catch (error) {
     logger.error('Error in import cost simulator', { error: error.message });
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 }
 
 /**
  * Estimer la marge d'arbitrage
  */
-export async function getArbitrageMarginEstimateEndpoint(req, res) {
+export async function getArbitrageMarginEstimateEndpoint(req, res, next) {
   try {
     const { purchasePrice, sellPrice, buyCountry, sellCountry, reconditioningEur } = req.query;
 
@@ -209,10 +197,7 @@ export async function getArbitrageMarginEstimateEndpoint(req, res) {
     });
   } catch (error) {
     logger.error('Error estimating arbitrage margin', { error: error.message });
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 }
 
@@ -220,7 +205,7 @@ export async function getArbitrageMarginEstimateEndpoint(req, res) {
  * Opportunités auto-détectées (remplies par le job quotidien).
  * Enriched with exact listing URLs for direct links to car ads.
  */
-export async function getAutoDetectedEndpoint(req, res) {
+export async function getAutoDetectedEndpoint(req, res, next) {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 500, 2000); // Return all opportunities ≥€4000
 
@@ -270,17 +255,14 @@ export async function getAutoDetectedEndpoint(req, res) {
     });
   } catch (error) {
     logger.error('Error fetching auto-detected opportunities', { error: error.message });
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 }
 
 /**
  * Règles fiscales et coûts (référence)
  */
-export async function getTaxRulesEndpoint(req, res) {
+export async function getTaxRulesEndpoint(req, res, next) {
   try {
     const from = req.query.from?.toUpperCase();
     const to = req.query.to?.toUpperCase();
@@ -309,9 +291,6 @@ export async function getTaxRulesEndpoint(req, res) {
     });
   } catch (error) {
     logger.error('Error getting tax rules', { error: error.message });
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 }

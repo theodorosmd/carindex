@@ -41,22 +41,36 @@ export function renderAuctionMarginCalculator() {
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <!-- Left Column: Form -->
           <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-xl font-semibold mb-4">Auction vehicle information</h2>
+            <h2 class="text-xl font-semibold mb-4" id="form-title">Vehicle information</h2>
             
             <form id="auction-form" class="space-y-4">
+
+              <!-- Listing type toggle -->
+              <div class="flex rounded-lg border border-gray-300 overflow-hidden">
+                <button type="button" id="type-auction" data-type="auction"
+                        class="flex-1 py-2 px-4 text-sm font-medium bg-blue-600 text-white transition">
+                  🔨 Auction
+                </button>
+                <button type="button" id="type-regular" data-type="regular"
+                        class="flex-1 py-2 px-4 text-sm font-medium bg-white text-gray-700 hover:bg-gray-50 transition">
+                  🏷️ Regular listing
+                </button>
+              </div>
+              <input type="hidden" id="listing_type" name="listing_type" value="auction">
+
               <!-- URL Input with Parse Button -->
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Auction URL *</label>
+                <label class="block text-sm font-medium text-gray-700 mb-1" id="url-label">Listing URL *</label>
                 <div class="flex gap-2">
                   <input type="url" id="auction-url" name="auction-url" 
-                         placeholder="https://www.kvd.se/auktion/..." 
+                         placeholder="https://www.kvd.se/... or bytbil.com, blocket.se, autoscout24, etc." 
                          class="flex-1 px-3 py-2 border border-gray-300 rounded-md" required>
                   <button type="button" id="parse-url-btn" 
                           class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition font-medium whitespace-nowrap">
                     Analyser
                   </button>
                 </div>
-                <p class="text-xs text-gray-500 mt-1">Paste the auction URL (KVD, Swedish Auction, etc.) to auto-fill the fields</p>
+                <p class="text-xs text-gray-500 mt-1">Paste any car listing URL (KVD, Bytbil, Blocket, AutoScout24, Mobile.de, Leboncoin, etc.) to auto-fill the fields</p>
                 <div id="parse-status" class="mt-2 text-sm hidden"></div>
               </div>
 
@@ -115,10 +129,10 @@ export function renderAuctionMarginCalculator() {
 
               <div class="grid grid-cols-2 gap-4">
                 <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">Auction price (SEK) *</label>
+                  <label class="block text-sm font-medium text-gray-700 mb-1" id="price-label">Purchase price (SEK) *</label>
                   <input type="number" id="auction_price_sek" name="auction_price_sek" min="0" step="0.01" class="w-full px-3 py-2 border border-gray-300 rounded-md" required>
                 </div>
-                <div>
+                <div id="auction-fee-row">
                   <label class="block text-sm font-medium text-gray-700 mb-1">Auction fee (EUR)</label>
                   <input type="number" id="auction_fee_eur" name="auction_fee_eur" min="0" step="0.01" class="w-full px-3 py-2 border border-gray-300 rounded-md" value="0">
                 </div>
@@ -395,12 +409,48 @@ export function renderAuctionMarginCalculator() {
       handleParseUrl()
     }
   })
+
+  // Listing type toggle
+  document.getElementById('type-auction').addEventListener('click', () => setListingType('auction'))
+  document.getElementById('type-regular').addEventListener('click', () => setListingType('regular'))
+  // Default to auction selected visually
+  setListingType('auction')
   
   // Attach language toggle handler
   attachLanguageToggle(() => {
     // Reload page when language changes
     window.location.reload()
   })
+}
+
+/**
+ * Switch between auction and regular listing modes
+ */
+function setListingType(type) {
+  document.getElementById('listing_type').value = type
+
+  const btnAuction = document.getElementById('type-auction')
+  const btnRegular = document.getElementById('type-regular')
+  const auctionFeeRow = document.getElementById('auction-fee-row')
+  const priceLabel = document.getElementById('price-label')
+  const formTitle = document.getElementById('form-title')
+
+  if (type === 'auction') {
+    btnAuction.className = 'flex-1 py-2 px-4 text-sm font-medium bg-blue-600 text-white transition'
+    btnRegular.className = 'flex-1 py-2 px-4 text-sm font-medium bg-white text-gray-700 hover:bg-gray-50 transition'
+    auctionFeeRow.classList.remove('hidden')
+    priceLabel.textContent = 'Auction price (SEK) *'
+    formTitle.textContent = 'Auction vehicle information'
+  } else {
+    btnRegular.className = 'flex-1 py-2 px-4 text-sm font-medium bg-blue-600 text-white transition'
+    btnAuction.className = 'flex-1 py-2 px-4 text-sm font-medium bg-white text-gray-700 hover:bg-gray-50 transition'
+    auctionFeeRow.classList.add('hidden')
+    // Zero out the auction fee when switching to regular
+    const auctionFeeInput = document.getElementById('auction_fee_eur')
+    if (auctionFeeInput) auctionFeeInput.value = '0'
+    priceLabel.textContent = 'Purchase price (SEK) *'
+    formTitle.textContent = 'Vehicle information'
+  }
 }
 
 /**
@@ -475,6 +525,11 @@ async function handleParseUrl() {
     const result = await response.json()
     const auctionData = result.auction_listing
     
+    // Auto-detect listing type from source
+    const auctionSources = ['kvd', 'swedish_auction', 'auctionet', 'bilwebauktion']
+    const detectedType = auctionSources.includes(auctionData.source) ? 'auction' : 'regular'
+    setListingType(detectedType)
+
     // Auto-fill form fields
     fillFormFromAuctionData(auctionData)
     
@@ -747,8 +802,8 @@ async function handleCalculate(e) {
       const error = new Error(errorMessage)
       if (errorDetails || errorCode || errorSuggestions) {
         error.details = typeof errorDetails === 'object' 
-          ? { ...errorDetails, code: errorCode, suggestions: errorSuggestions }
-          : { code: errorCode, suggestions: errorSuggestions, message: errorDetails }
+          ? { ...errorDetails, code: errorCode, suggestions: errorSuggestions, error: errorMessage }
+          : { code: errorCode, suggestions: errorSuggestions, message: errorDetails, error: errorMessage }
       }
       throw error
     }
@@ -776,51 +831,22 @@ async function handleCalculate(e) {
     resultsContent.classList.remove('hidden')
   } catch (error) {
     console.error('Error calculating margin:', error)
-    let errorText = tr('An error occurred', 'Une erreur est survenue')
-    let errorSuggestions = []
-    
-    // Handle different error types
-    if (error.details && typeof error.details === 'object') {
-      // Check if it's a NO_COMPARABLES_FOUND error
-      if (error.details.code === 'NO_COMPARABLES_FOUND') {
-        errorText = error.details.error || tr('No comparables found', 'Aucun comparable trouvé')
-        if (error.details.suggestions && Array.isArray(error.details.suggestions)) {
-          errorSuggestions = error.details.suggestions
-        }
-      } else {
-        errorText = error.details.error || error.message || tr('An error occurred', 'Une erreur est survenue')
-      }
-    } else if (error.message) {
-      errorText = error.message
-    }
-    if (error instanceof Error) {
-      errorText = error.message || errorText
-      if (error.details) {
-        errorText += '\n\n' + error.details
-      }
-    } else if (typeof error === 'object' && error !== null) {
-      // If error is an object, try to extract message
-      errorText = error.error || error.message || JSON.stringify(error)
-      if (error.details) {
-        errorText += '\n\n' + error.details
-      }
-    } else if (typeof error === 'string') {
-      errorText = error
-    }
-    
+
+    // Extract message: prefer error.details.error (set by the !response.ok block), fall back to error.message
+    const errorText = (error?.details?.error) || (typeof error?.message === 'string' ? error.message : null) || tr('An error occurred', 'Une erreur est survenue')
+    const errorSuggestions = Array.isArray(error?.details?.suggestions) ? error.details.suggestions : []
+
     errorMessage.textContent = errorText
-    errorMessage.style.whiteSpace = 'pre-line' // Allow line breaks
-    
-    // Show suggestions if available
+
     const errorSuggestionsDiv = document.getElementById('error-suggestions')
     const errorSuggestionsList = document.getElementById('error-suggestions-list')
-    if (errorSuggestions && errorSuggestions.length > 0 && errorSuggestionsDiv && errorSuggestionsList) {
-      errorSuggestionsList.innerHTML = errorSuggestions.map(s => `<li>${s}</li>`).join('')
+    if (errorSuggestions.length > 0 && errorSuggestionsDiv && errorSuggestionsList) {
+      errorSuggestionsList.innerHTML = errorSuggestions.map(s => `<li>${String(s)}</li>`).join('')
       errorSuggestionsDiv.classList.remove('hidden')
     } else if (errorSuggestionsDiv) {
       errorSuggestionsDiv.classList.add('hidden')
     }
-    
+
     loadingState.classList.add('hidden')
     errorState.classList.remove('hidden')
   }

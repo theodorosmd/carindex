@@ -204,6 +204,74 @@ async function upsertListingsBulk(listings, options = {}) {
   return results;
 }
 
+/**
+ * Fast bulk create-only: INSERT new listings, skip existing (ON CONFLICT DO NOTHING).
+ * Single DB round-trip per batch. Populates listing_sources for inserted rows.
+ */
+async function upsertListingsBulkCreateOnly(listings, options = {}) {
+  const valid = [];
+  const results = { created: 0, updated: 0, skipped: 0, errors: 0, items: [] };
+
+  for (const input of listings) {
+    const listing = normalizeListing(input);
+    const missing = validateRequiredFields(listing, options);
+    if (missing.length > 0) {
+      results.errors += 1;
+      continue;
+    }
+    const fieldErrors = validateListingFields(listing);
+    if (fieldErrors.length > 0) {
+      results.errors += 1;
+      continue;
+    }
+    valid.push(listing);
+  }
+
+  if (valid.length === 0) return results;
+
+  const { data: inserted, error } = await supabase
+    .from('listings')
+    .upsert(valid, {
+      onConflict: 'source_platform,source_listing_id',
+      ignoreDuplicates: true
+    })
+    .select('id, source_platform, source_listing_id');
+
+  if (error) {
+    logger.warn('Bulk create-only failed, falling back to per-row', { error: error.message });
+    return upsertListingsBatch(listings, { ...options, useBulkUpsert: false });
+  }
+
+  const insertedRows = inserted || [];
+  results.created = insertedRows.length;
+  results.skipped = valid.length - insertedRows.length;
+
+  if (insertedRows.length > 0) {
+    const sourceRows = insertedRows.map((r) => {
+      const listing = valid.find(
+        (v) => v.source_platform === r.source_platform && String(v.source_listing_id) === String(r.source_listing_id)
+      );
+      return {
+        listing_id: r.id,
+        source_platform: r.source_platform,
+        source_listing_id: String(r.source_listing_id),
+        url: listing?.url || null
+      };
+    });
+    const { error: srcError } = await supabase.from('listing_sources').upsert(sourceRows, {
+      onConflict: 'source_platform,source_listing_id'
+    });
+    if (srcError) {
+      logger.warn('Bulk listing_sources failed, inserting per-row', { error: srcError.message });
+      for (const row of sourceRows) {
+        await upsertListingSource(row.listing_id, row.source_platform, row.source_listing_id, row.url);
+      }
+    }
+  }
+
+  return results;
+}
+
 /** Batch prefetch: (platform, sourceId) -> listing_id from listing_sources + listings. Reduces N queries to ~1 per platform. */
 async function prefetchExistingSources(listings) {
   const byPlatform = {};
@@ -242,6 +310,9 @@ export async function upsertListingsBatch(listings, options = {}) {
   const createOnly = options.createOnly === true || process.env.INGEST_CREATE_ONLY === 'true';
   if (options.useBulkUpsert && listings.length > 1 && !createOnly) {
     return upsertListingsBulk(listings, options);
+  }
+  if (createOnly && listings.length > 1) {
+    return upsertListingsBulkCreateOnly(listings, options);
   }
 
   const results = {

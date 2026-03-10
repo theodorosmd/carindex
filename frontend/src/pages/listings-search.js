@@ -928,10 +928,30 @@ function populateFilterSection(sectionId, facets, filterName, valueMapper = null
   })
 }
 
-// Load facets from API and create all filters dynamically
+// Build query string from filters for facets API (excludes sort, limit, offset)
+function buildFacetsQueryParams(filters = {}) {
+  const params = new URLSearchParams()
+  const facetParams = ['brand', 'model', 'min_price', 'max_price', 'min_year', 'max_year', 'min_mileage', 'max_mileage', 'country', 'fuel_type', 'seller_type', 'steering', 'transmission', 'doors', 'color', 'version', 'trim', 'keyword', 'publication_date']
+  facetParams.forEach(key => {
+    const val = filters[key]
+    if (val != null && val !== '') {
+      if (Array.isArray(val)) {
+        val.forEach(v => params.append(key, v))
+      } else {
+        params.append(key, val)
+      }
+    }
+  })
+  return params.toString()
+}
+
+// Load facets from API and create all filters dynamically (uses current filters for dynamic counts)
 async function loadFacets() {
   try {
-    const response = await fetch('/api/v1/facets')
+    const filters = window.getFilters ? window.getFilters() : {}
+    const queryString = buildFacetsQueryParams(filters)
+    const url = queryString ? `/api/v1/facets?${queryString}` : '/api/v1/facets'
+    const response = await fetch(url)
     if (!response.ok) {
       console.warn('Failed to load facets:', response.status)
       return
@@ -1121,6 +1141,46 @@ async function loadFacets() {
         const colorBtn = document.querySelector(`button[data-color="${name.toLowerCase()}"]`)
         if (colorBtn) {
           colorBtn.title = `${name} (${formatNumber(count)})`
+        }
+      })
+    }
+
+    // Publication date - update counts (recent = < 30 days, old = >= 30 days)
+    if (facets.publication_date && facets.publication_date.length > 0) {
+      facets.publication_date.forEach(({ name, count }) => {
+        const checkbox = document.querySelector(`input[name="publication-date"][value="${name}"]`)
+        if (checkbox) {
+          const label = checkbox.closest('label')
+          if (label) {
+            const countSpan = label.querySelector('.text-gray-500')
+            if (countSpan) countSpan.textContent = `(${formatNumber(count)})`
+          }
+        }
+      })
+    }
+
+    // Keywords - update counts (NOT SPECIFIED, AMG, L1H1)
+    if (facets.keywords && facets.keywords.length > 0) {
+      facets.keywords.forEach(({ name, count }) => {
+        const value = name === '' ? '' : name
+        const checkbox = document.querySelector(`input[name="keyword"][value="${value}"]`)
+        if (checkbox) {
+          const label = checkbox.closest('label')
+          if (label) {
+            const countSpan = label.querySelector('.text-gray-500')
+            if (countSpan) countSpan.textContent = `(${formatNumber(count)})`
+          }
+        }
+      })
+    }
+
+    // Countries - update option counts in dropdown
+    if (facets.countries && facets.countries.length > 0) {
+      facets.countries.forEach(({ name, count }) => {
+        const option = document.querySelector(`#country-filter option[value="${name}"]`)
+        if (option) {
+          const baseText = option.textContent.replace(/\s*\([^)]*\)\s*$/, '').trim()
+          option.textContent = `${baseText} (${formatNumber(count)})`
         }
       })
     }
@@ -1669,6 +1729,10 @@ function initializeSearch() {
     const keywords = Array.from(document.querySelectorAll('input[name="keyword"]:checked')).map(cb => cb.value)
     if (keywords.length > 0 && keywords[0]) filters.keyword = keywords[0]
 
+    // Get publication date (recent = < 30 days, old = >= 30 days)
+    const publicationDate = Array.from(document.querySelectorAll('input[name="publication-date"]:checked')).map(cb => cb.value)
+    if (publicationDate.length > 0 && publicationDate[0]) filters.publication_date = publicationDate[0]
+
     // Get country
     const country = document.getElementById('country-filter')?.value
     if (country) filters.country = country
@@ -1684,6 +1748,10 @@ function initializeSearch() {
   // Search listings (make it available globally)
   async function searchListings(filters, page = 1, forceRefresh = false) {
     try {
+      // Refresh facet counts when filters change (page 1 = new search)
+      if (page === 1 && typeof loadFacets === 'function') {
+        loadFacets().catch(err => console.warn('Facets refresh failed:', err))
+      }
       // Show skeleton loaders
       resultsContainer.innerHTML = Array.from({ length: 8 }, () => `
         <div class="listing-card bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden animate-pulse">

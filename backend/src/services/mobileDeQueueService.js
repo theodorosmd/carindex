@@ -7,65 +7,57 @@ import { logger } from '../utils/logger.js';
 
 const LOCK_DURATION_MINUTES = 30;
 
+const BULK_BATCH_SIZE = 500;
+
 /**
- * Ajouter des URLs à la queue
+ * Ajouter des URLs à la queue (bulk – single DB round-trip per batch)
  * @param {Array<{url: string, title?: string, year?: number, price?: number, mileage?: number, images?: string[]}>} items
  * @returns {{ added: number, skipped: number }}
  */
 export async function addToQueue(items) {
   let added = 0;
   let skipped = 0;
+  const now = new Date().toISOString();
 
+  const rows = [];
   for (const item of items) {
     const url = item.url || item.link;
     if (!url) {
       skipped++;
       continue;
     }
+    rows.push({
+      url,
+      title: item.title || null,
+      year: item.year ?? null,
+      price: item.price ?? null,
+      mileage: item.mileage ?? null,
+      images: item.images || [],
+      status: 'pending',
+      retry_count: 0,
+      next_retry_at: null,
+      last_error: null,
+      last_attempt_at: null,
+      locked_until: null,
+      locked_by: null,
+      updated_at: now
+    });
+  }
 
-    const { data: existing } = await supabase
+  for (let i = 0; i < rows.length; i += BULK_BATCH_SIZE) {
+    const batch = rows.slice(i, i + BULK_BATCH_SIZE);
+    const { data, error } = await supabase
       .from('mobile_de_fetch_queue')
-      .select('id, status')
-      .eq('url', url)
-      .maybeSingle();
-
-    if (existing && ['ok', 'OK', 'done', 'gone'].includes(existing.status)) {
-      skipped++;
-      continue;
-    }
-
-    const { error } = await supabase
-      .from('mobile_de_fetch_queue')
-      .upsert(
-        {
-          url,
-          title: item.title || null,
-          year: item.year ?? null,
-          price: item.price ?? null,
-          mileage: item.mileage ?? null,
-          images: item.images || [],
-          status: 'pending',
-          retry_count: 0,
-          next_retry_at: null,
-          last_error: null,
-          last_attempt_at: null,
-          locked_until: null,
-          locked_by: null,
-          updated_at: new Date().toISOString()
-        },
-        { onConflict: 'url', ignoreDuplicates: false }
-      );
+      .upsert(batch, { onConflict: 'url', ignoreDuplicates: true })
+      .select('id');
 
     if (error) {
-      if (error.code === '23505') {
-        skipped++;
-      } else {
-        logger.warn('Queue add error', { url, error: error.message });
-        skipped++;
-      }
+      logger.warn('Queue bulk add error', { error: error.message, batchSize: batch.length });
+      skipped += batch.length;
       continue;
     }
-    added++;
+    added += data?.length ?? 0;
+    skipped += batch.length - (data?.length ?? 0);
   }
 
   return { added, skipped };

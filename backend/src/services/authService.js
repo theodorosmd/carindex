@@ -3,7 +3,17 @@ import jwt from 'jsonwebtoken';
 import { supabase } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const DEFAULT_SECRET = 'your-secret-key-change-in-production';
+
+function getJwtSecret() {
+  const secret = process.env.JWT_SECRET || DEFAULT_SECRET;
+  if (process.env.NODE_ENV === 'production' && (!secret || secret === DEFAULT_SECRET)) {
+    throw new Error('JWT_SECRET must be set in production. Do not use the default value.');
+  }
+  return secret;
+}
+
+const JWT_SECRET = getJwtSecret();
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 
 /**

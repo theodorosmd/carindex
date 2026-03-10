@@ -151,11 +151,7 @@ export async function getMalus(req, res, next) {
       stack: error.stack,
       query: req.query
     });
-
-    res.status(500).json({
-      error: 'Internal server error while calculating malus',
-      code: 'INTERNAL_ERROR',
-      message: error.message
-    });
+    error.code = 'INTERNAL_ERROR';
+    next(error);
   }
 }

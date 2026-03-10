@@ -2,9 +2,8 @@ import cron from 'node-cron';
 import { logger } from '../utils/logger.js';
 import { upsertListingsBatch } from '../services/ingestService.js';
 
-const DEFAULT_BASE_URL = 'http://75.119.141.234:8000';
 const DEFAULT_CRON = '0 3 * * *';
-const DEFAULT_PAGE_LIMIT = 500;
+const DEFAULT_PAGE_LIMIT = 1000;  // 1000 cars/page pour débit Oleg (~300k LBC, ~1M mobile.de en quelques heures)
 
 function parseNumber(value) {
   if (value === null || value === undefined || value === '') return null;
@@ -196,8 +195,12 @@ export async function fetchWithCookies(url, options = {}, cookies = {}) {
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  const response = await fetch(url, { ...options, headers, signal: controller.signal });
-  clearTimeout(timeoutId);
+  let response;
+  try {
+    response = await fetch(url, { ...options, headers, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
   const setCookieHeaders = response.headers.getSetCookie
     ? response.headers.getSetCookie()
     : response.headers.get('set-cookie')
@@ -208,7 +211,10 @@ export async function fetchWithCookies(url, options = {}, cookies = {}) {
 }
 
 export async function loginDjango(overrides = {}) {
-  const baseUrl = overrides.baseUrl || process.env.DJANGO_API_BASE_URL || DEFAULT_BASE_URL;
+  const baseUrl = overrides.baseUrl || process.env.DJANGO_API_BASE_URL;
+  if (!baseUrl) {
+    throw new Error('DJANGO_API_BASE_URL or baseUrl override required. Set in .env (see .env.example).');
+  }
   const username = overrides.username || process.env.DJANGO_API_USERNAME;
   const password = overrides.password || process.env.DJANGO_API_PASSWORD;
 
@@ -265,7 +271,10 @@ export async function loginDjango(overrides = {}) {
 }
 
 export async function runDjangoImportOnce(overrides = {}) {
-  const baseUrl = overrides.baseUrl || process.env.DJANGO_API_BASE_URL || DEFAULT_BASE_URL;
+  const baseUrl = overrides.baseUrl || process.env.DJANGO_API_BASE_URL;
+  if (!baseUrl) {
+    throw new Error('DJANGO_API_BASE_URL or baseUrl override required. Set in .env (see .env.example).');
+  }
   const apiPath = overrides.apiPath || 'api/cars';
   const pageLimit = parseInt(process.env.DJANGO_API_PAGE_LIMIT || DEFAULT_PAGE_LIMIT, 10);
   const maxPages = parseInt(process.env.DJANGO_API_MAX_PAGES || '0', 10);
@@ -418,11 +427,62 @@ export function startDjangoImportJob() {
   }
 }
 
-const LEBONCOIN_DEFAULT_BASE = 'http://91.98.165.88:8098';
 const LEBONCOIN_DEFAULT_CRON = '0 4 * * *'; // 4 AM (after main Django import at 3 AM)
 
+export async function runDjangoMobileDeImportOnce() {
+  const baseUrl = process.env.DJANGO_MOBILEDE_BASE_URL;
+  if (!baseUrl) {
+    throw new Error('DJANGO_MOBILEDE_BASE_URL required. Set in .env (see .env.example).');
+  }
+  const username = process.env.DJANGO_MOBILEDE_USERNAME || process.env.DJANGO_API_USERNAME;
+  const password = process.env.DJANGO_MOBILEDE_PASSWORD || process.env.DJANGO_API_PASSWORD;
+
+  if (!username || !password) {
+    throw new Error('Missing DJANGO_MOBILEDE_USERNAME/PASSWORD or DJANGO_API_USERNAME/PASSWORD');
+  }
+
+  const overrides = {
+    baseUrl,
+    username,
+    password,
+    apiPath: process.env.DJANGO_MOBILEDE_API_PATH || 'api/cars',
+    extraQuery: process.env.DJANGO_API_CARS_QUERY || '',
+    ...(process.env.DJANGO_IMPORT_START_PAGE && { startPage: parseInt(process.env.DJANGO_IMPORT_START_PAGE, 10) }),
+    ...(process.env.DJANGO_IMPORT_USE_PAGE_PARAM && { usePageParam: true })
+  };
+
+  return runDjangoImportOnce(overrides);
+}
+
+export function startDjangoMobileDeImportJob() {
+  const cronExpression = process.env.DJANGO_MOBILEDE_IMPORT_CRON || process.env.DJANGO_IMPORT_CRON || '0 */2 * * *'; // toutes les 2h par défaut
+  logger.info('Starting Django mobile.de import job (Oleg)', { cronExpression });
+
+  cron.schedule(cronExpression, async () => {
+    logger.info('Running scheduled Django mobile.de import...');
+    try {
+      await runDjangoMobileDeImportOnce();
+    } catch (error) {
+      logger.error('Error in scheduled Django mobile.de import', { error: error.message });
+    }
+  });
+
+  if (process.env.RUN_DJANGO_IMPORT_ON_STARTUP === 'true') {
+    setTimeout(async () => {
+      try {
+        await runDjangoMobileDeImportOnce();
+      } catch (error) {
+        logger.error('Error in initial Django mobile.de import', { error: error.message });
+      }
+    }, 5000);
+  }
+}
+
 export async function runDjangoLeboncoinImportOnce() {
-  const baseUrl = process.env.DJANGO_LEBONCOIN_BASE_URL || LEBONCOIN_DEFAULT_BASE;
+  const baseUrl = process.env.DJANGO_LEBONCOIN_BASE_URL;
+  if (!baseUrl) {
+    throw new Error('DJANGO_LEBONCOIN_BASE_URL required. Set in .env (see .env.example).');
+  }
   const username = process.env.DJANGO_LEBONCOIN_USERNAME || process.env.DJANGO_API_USERNAME;
   const password = process.env.DJANGO_LEBONCOIN_PASSWORD || process.env.DJANGO_API_PASSWORD;
 
@@ -443,7 +503,7 @@ export async function runDjangoLeboncoinImportOnce() {
 
 export function startDjangoLeboncoinImportJob() {
   const cronExpression = process.env.DJANGO_LEBONCOIN_IMPORT_CRON || LEBONCOIN_DEFAULT_CRON;
-  logger.info('Starting Django Leboncoin import job', { cronExpression });
+  logger.info('Starting Django Leboncoin import job (Oleg)', { cronExpression });
 
   cron.schedule(cronExpression, async () => {
     logger.info('Running scheduled Django Leboncoin import...');
@@ -453,4 +513,14 @@ export function startDjangoLeboncoinImportJob() {
       logger.error('Error in scheduled Django Leboncoin import', { error: error.message });
     }
   });
+
+  if (process.env.RUN_DJANGO_IMPORT_ON_STARTUP === 'true') {
+    setTimeout(async () => {
+      try {
+        await runDjangoLeboncoinImportOnce();
+      } catch (error) {
+        logger.error('Error in initial Django Leboncoin import', { error: error.message });
+      }
+    }, 10000); // 10s après mobile.de (5s) pour éviter surcharge
+  }
 }

@@ -119,3 +119,4 @@ Exemple complet :
 | 502 / Backend unreachable | Vérifier les variables d’environnement et les logs Railway. |
 | 503 / DB error | Vérifier `SUPABASE_URL` et `SUPABASE_SERVICE_ROLE_KEY`. |
 | Annonces vides | Vérifier que le rewrite Vercel pointe vers la bonne URL Railway. |
+| **Croissance lente / scrapers s'arrêtent la nuit** | Railway (plan gratuit) met l'app en veille après ~5 min sans requêtes. **Solution** : déployer le scraping sur un VPS Hetzner ([DEPLOY_VPS.md](DEPLOY_VPS.md)) et `ENABLE_CRON_JOBS=false` sur Railway. |

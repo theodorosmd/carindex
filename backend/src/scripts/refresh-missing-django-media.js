@@ -43,7 +43,10 @@ function isMissingMedia(listing) {
 }
 
 async function run() {
-  const baseUrl = process.env.DJANGO_API_BASE_URL || 'http://75.119.141.234:8000';
+  const baseUrl = process.env.DJANGO_API_BASE_URL;
+  if (!baseUrl) {
+    throw new Error('DJANGO_API_BASE_URL required. Set in .env (see .env.example).');
+  }
   const pageSize = parseInt(process.env.DJANGO_REFRESH_BATCH || DEFAULT_PAGE_SIZE, 10);
 
   const cookies = await loginDjango();

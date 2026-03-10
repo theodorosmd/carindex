@@ -2,12 +2,13 @@ import cron from 'node-cron';
 import { checkAlerts } from '../jobs/alertChecker.js';
 import { startContinuousScrapingJob } from '../jobs/continuousScrapingJob.js';
 import { startSalesDetectionJob } from '../jobs/salesDetectionJob.js';
-import { startDjangoImportJob, startDjangoLeboncoinImportJob } from '../jobs/djangoImportJob.js';
+import { startDjangoImportJob, startDjangoMobileDeImportJob, startDjangoLeboncoinImportJob } from '../jobs/djangoImportJob.js';
 import { startSupabaseBytbilImportJob } from '../jobs/supabaseBytbilImportJob.js';
 import { startMobileDeImportJob } from '../jobs/mobileDeImportJob.js';
 import { startImageBackfillJob } from '../jobs/imageBackfillJob.js';
 import { startProcessRawListingsJob } from '../jobs/processRawListingsJob.js';
 import { startArbitrageDetectionJob } from '../jobs/arbitrageDetectionJob.js';
+import { refreshListingStatsCache } from '../services/adminService.js';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -21,10 +22,11 @@ export function startCronJobs() {
   }
 
   // UN SEUL SYSTÈME DE SCRAPING : run-all-scrapers-full
-  // Option 1: continu (boucle jusqu'à 100%, puis recommence)
-  // Option 2: cron quotidien (ex. 3h du matin)
-  if (process.env.ENABLE_CONTINUOUS_SCRAPING === 'true') {
-    logger.info('Scraping: mode continu (run-all-scrapers-full en boucle)');
+  // Option 1: continu H24 (boucle tous les sites, puis recommence) — défaut
+  // Option 2: cron quotidien (ex. 3h du matin) — ENABLE_CONTINUOUS_SCRAPING=false
+  const useContinuousScraping = process.env.ENABLE_CONTINUOUS_SCRAPING !== 'false';
+  if (useContinuousScraping) {
+    logger.info('Scraping: mode continu H24 (run-all-scrapers-full en boucle)');
     startContinuousScrapingJob();
   } else {
     // Cron quotidien : run-all-scrapers-full à 3h (configurable via SCRAPE_CRON)
@@ -58,8 +60,8 @@ export function startCronJobs() {
     startSalesDetectionJob();
   }
 
-  // mobile.de import → Supabase (Puppeteer, sans Django) - remplace l'import Django mobile.de
-  if (process.env.ENABLE_MOBILEDE_IMPORT !== 'false') {
+  // mobile.de import (cron 3h) — désactivé en mode continu (mobile.de est dans run-all-scrapers-full)
+  if (process.env.ENABLE_MOBILEDE_IMPORT !== 'false' && !useContinuousScraping) {
     startMobileDeImportJob();
   }
 
@@ -68,14 +70,16 @@ export function startCronJobs() {
     startSupabaseBytbilImportJob();
   }
 
-  // Django API import (autres sources: mobilede, etc. sur serveur Django)
+  // Django/Oleg import — serveurs désactivés, on utilise les scrapers Node
+  // Réactiver explicitement si besoin : ENABLE_DJANGO_IMPORT=true, ENABLE_DJANGO_LEBONCOIN_IMPORT=true
   if (process.env.ENABLE_DJANGO_IMPORT === 'true') {
     startDjangoImportJob();
   }
-
-  // Start Django Leboncoin import job (daily)
-  if (process.env.ENABLE_DJANGO_LEBONCOIN_IMPORT !== 'false') {
+  if (process.env.ENABLE_DJANGO_LEBONCOIN_IMPORT === 'true') {
     startDjangoLeboncoinImportJob();
+  }
+  if (process.env.ENABLE_DJANGO_MOBILEDE_IMPORT === 'true') {
+    startDjangoMobileDeImportJob();
   }
 
   // Start image backfill job (daily)
@@ -93,8 +97,17 @@ export function startCronJobs() {
     startArbitrageDetectionJob();
   }
 
-  // listing_stats_cache is kept up-to-date by DB triggers (trg_listing_stats_cache).
-  // No backend cron needed — avoids full table scans and Disk IO spikes.
+  // listing_stats_cache / listing_totals_cache : triggers + cron de secours
+  // Les triggers peuvent ne pas fire sur bulk upsert ; le cron garde "Updated Xm ago" frais
+  const listingCacheCron = process.env.LISTING_CACHE_REFRESH_CRON || '*/15 * * * *'; // toutes les 15 min
+  cron.schedule(listingCacheCron, async () => {
+    try {
+      await refreshListingStatsCache();
+    } catch (error) {
+      logger.warn('Listing stats cache refresh failed', { error: error.message });
+    }
+  });
+  logger.info('Listing stats cache refresh scheduled', { cron: listingCacheCron });
 
   // Also run immediately on startup (optional, for testing)
   if (process.env.RUN_ALERTS_ON_STARTUP === 'true') {

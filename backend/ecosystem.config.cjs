@@ -30,7 +30,7 @@ module.exports = {
       script: 'src/scripts/run-mobilede-queue-worker.js',
       cwd: __dirname,
       node_args: '-r dotenv/config',
-      instances: 5,  // 5 workers en parallèle (remplace Oleg)
+      instances: 15,  // 15 workers en parallèle (était 5, augmente throughput)
       exec_mode: 'fork',
       env: { NODE_ENV: 'production' },
       max_memory_restart: '500M',
@@ -42,7 +42,7 @@ module.exports = {
       script: 'src/scripts/run-leboncoin-queue-worker.js',
       cwd: __dirname,
       node_args: '-r dotenv/config',
-      instances: 20,  // 20 workers pour ~300k/jour (Oleg: 300k en qq jours)
+      instances: 40,  // 40 workers pour ~300k/jour (était 20, augmente throughput)
       exec_mode: 'fork',
       env: { NODE_ENV: 'production' },
       max_memory_restart: '500M',

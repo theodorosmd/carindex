@@ -2,14 +2,19 @@ import http from 'node:http';
 
 const PORT = process.env.PORT || 3000;
 
-// Éviter les crashs silencieux : promesses rejetées non gérées
+// Unhandled promise rejections - log; in production, exit after delay to avoid inconsistent state
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('[start] unhandledRejection — le processus continue', { reason, promise });
+  console.error('[start] unhandledRejection', { reason, promise });
+  if (process.env.NODE_ENV === 'production') {
+    setTimeout(() => process.exit(1), 1000);
+  }
 });
 
+// Uncaught exceptions - log and exit; process may be in inconsistent state
 process.on('uncaughtException', (err) => {
   console.error('[start] uncaughtException:', err.message);
   console.error(err.stack);
+  setTimeout(() => process.exit(1), 1000);
 });
 
 let handler = null;

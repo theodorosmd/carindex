@@ -32,11 +32,12 @@ const openai = new OpenAI({
   maxRetries: 3
 });
 
-// GPT-5.2 Configuration
-const DEFAULT_MODEL = process.env.OPENAI_MODEL || 'gpt-5.2';
+// Model configuration - gpt-4o as default (gpt-5.2 may not exist yet)
+const DEFAULT_MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
+const FALLBACK_MODEL = 'gpt-4o'; // Used when requested model fails (e.g. model not found)
 const DEFAULT_TEMPERATURE = 0.7;
 const DEFAULT_MAX_TOKENS = 2000;
-const MAX_PROMPT_LENGTH = 100000; // GPT-5.2 supports 400K, but we limit for security
+const MAX_PROMPT_LENGTH = 100000;
 const MAX_RETRIES = 3;
 
 // Rate limiting: track API calls per user
@@ -44,7 +45,7 @@ const userCallCounts = new Map();
 const RATE_LIMIT_PER_HOUR = 50; // Max 50 calls per user per hour
 
 // Allowed models (prevent model injection)
-const ALLOWED_MODELS = ['gpt-5.2', 'gpt-5.2-chat', 'gpt-5.2-pro'];
+const ALLOWED_MODELS = ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-5.2', 'gpt-5.2-chat', 'gpt-5.2-pro'];
 
 /**
  * Sanitize and validate prompt input
@@ -198,10 +199,10 @@ export async function generateText(prompt, options = {}, userId = null) {
       userId: userId || 'system'
     });
 
-    // Retry logic with exponential backoff
-    const response = await retryWithBackoff(async () => {
+    // Retry logic with exponential backoff; fallback to gpt-4o if model fails
+    const tryModel = async (model) => {
       return await openai.chat.completions.create({
-        model: safeModel,
+        model,
         messages: [
           {
             role: 'system',
@@ -212,11 +213,24 @@ export async function generateText(prompt, options = {}, userId = null) {
             content: sanitizedPrompt
           }
         ],
-        temperature: Math.max(0, Math.min(2, temperature)), // Clamp between 0 and 2
-        max_tokens: Math.max(1, Math.min(128000, max_tokens)), // GPT-5.2 supports up to 128K output
+        temperature: Math.max(0, Math.min(2, temperature)),
+        max_tokens: Math.max(1, Math.min(128000, max_tokens)),
         ...otherOptions
       });
-    });
+    };
+
+    let response;
+    try {
+      response = await retryWithBackoff(() => tryModel(safeModel));
+    } catch (err) {
+      const isModelError = err?.code === 'model_not_found' || err?.status === 404 || /model|invalid/i.test(err?.message || '');
+      if (isModelError && safeModel !== FALLBACK_MODEL) {
+        logger.warn(`OpenAI model ${safeModel} failed, falling back to ${FALLBACK_MODEL}`, { error: err.message });
+        response = await retryWithBackoff(() => tryModel(FALLBACK_MODEL));
+      } else {
+        throw err;
+      }
+    }
 
     const generatedText = response.choices[0]?.message?.content || '';
     

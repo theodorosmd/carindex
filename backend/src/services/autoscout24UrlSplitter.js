@@ -4,6 +4,7 @@
  * 
  * Strategy: Divide searches by price ranges, year ranges, or mileage ranges
  */
+import { logger } from '../utils/logger.js';
 
 /**
  * Generate multiple search URLs from a base URL by splitting into price ranges
@@ -228,7 +229,7 @@ export function shouldSplitUrl(url) {
     
     return false;
   } catch (error) {
-    // If URL parsing fails, don't split
+    logger.warn('AutoScout24 URL parse failed, skipping split', { url: url?.substring?.(0, 100), error: error.message });
     return false;
   }
 }

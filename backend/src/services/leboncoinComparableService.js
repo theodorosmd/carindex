@@ -1,6 +1,8 @@
 import { logger } from '../utils/logger.js';
 import { supabase } from '../config/supabase.js';
 import { launchBrowser } from '../utils/puppeteerLaunch.js';
+import { fetchViaScrapeDo, isScrapeDoAvailable } from '../utils/scrapeDo.js';
+import * as cheerio from 'cheerio';
 
 // In-memory cache with TTL (24 hours)
 const cache = new Map();
@@ -1333,18 +1335,143 @@ function simplifyUrlForSearch(url) {
 }
 
 /**
- * Fetch results from Leboncoin (Puppeteer)
+ * Parse Leboncoin search results from rendered HTML (scrape.do fallback).
+ * Leboncoin is a Next.js app — listings are embedded in __NEXT_DATA__ JSON.
+ */
+function parseResultsFromHtml(html, maxResults = 100) {
+  const results = [];
+  try {
+    // Extract __NEXT_DATA__ JSON blob
+    const $ = cheerio.load(html);
+    const nextDataRaw = $('#__NEXT_DATA__').text();
+    if (nextDataRaw) {
+      const nextData = JSON.parse(nextDataRaw);
+      // Leboncoin stores listings in props.pageProps.searchData.ads or similar paths
+      const ads =
+        nextData?.props?.pageProps?.searchData?.ads ||
+        nextData?.props?.pageProps?.ads ||
+        nextData?.props?.pageProps?.initialData?.ads ||
+        nextData?.props?.pageProps?.data?.ads ||
+        [];
+
+      for (const ad of ads.slice(0, maxResults)) {
+        try {
+          // Extract attributes
+          const attrs = {};
+          for (const attr of ad.attributes || []) {
+            attrs[attr.key] = attr.value ?? attr.values?.[0]?.value ?? null;
+          }
+
+          const priceRaw = ad.price?.[0] ?? ad.first_publication_date ?? null;
+          const price = typeof priceRaw === 'number' ? priceRaw :
+            priceRaw ? parseFloat(String(priceRaw).replace(/[^\d.]/g, '')) || null : null;
+
+          const mileageRaw = attrs.mileage ?? attrs.kilometers ?? null;
+          const mileage = mileageRaw ? parseInt(String(mileageRaw).replace(/[^\d]/g, '')) : null;
+
+          const yearRaw = attrs.regdate ?? attrs.year ?? null;
+          const year = yearRaw ? parseInt(String(yearRaw).slice(0, 4)) : null;
+
+          const deptCode = ad.location?.department_id ?? ad.location?.city_label?.match(/\((\d+)\)/)?.[1] ?? null;
+          const dept = deptCode ? parseInt(deptCode) : null;
+
+          const adUrl = ad.url
+            ? (ad.url.startsWith('http') ? ad.url : `https://www.leboncoin.fr${ad.url}`)
+            : ad.list_id ? `https://www.leboncoin.fr/ad/voitures/${ad.list_id}` : null;
+
+          if (!adUrl || !price) continue;
+
+          results.push({
+            url: adUrl,
+            title: ad.subject || ad.title || '',
+            price_eur: price,
+            year,
+            mileage_km: mileage,
+            location_department: dept,
+            fuel_type: attrs.fuel_type ?? attrs.fuel ?? null,
+            transmission: attrs.gearbox ?? attrs.transmission ?? null,
+            source: 'scrape_do_html',
+          });
+        } catch (adErr) {
+          logger.debug('Error parsing ad from __NEXT_DATA__', { error: adErr.message });
+        }
+      }
+
+      if (results.length > 0) {
+        logger.info('Parsed Leboncoin results from __NEXT_DATA__', { count: results.length });
+        return results;
+      }
+    }
+  } catch (err) {
+    logger.warn('Failed to parse __NEXT_DATA__ from Leboncoin HTML', { error: err.message });
+  }
+
+  // Fallback: basic cheerio selector parsing (less reliable but worth trying)
+  try {
+    const $ = cheerio.load(html);
+    $('a[href*="/ad/"], a[href*="/voitures/"]').each((_, el) => {
+      if (results.length >= maxResults) return false;
+      const href = $(el).attr('href') || '';
+      if (!href.match(/\/ad\/|\/voitures\//)) return;
+      const url = href.startsWith('http') ? href : `https://www.leboncoin.fr${href}`;
+      const title = $(el).find('p, h2, h3').first().text().trim() || $(el).text().trim();
+      const priceText = $(el).find('[class*="price"], [data-qa-id*="price"]').text().trim();
+      const price = priceText ? parseFloat(priceText.replace(/[^\d]/g, '')) || null : null;
+      if (url && price) {
+        results.push({ url, title, price_eur: price, source: 'scrape_do_cheerio' });
+      }
+    });
+    if (results.length > 0) {
+      logger.info('Parsed Leboncoin results via cheerio selectors', { count: results.length });
+    }
+  } catch (err) {
+    logger.warn('Cheerio selector parsing also failed', { error: err.message });
+  }
+
+  return results;
+}
+
+/**
+ * Fetch results from Leboncoin — Puppeteer first, scrape.do fallback
  */
 async function fetchResultsWithFallback(searchUrl, maxResults = 100) {
+  // 1. Try Puppeteer (stealth)
   try {
     const results = await fetchResultsWithPuppeteer(searchUrl, maxResults);
     if (results && Array.isArray(results) && results.length > 0) {
       logger.info('Leboncoin Puppeteer succeeded', { resultCount: results.length, searchUrl });
       return results;
     }
+    logger.warn('Puppeteer returned 0 results, trying scrape.do fallback', { searchUrl });
   } catch (err) {
-    logger.error('Leboncoin Puppeteer failed', { searchUrl, error: err.message });
+    logger.warn('Leboncoin Puppeteer failed, trying scrape.do fallback', { searchUrl, error: err.message });
   }
+
+  // 2. Fallback: scrape.do with JS rendering + French residential proxy
+  if (isScrapeDoAvailable()) {
+    try {
+      logger.info('Fetching Leboncoin via scrape.do', { searchUrl });
+      const html = await fetchViaScrapeDo(searchUrl, {
+        render: true,
+        customWait: 4000,
+        geoCode: 'fr',
+        superProxy: true,
+        retries: 2,
+        timeout: 60000,
+      });
+      const results = parseResultsFromHtml(html, maxResults);
+      if (results.length > 0) {
+        logger.info('scrape.do fallback succeeded', { resultCount: results.length, searchUrl });
+        return results;
+      }
+      logger.warn('scrape.do returned 0 results', { searchUrl });
+    } catch (err) {
+      logger.error('scrape.do fallback failed', { searchUrl, error: err.message });
+    }
+  } else {
+    logger.warn('scrape.do not configured (SCRAPE_DO_TOKEN missing) — set it in .env to bypass Leboncoin bot detection');
+  }
+
   return [];
 }
 

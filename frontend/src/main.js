@@ -6,7 +6,7 @@ import { renderListingDetails } from './pages/listing-details'
 import { renderLogin } from './pages/auth-login'
 import { renderSignup } from './pages/auth-signup'
 import { renderDashboard } from './pages/dashboard'
-import { renderAdminDashboard } from './pages/admin-dashboard'
+import { renderAdminDashboard, cleanupAdminDashboard } from './pages/admin-dashboard'
 import { renderStockAnalysis } from './pages/stock-analysis'
 import { renderAuctionMarginCalculator } from './pages/auction-margin-calculator'
 import { renderEvaluationsManager } from './pages/evaluations-manager'
@@ -43,14 +43,20 @@ export function logout() {
 
 // Simple routing function
 function route() {
-  const path = window.location.pathname
-  const hash = window.location.hash
-  
-  // When a hash is present, use hash-based routing exclusively
-  // to avoid path-based checks intercepting hash routes
-  const effectivePath = hash ? null : path
-  
-  // Auth routes (public) - use startsWith to match #/login?redirect=...
+  try {
+    const path = window.location.pathname
+    const hash = window.location.hash
+
+    // When a hash is present, use hash-based routing exclusively
+    // to avoid path-based checks intercepting hash routes
+    const effectivePath = hash ? null : path
+
+    const isAdminRoute = hash === '#/admin' || hash === '#/dashboard/admin' || effectivePath === '/admin' || (effectivePath && effectivePath.startsWith('/admin'))
+    if (!isAdminRoute) {
+      cleanupAdminDashboard()
+    }
+
+    // Auth routes (public) - use startsWith to match #/login?redirect=...
   if (hash === '#/login' || hash?.startsWith('#/login?') || effectivePath === '/login' || (effectivePath && effectivePath.startsWith('/login'))) {
     renderLogin()
     return
@@ -257,9 +263,37 @@ function route() {
     // Default to landing page
     renderLandingPage()
   }
+  } catch (error) {
+    console.error('Route error:', error)
+    showGlobalError(error.message || 'Failed to load page.')
+  }
 }
 
 document.documentElement.lang = getLang()
+
+function showGlobalError(message) {
+  const app = document.getElementById('app')
+  if (app) {
+    app.innerHTML = `
+      <div class="min-h-screen bg-gray-50 flex items-center justify-center p-8">
+        <div class="max-w-md text-center">
+          <h1 class="text-xl font-bold text-red-600 mb-4">Something went wrong</h1>
+          <p class="text-gray-600 mb-4">${message}</p>
+          <a href="/" class="text-blue-600 hover:underline">Back to home</a>
+        </div>
+      </div>
+    `
+  }
+}
+
+window.addEventListener('error', (e) => {
+  console.error('Uncaught error:', e.error || e.message)
+  showGlobalError(e.message || 'An unexpected error occurred.')
+})
+
+window.addEventListener('unhandledrejection', (e) => {
+  console.error('Unhandled promise rejection:', e.reason)
+})
 
 function restoreFiltersFromURL(params) {
   // Restore search query

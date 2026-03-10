@@ -97,12 +97,11 @@ export async function listEvaluations(req, res, next) {
       });
       
       if (fetchError.name === 'TypeError' && fetchError.message.includes('fetch failed')) {
-        return res.status(503).json({
-          error: 'Database connection failed',
-          code: 'DATABASE_CONNECTION_ERROR',
-          message: 'Unable to connect to the database. Please check your Supabase configuration and network connection.',
-          details: process.env.NODE_ENV === 'development' ? fetchError.message : undefined
-        });
+        const err = new Error('Unable to connect to the database. Please check your Supabase configuration and network connection.');
+        err.statusCode = 503;
+        err.code = 'DATABASE_CONNECTION_ERROR';
+        err.details = process.env.NODE_ENV === 'development' ? fetchError.message : undefined;
+        return next(err);
       }
       
       throw fetchError; // Re-throw to be caught by outer catch
@@ -119,12 +118,11 @@ export async function listEvaluations(req, res, next) {
           error: error.message,
           userId: req.user.id 
         });
-        return res.status(500).json({
-          error: 'Database migration required',
-          code: 'MIGRATION_REQUIRED',
-          message: 'The user_id column does not exist in margin_calculations table. Please run migration 008.',
-          details: 'See backend/src/database/migrations/008_add_evaluations_management.sql'
-        });
+        const err = new Error('The user_id column does not exist in margin_calculations table. Please run migration 008.');
+        err.statusCode = 500;
+        err.code = 'MIGRATION_REQUIRED';
+        err.details = 'See backend/src/database/migrations/008_add_evaluations_management.sql';
+        return next(err);
       }
       
       // Check if error is about foreign key or relation (auction_listings might not exist)
@@ -161,11 +159,10 @@ export async function listEvaluations(req, res, next) {
           logger.error('Error fetching evaluations even without join', { 
             error: errorWithoutJoin.message 
           });
-          return res.status(500).json({
-            error: 'Failed to fetch evaluations',
-            code: 'DATABASE_ERROR',
-            details: errorWithoutJoin.message
-          });
+          const err = new Error('Failed to fetch evaluations');
+          err.code = 'DATABASE_ERROR';
+          err.details = errorWithoutJoin.message;
+          return next(err);
         }
         
         // Return evaluations without auction_listings data
@@ -179,11 +176,10 @@ export async function listEvaluations(req, res, next) {
       }
       
       logger.error('Error fetching evaluations', { error: error.message, stack: error.stack });
-      return res.status(500).json({
-        error: 'Failed to fetch evaluations',
-        code: 'DATABASE_ERROR',
-        details: error.message
-      });
+      const err = new Error('Failed to fetch evaluations');
+      err.code = 'DATABASE_ERROR';
+      err.details = error.message;
+      return next(err);
     }
 
     logger.info('Returning evaluations', { count: evaluations?.length || 0 });
@@ -279,11 +275,9 @@ export async function listEvaluations(req, res, next) {
       // If headers not sent yet, try to send error response
       if (!res.headersSent) {
         try {
-          res.status(500).json({
-            error: 'Failed to send response',
-            code: 'RESPONSE_ERROR',
-            message: sendError.message
-          });
+          const err = new Error(sendError.message || 'Failed to send response');
+          err.code = 'RESPONSE_ERROR';
+          next(err);
         } catch (fallbackError) {
           logger.error('Critical: Cannot send any response', {
             error: fallbackError.message,
@@ -310,28 +304,14 @@ export async function listEvaluations(req, res, next) {
     
     // Handle network/connection errors
     if (error.name === 'TypeError' && error.message.includes('fetch failed')) {
-      return res.status(503).json({
-        error: 'Database connection failed',
-        code: 'DATABASE_CONNECTION_ERROR',
-        message: 'Unable to connect to the database. Please check your Supabase configuration and network connection.',
-        details: process.env.NODE_ENV === 'development' ? error.message : undefined
-      });
+      const err = new Error('Unable to connect to the database. Please check your Supabase configuration and network connection.');
+      err.statusCode = 503;
+      err.code = 'DATABASE_CONNECTION_ERROR';
+      err.details = process.env.NODE_ENV === 'development' ? error.message : undefined;
+      return next(err);
     }
     
-    // Ensure we always send a valid JSON response
-    try {
-      next(error);
-    } catch (nextError) {
-      // If next() throws, send error response directly
-      console.error('=== ERROR IN next() ===', nextError);
-      return res.status(500).json({
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error.message || 'An unexpected error occurred',
-          details: process.env.NODE_ENV === 'development' ? error.stack : undefined
-        }
-      });
-    }
+    next(error);
   }
 }
 
@@ -385,11 +365,9 @@ export async function getEvaluation(req, res, next) {
         });
       }
       
-      return res.status(500).json({
-        error: 'Database error',
-        code: 'DATABASE_ERROR',
-        message: error.message
-      });
+      const err = new Error(error.message);
+      err.code = 'DATABASE_ERROR';
+      return next(err);
     }
 
     if (!evaluation) {
@@ -523,10 +501,9 @@ export async function updateEvaluation(req, res, next) {
 
     if (error) {
       logger.error('Error updating evaluation', { error: error.message });
-      return res.status(500).json({
-        error: 'Failed to update evaluation',
-        code: 'DATABASE_ERROR'
-      });
+      const err = new Error('Failed to update evaluation');
+      err.code = 'DATABASE_ERROR';
+      return next(err);
     }
 
     res.json({
@@ -577,10 +554,9 @@ export async function deleteEvaluation(req, res, next) {
 
     if (error) {
       logger.error('Error deleting evaluation', { error: error.message });
-      return res.status(500).json({
-        error: 'Failed to delete evaluation',
-        code: 'DATABASE_ERROR'
-      });
+      const err = new Error('Failed to delete evaluation');
+      err.code = 'DATABASE_ERROR';
+      return next(err);
     }
 
     res.json({
@@ -812,10 +788,9 @@ export async function recalculateEvaluation(req, res, next) {
     });
 
     if (!result.success) {
-      return res.status(500).json({
-        error: result.error || 'Failed to recalculate evaluation',
-        code: 'RECALCULATION_FAILED'
-      });
+      const err = new Error(result.error || 'Failed to recalculate evaluation');
+      err.code = 'RECALCULATION_FAILED';
+      return next(err);
     }
 
     // Get the updated evaluation with auction listing (to show updated mileage)
@@ -931,10 +906,9 @@ export async function compareEvaluations(req, res, next) {
 
     if (error) {
       logger.error('Error fetching evaluations for comparison', { error: error.message });
-      return res.status(500).json({
-        error: 'Failed to fetch evaluations',
-        code: 'DATABASE_ERROR'
-      });
+      const err = new Error('Failed to fetch evaluations');
+      err.code = 'DATABASE_ERROR';
+      return next(err);
     }
 
     if (evaluations.length !== evaluation_ids.length) {

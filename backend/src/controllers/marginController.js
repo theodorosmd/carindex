@@ -116,8 +116,10 @@ export async function calculateMargin(req, res, next) {
     if (!result.success) {
       return res.status(400).json({
         error: result.error || 'Margin calculation failed',
-        code: 'CALCULATION_FAILED',
-        correlationId: result.correlationId
+        code: result.code || 'CALCULATION_FAILED',
+        correlationId: result.correlationId,
+        suggestions: result.suggestions,
+        searchUrl: result.searchUrl
       });
     }
     
@@ -141,12 +143,11 @@ export async function calculateMargin(req, res, next) {
     
     // Check if it's a missing table error
     if (error.message && error.message.includes("Could not find the table 'public.auction_listings'")) {
-      return res.status(500).json({
-        error: 'Database tables not found. Please run migration 007 to create the required tables.',
-        code: 'MISSING_TABLES',
-        details: 'The auction_listings, comparable_listings, and margin_calculations tables need to be created. See backend/MIGRATION_007_INSTRUCTIONS.md for instructions.',
-        correlationId
-      });
+      const err = new Error('Database tables not found. Please run migration 007 to create the required tables.');
+      err.statusCode = 500;
+      err.code = 'MISSING_TABLES';
+      err.details = 'The auction_listings, comparable_listings, and margin_calculations tables need to be created. See backend/MIGRATION_007_INSTRUCTIONS.md for instructions.';
+      return next(err);
     }
     
     next(error);

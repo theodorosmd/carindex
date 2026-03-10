@@ -27,15 +27,9 @@ export async function getAutoScrapers(req, res, next) {
       stack: error.stack,
       name: error.name
     });
-    
-    // Return a more user-friendly error response instead of letting it propagate
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'DATABASE_ERROR',
-        message: 'Failed to fetch auto scrapers. Please try again later.'
-      }
-    });
+    error.code = error.code || 'DATABASE_ERROR';
+    error.message = 'Failed to fetch auto scrapers. Please try again later.';
+    next(error);
   }
 }
 
@@ -186,11 +180,16 @@ export async function runAutoScraperController(req, res, next) {
     }
 
     // Run scraper in background (don't await)
-    runAutoScraper(scraper).catch(error => {
-      logger.error('Error in background scraper run', { 
+    runAutoScraper(scraper).catch(async (error) => {
+      logger.error('Error in background scraper run', {
         error: error.message,
-        scraperId: scraper.id 
+        scraperId: scraper.id
       });
+      try {
+        await updateAutoScraper(scraper.id, { last_run_status: 'failed' });
+      } catch (updateErr) {
+        logger.error('Failed to update scraper status to failed', { error: updateErr.message, scraperId: scraper.id });
+      }
     });
 
     // Return immediately with scraper info
@@ -274,11 +273,16 @@ export async function resumeAutoScraperController(req, res, next) {
     }
 
     // Run scraper in background (don't await)
-    resumeAutoScraper(scraper).catch(error => {
-      logger.error('Error in background scraper resume', { 
+    resumeAutoScraper(scraper).catch(async (error) => {
+      logger.error('Error in background scraper resume', {
         error: error.message,
-        scraperId: scraper.id 
+        scraperId: scraper.id
       });
+      try {
+        await updateAutoScraper(scraper.id, { last_run_status: 'failed' });
+      } catch (updateErr) {
+        logger.error('Failed to update scraper status to failed', { error: updateErr.message, scraperId: scraper.id });
+      }
     });
 
     // Return immediately with scraper info

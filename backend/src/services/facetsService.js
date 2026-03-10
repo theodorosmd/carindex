@@ -151,6 +151,11 @@ export async function getFacetsService(baseFilters = {}) {
       query = query.in('transmission', transmissions);
     }
 
+    if (baseFilters.doors) {
+      const doorsArray = Array.isArray(baseFilters.doors) ? baseFilters.doors : [baseFilters.doors];
+      query = query.in('doors', doorsArray.map(d => parseInt(d)));
+    }
+
     if (baseFilters.model) {
       const models = Array.isArray(baseFilters.model) ? baseFilters.model : [baseFilters.model];
       query = query.in('model', models.map(m => m.toLowerCase()));
@@ -244,6 +249,11 @@ export async function getFacetsService(baseFilters = {}) {
     if (baseFilters.transmission) {
       const transmissions = Array.isArray(baseFilters.transmission) ? baseFilters.transmission : [baseFilters.transmission];
       countQuery = countQuery.in('transmission', transmissions);
+    }
+
+    if (baseFilters.doors) {
+      const doorsArray = Array.isArray(baseFilters.doors) ? baseFilters.doors : [baseFilters.doors];
+      countQuery = countQuery.in('doors', doorsArray.map(d => parseInt(d)));
     }
 
     if (baseFilters.model) {
@@ -466,6 +476,10 @@ export async function getFacetsService(baseFilters = {}) {
       if (baseFilters.transmission) {
         const transmissions = Array.isArray(baseFilters.transmission) ? baseFilters.transmission : [baseFilters.transmission];
         q = q.in('transmission', transmissions);
+      }
+      if (baseFilters.doors) {
+        const doorsArray = Array.isArray(baseFilters.doors) ? baseFilters.doors : [baseFilters.doors];
+        q = q.in('doors', doorsArray.map(d => parseInt(d)));
       }
       return q;
     };

@@ -6,13 +6,6 @@ import { runSubitoScraper } from '../services/subitoService.js';
 import { createScraperRun, updateScraperRun } from '../services/ingestRunsService.js';
 import { logger } from '../utils/logger.js';
 
-// For now, allow unauthenticated access (you can add auth later)
-const checkAuth = (req, res, next) => {
-  // TODO: Add proper authentication
-  // For development, allow all requests
-  next();
-};
-
 /**
  * Run scraper for a specific source
  */

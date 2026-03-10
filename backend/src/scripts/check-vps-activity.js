@@ -30,9 +30,12 @@ async function main() {
 
   const byStatus = { success: 0, failed: 0, running: 0 };
   const bySource = {};
+  const byHour = {}; // runs per hour (UTC) — detect gaps at night
   for (const r of runs || []) {
     byStatus[r.status] = (byStatus[r.status] || 0) + 1;
     bySource[r.source_platform] = (bySource[r.source_platform] || 0) + 1;
+    const h = new Date(r.started_at).getUTCHours();
+    byHour[h] = (byHour[h] || 0) + 1;
   }
 
   console.log('Scraper runs:');
@@ -42,6 +45,16 @@ async function main() {
     const last = runs[0];
     console.log(`  Last run: ${last.source_platform} @ ${last.started_at} (${last.status})`);
     if (last.total_scraped != null) console.log(`    → scraped: ${last.total_scraped}, saved: ${last.total_saved}`);
+  }
+  console.log('');
+  if (Object.keys(byHour).length > 0) {
+    const hours = Array.from({ length: 24 }, (_, i) => i);
+    const bars = hours.map((h) => (byHour[h] ? ` ${byHour[h]} ` : '  · '));
+    console.log('Runs by hour (UTC):');
+    console.log('  ' + hours.map((h) => String(h).padStart(2)).join(' '));
+    console.log('  ' + bars.join(''));
+    const emptyHours = hours.filter((h) => !byHour[h]).length;
+    if (emptyHours > 12) console.log('  ⚠️  Many hours with no runs — scrapers may be sleeping (Railway?) or VPS down');
   }
   console.log('');
 

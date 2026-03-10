@@ -21,6 +21,7 @@ export async function searchListingsService(filters, userPlan = null) {
     seller_type,
     color,
     keyword,
+    publication_date,
     sort = 'date',
     limit = 20,
     offset = 0
@@ -152,6 +153,17 @@ export async function searchListingsService(filters, userPlan = null) {
     // Keyword
     if (keyword) {
       query = query.or(`brand.ilike.%${keyword}%,model.ilike.%${keyword}%,description.ilike.%${keyword}%`);
+    }
+
+    // Publication date (recent = < 30 days, old = >= 30 days or null)
+    if (publication_date === 'recent') {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      query = query.gte('posted_date', thirtyDaysAgo.toISOString());
+    } else if (publication_date === 'old') {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      query = query.or(`posted_date.lt.${thirtyDaysAgo.toISOString()},posted_date.is.null`);
     }
 
     // Sorting

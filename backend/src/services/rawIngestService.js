@@ -66,8 +66,10 @@ function extractSourceListingId(rawPayload, sourcePlatform) {
   }
 }
 
+const BULK_BATCH_SIZE = Math.max(50, parseInt(process.env.RAW_INGEST_BATCH_SIZE || '200', 10));
+
 /**
- * Stage 1 – Save raw scraped items to raw_listings as-is
+ * Stage 1 – Save raw scraped items to raw_listings as-is (bulk upsert)
  * No business logic, no mapping — just store the payload
  *
  * @param {Array} items - Raw items from scraper
@@ -78,59 +80,45 @@ function extractSourceListingId(rawPayload, sourcePlatform) {
 export async function saveRawListings(items, sourcePlatform, runId = null) {
   let saved = 0;
   const errors = [];
+  const now = new Date().toISOString();
 
+  const rows = [];
   for (const item of items) {
-    try {
-      const sourceListingId = extractSourceListingId(item, sourcePlatform);
-      if (!sourceListingId) {
-        errors.push({
-          item: item.url || item.id || 'unknown',
-          error: 'Could not extract source_listing_id'
-        });
-        continue;
-      }
+    const sourceListingId = extractSourceListingId(item, sourcePlatform);
+    if (!sourceListingId) {
+      errors.push({ item: item.url || item.id || 'unknown', error: 'Could not extract source_listing_id' });
+      continue;
+    }
+    rows.push({
+      source_platform: sourcePlatform,
+      source_listing_id: String(sourceListingId),
+      run_id: runId || null,
+      raw_payload: item,
+      scraped_at: now,
+      updated_at: now,
+      processed_at: null
+    });
+  }
 
-      const { error } = await supabase
-        .from('raw_listings')
-        .upsert(
-          {
-            source_platform: sourcePlatform,
-            source_listing_id: String(sourceListingId),
-            run_id: runId || null,
-            raw_payload: item,
-            scraped_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            processed_at: null
-          },
-          {
-            onConflict: 'source_platform,source_listing_id',
-            ignoreDuplicates: false
-          }
-        );
+  for (let i = 0; i < rows.length; i += BULK_BATCH_SIZE) {
+    const batch = rows.slice(i, i + BULK_BATCH_SIZE);
+    const { error } = await supabase
+      .from('raw_listings')
+      .upsert(batch, {
+        onConflict: 'source_platform,source_listing_id',
+        ignoreDuplicates: false
+      });
 
-      if (error) {
-        throw error;
-      }
-      saved++;
-    } catch (err) {
-      logger.warn('Error saving raw listing', {
-        sourcePlatform,
-        item: item?.url || item?.id,
-        error: err.message
-      });
-      errors.push({
-        item: item?.url || item?.id || 'unknown',
-        error: err.message
-      });
+    if (error) {
+      logger.warn('Bulk save raw listings failed', { sourcePlatform, error: error.message, batchSize: batch.length });
+      errors.push(...batch.map((r) => ({ item: r.source_listing_id, error: error.message })));
+    } else {
+      saved += batch.length;
     }
   }
 
   if (errors.length > 0) {
-    logger.warn('Some raw listings failed to save', {
-      sourcePlatform,
-      saved,
-      errors: errors.length
-    });
+    logger.warn('Some raw listings failed to save', { sourcePlatform, saved, errors: errors.length });
   }
 
   return { saved, errors };

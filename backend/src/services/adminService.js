@@ -215,6 +215,54 @@ export async function updateUserRole(userId, role) {
   }
 }
 
+/** Capacité cible (listings/jour) pour ETA "→ 100%" — 0 = utiliser le rythme réel uniquement */
+const DEFAULT_ESTIMATED_SAVED_PER_DAY = {
+  'mobile.de': 0,
+  autoscout24: 0,
+  leboncoin: 0,
+  largus: 0,
+  lacentrale: 0,
+  blocket: 0,
+  bilweb: 0,
+  bytbil: 0,
+  subito: 0,
+  gaspedaal: 0,
+  marktplaats: 0,
+  'coches.net': 0,
+  finn: 0,
+  otomoto: 0,
+  '2ememain': 0,
+  deuxememain: 0
+};
+
+const SOURCE_ENV_KEYS = {
+  'mobile.de': 'MOBILEDE_ESTIMATED_SAVED_PER_DAY',
+  autoscout24: 'AUTOSCOUT24_ESTIMATED_SAVED_PER_DAY',
+  leboncoin: 'LEBONCOIN_ESTIMATED_SAVED_PER_DAY',
+  largus: 'LARGUS_ESTIMATED_SAVED_PER_DAY',
+  lacentrale: 'LACENTRALE_ESTIMATED_SAVED_PER_DAY',
+  blocket: 'BLOCKET_ESTIMATED_SAVED_PER_DAY',
+  bilweb: 'BILWEB_ESTIMATED_SAVED_PER_DAY',
+  bytbil: 'BYTBIL_ESTIMATED_SAVED_PER_DAY',
+  subito: 'SUBITO_ESTIMATED_SAVED_PER_DAY',
+  gaspedaal: 'GASPEDAAL_ESTIMATED_SAVED_PER_DAY',
+  marktplaats: 'MARKTPLAATS_ESTIMATED_SAVED_PER_DAY',
+  'coches.net': 'COCHES_NET_ESTIMATED_SAVED_PER_DAY',
+  finn: 'FINN_ESTIMATED_SAVED_PER_DAY',
+  otomoto: 'OTOMOTO_ESTIMATED_SAVED_PER_DAY',
+  '2ememain': 'DEUXEMEMAIN_ESTIMATED_SAVED_PER_DAY',
+  deuxememain: 'DEUXEMEMAIN_ESTIMATED_SAVED_PER_DAY'
+};
+
+function getEstimatedSavedPerDay(source) {
+  const envKey = SOURCE_ENV_KEYS[source];
+  if (envKey) {
+    const val = parseInt(process.env[envKey] ?? '', 10);
+    if (!Number.isNaN(val)) return val;
+  }
+  return DEFAULT_ESTIMATED_SAVED_PER_DAY[source] ?? 0;
+}
+
 /**
  * Get scraper dashboard stats: runs, crons, OK/pending/failed per website
  */
@@ -434,10 +482,10 @@ export async function getScraperDashboardStats() {
       const savedPerDayFromListings = createdLast14d > 0 ? createdLast14d / DAYS_FOR_LISTINGS_GROWTH : 0;
       // Use max: listings growth reflects all ingest paths (crons, queue, API, Oleg); scraper_runs can undercount
       let savedPerDay = Math.max(savedPerDayFromRuns, savedPerDayFromListings);
-      // Optional override for mobile.de when Oleg's throughput is known (e.g. 6M in 2 weeks = ~430k/day)
-      const mobiledeOverride = parseInt(process.env.MOBILEDE_ESTIMATED_SAVED_PER_DAY || '0', 10);
-      if (isMobileDe && mobiledeOverride > 0 && mobiledeOverride > savedPerDay) {
-        savedPerDay = mobiledeOverride;
+      // Override: capacité cible pour ETA réaliste (évite mois/années pour tous les sites)
+      const override = getEstimatedSavedPerDay(source);
+      if (override > 0 && override > savedPerDay) {
+        savedPerDay = override;
       }
       const remaining = (siteTotal > 0 && listingsTotal < siteTotal) ? siteTotal - listingsTotal : 0;
       let time_to_100_days = null;

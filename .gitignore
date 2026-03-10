@@ -51,3 +51,4 @@ apify_storage/
 
 
 .vercel
+backend/node

@@ -1,4 +1,5 @@
 import express from 'express';
+import { param, query } from 'express-validator';
 import { 
   getMarketAnalytics, 
   getFastestSellingModels, 
@@ -24,17 +25,43 @@ import {
   getRecentSalesMonitoring,
   getSalesAggregatesEndpoint
 } from '../controllers/priceHistoryController.js';
+import { validateRequest } from '../middleware/validateRequest.js';
 
 const router = express.Router();
+
+const watchlistIdValidation = [param('id').isUUID().withMessage('id must be a valid UUID'), validateRequest];
+const commonQueryValidation = [
+  query('limit').optional().isInt({ min: 1, max: 500 }).withMessage('limit must be between 1 and 500'),
+  query('offset').optional().isInt({ min: 0 }).withMessage('offset must be >= 0'),
+  query('days').optional().isInt({ min: 1, max: 365 }).withMessage('days must be between 1 and 365'),
+  validateRequest
+];
 
 // Get filter options (brands, countries, years) for Market Insights
 router.get('/filter-options', getFilterOptions);
 
 // Get fastest selling models (models that sell the quickest)
-router.get('/fastest-selling-models', getFastestSellingModels);
+const fastestSellingValidation = [
+  query('limit').optional().isInt({ min: 1, max: 500 }),
+  query('days').optional().isInt({ min: 1, max: 365 }),
+  query('brand').optional().notEmpty(),
+  query('country').optional().isLength({ min: 2, max: 2 }),
+  query('year').optional().isInt({ min: 1990, max: new Date().getFullYear() + 1 }),
+  validateRequest
+];
+router.get('/fastest-selling-models', fastestSellingValidation, getFastestSellingModels);
 
 // Get statistics by country (for comparative charts)
-router.get('/stats-by-country', getStatsByCountry);
+const statsByCountryValidation = [
+  query('limit').optional().isInt({ min: 1, max: 500 }),
+  query('days').optional().isInt({ min: 1, max: 365 }),
+  query('brand').optional().notEmpty(),
+  query('country').optional().isLength({ min: 2, max: 2 }),
+  query('year').optional().isInt({ min: 1990, max: new Date().getFullYear() + 1 }),
+  query('format').optional().isIn(['csv', 'json']),
+  validateRequest
+];
+router.get('/stats-by-country', statsByCountryValidation, getStatsByCountry);
 
 // Export fastest selling models (CSV/JSON)
 router.get('/export', exportFastestSellingModels);
@@ -43,7 +70,14 @@ router.get('/export', exportFastestSellingModels);
 router.post('/compare-models', compareModels);
 
 // Get trends over time for a model
-router.get('/trends', getModelTrends);
+const trendsValidation = [
+  query('brand').notEmpty().withMessage('Brand is required'),
+  query('model').notEmpty().withMessage('Model is required'),
+  query('year').optional().notEmpty(),
+  query('months').optional().isInt({ min: 1, max: 60 }),
+  validateRequest
+];
+router.get('/trends', trendsValidation, getModelTrends);
 
 // Get profitability analysis
 router.get('/profitability', getProfitabilityAnalysis);
@@ -60,8 +94,8 @@ router.post('/alerts/fast-model', createFastModelAlert);
 // Watchlist endpoints
 router.post('/watchlist', addToWatchlist);
 router.get('/watchlist', getWatchlist);
-router.delete('/watchlist/:id', removeFromWatchlist);
-router.get('/watchlist/:id/history', getWatchlistHistory);
+router.delete('/watchlist/:id', watchlistIdValidation, removeFromWatchlist);
+router.get('/watchlist/:id/history', watchlistIdValidation, getWatchlistHistory);
 
 // Get predictions (ML-based heuristics)
 router.get('/predictions', getPredictions);

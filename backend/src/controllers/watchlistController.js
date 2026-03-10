@@ -6,7 +6,7 @@ import { calculateSalesVelocity, getMedianSalePrice, getTopSellingModels } from 
 /**
  * Add model to watchlist
  */
-export async function addToWatchlist(req, res) {
+export async function addToWatchlist(req, res, next) {
   try {
     const { brand, model, year = null, notes = null } = req.body;
     const userId = req.user.id;
@@ -47,17 +47,14 @@ export async function addToWatchlist(req, res) {
     });
   } catch (error) {
     logger.error('Error adding to watchlist', { error: error.message });
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 }
 
 /**
  * Get user watchlist
  */
-export async function getWatchlist(req, res) {
+export async function getWatchlist(req, res, next) {
   try {
     const userId = req.user.id;
 
@@ -114,17 +111,14 @@ export async function getWatchlist(req, res) {
     });
   } catch (error) {
     logger.error('Error getting watchlist', { error: error.message });
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 }
 
 /**
  * Remove from watchlist
  */
-export async function removeFromWatchlist(req, res) {
+export async function removeFromWatchlist(req, res, next) {
   try {
     const { id } = req.params;
     const userId = req.user.id;
@@ -145,17 +139,14 @@ export async function removeFromWatchlist(req, res) {
     });
   } catch (error) {
     logger.error('Error removing from watchlist', { error: error.message });
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 }
 
 /**
  * Get watchlist history
  */
-export async function getWatchlistHistory(req, res) {
+export async function getWatchlistHistory(req, res, next) {
   try {
     const { id } = req.params;
     const userId = req.user.id;
@@ -193,9 +184,6 @@ export async function getWatchlistHistory(req, res) {
     });
   } catch (error) {
     logger.error('Error getting watchlist history', { error: error.message });
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 }

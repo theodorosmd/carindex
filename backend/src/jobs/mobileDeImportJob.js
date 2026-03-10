@@ -7,19 +7,16 @@ import cron from 'node-cron';
 import { logger } from '../utils/logger.js';
 import { runMobileDeScraper } from '../services/mobiledeService.js';
 import { createScraperRun, updateScraperRun } from '../services/ingestRunsService.js';
+import { DEFAULT_SCRAPER_URLS } from '../config/defaultScraperUrls.js';
 
 const DEFAULT_CRON = '0 3 * * *'; // 3h du matin
-
-const DEFAULT_SEARCH_URLS = [
-  'https://suchen.mobile.de/fahrzeuge/search.html?isSearchRequest=true&s=Car&vc=Car',
-];
 
 export async function runMobileDeImportOnce(options = {}) {
   const searchUrls = options.searchUrls ||
     (process.env.MOBILEDE_SEARCH_URLS
       ? process.env.MOBILEDE_SEARCH_URLS.split(',').map((u) => u.trim())
-      : DEFAULT_SEARCH_URLS);
-  const maxPages = options.maxPages ?? parseInt(process.env.MOBILEDE_MAX_PAGES || '50', 10);
+      : DEFAULT_SCRAPER_URLS['mobile.de']);
+  const maxPages = options.maxPages ?? parseInt(process.env.MOBILEDE_MAX_PAGES || '200', 10);
 
   logger.info('Starting mobile.de import (Puppeteer → Supabase)', {
     searchUrls,

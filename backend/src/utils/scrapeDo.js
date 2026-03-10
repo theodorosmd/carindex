@@ -54,8 +54,11 @@ export async function fetchViaScrapeDo(targetUrl, {
 
         if (!resp.ok) {
         const body = await resp.text().catch(() => '');
-        if (attempt < retries && [429, 502, 503, 504].includes(resp.status)) {
-          const waitMs = resp.status === 429 ? 20000 * attempt : 8000 * attempt;
+        const retryableStatuses = [410, 429, 502, 503, 504];
+        if (attempt < retries && retryableStatuses.includes(resp.status)) {
+          const waitMs = resp.status === 429 || resp.status === 410
+            ? 25000 * attempt
+            : 8000 * attempt;
           logger.warn('scrape.do transient error, retrying', { status: resp.status, attempt, waitMs, url: targetUrl });
           await new Promise(r => setTimeout(r, waitMs));
           continue;
@@ -65,9 +68,10 @@ export async function fetchViaScrapeDo(targetUrl, {
 
       return await resp.text();
     } catch (err) {
-      const isRetryable = err.message.includes('502') || err.message.includes('ECONNRESET') ||
-        err.message.includes('fetch failed') || err.message.includes('ECONNREFUSED') ||
-        err.message.includes('ETIMEDOUT') || err.message.includes('ENOTFOUND');
+      const isRetryable = err.message.includes('410') || err.message.includes('502') ||
+        err.message.includes('ECONNRESET') || err.message.includes('fetch failed') ||
+        err.message.includes('ECONNREFUSED') || err.message.includes('ETIMEDOUT') ||
+        err.message.includes('ENOTFOUND');
       if (attempt < retries && isRetryable) {
         logger.warn('scrape.do fetch error, retrying', { attempt, error: err.message });
         await new Promise(r => setTimeout(r, 5000 * attempt));

@@ -14,7 +14,15 @@ export async function getFacets(req, res, next) {
       max_mileage,
       country,
       fuel_type,
-      seller_type
+      seller_type,
+      steering,
+      transmission,
+      doors,
+      color,
+      version,
+      trim,
+      keyword,
+      publication_date
     } = req.query;
 
     // Parse array parameters
@@ -34,9 +42,17 @@ export async function getFacets(req, res, next) {
       max_year: max_year ? parseInt(max_year) : null,
       min_mileage: min_mileage ? parseInt(min_mileage) : null,
       max_mileage: max_mileage ? parseInt(max_mileage) : null,
-      country,
+      country: country || null,
       fuel_type: parseArrayParam(fuel_type),
-      seller_type: parseArrayParam(seller_type)
+      seller_type: parseArrayParam(seller_type),
+      steering: parseArrayParam(steering),
+      transmission: parseArrayParam(transmission),
+      doors: parseArrayParam(doors),
+      color: color || null,
+      version: parseArrayParam(version),
+      trim: parseArrayParam(trim),
+      keyword: keyword || null,
+      publication_date: publication_date || null
     };
 
     const result = await getFacetsService(baseFilters);

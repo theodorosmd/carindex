@@ -25,6 +25,7 @@ export async function searchListings(req, res, next) {
       version,
       trim,
       keyword,
+      publication_date,
       sort = 'date',
       limit = 50,
       offset = 0
@@ -70,6 +71,7 @@ export async function searchListings(req, res, next) {
       version: parseArrayParam(version),
       trim: parseArrayParam(trim),
       keyword,
+      publication_date,
       sort,
       limit: parseInt(limit),
       offset: parseInt(offset)

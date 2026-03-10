@@ -1,6 +1,21 @@
 import jwt from 'jsonwebtoken';
 import { logger } from '../utils/logger.js';
 
+const DEFAULT_SECRET = 'your-secret-key-change-in-production';
+
+function getJwtSecret() {
+  const secret = process.env.JWT_SECRET || DEFAULT_SECRET;
+  if (process.env.NODE_ENV === 'production' && (!secret || secret === DEFAULT_SECRET)) {
+    throw new Error('JWT_SECRET must be set in production. Do not use the default value.');
+  }
+  return secret;
+}
+
+// Fail fast in production on startup
+if (process.env.NODE_ENV === 'production') {
+  getJwtSecret();
+}
+
 /**
  * Authentication middleware - verifies JWT token and adds user to request
  * Does not check plan restrictions (use optionalAuthMiddleware for that)
@@ -19,7 +34,7 @@ export function authMiddleware(req, res, next) {
     }
 
     const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+    const decoded = jwt.verify(token, getJwtSecret());
 
     req.user = {
       id: decoded.userId,
@@ -50,7 +65,7 @@ export function optionalAuthMiddleware(req, res, next) {
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.substring(7);
       try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+        const decoded = jwt.verify(token, getJwtSecret());
         req.user = {
           id: decoded.userId,
           email: decoded.email,

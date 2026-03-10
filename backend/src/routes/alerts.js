@@ -14,8 +14,9 @@ const createAlertValidation = [
   validateRequest
 ];
 
+const alertIdValidation = [param('alertId').isUUID().withMessage('alertId must be a valid UUID'), validateRequest];
 router.post('/', authMiddleware, checkAlertLimit, createAlertValidation, createAlert);
-router.get('/:alertId/events', authMiddleware, getAlertEvents);
+router.get('/:alertId/events', authMiddleware, alertIdValidation, getAlertEvents);
 
 export const alertsRoutes = router;
 

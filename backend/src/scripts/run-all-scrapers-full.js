@@ -215,8 +215,8 @@ async function runInBatches(items, concurrency, fn) {
   return results;
 }
 
-// Sources ciblées (blocket, leboncoin, autoscout24, largus, lacentrale, mobile.de). FOCUSED_SOURCES=all pour toutes.
-const FOCUSED_SOURCES_DEFAULT = 'blocket,leboncoin,autoscout24,largus,lacentrale,mobile.de';
+// Sources ciblées. FOCUSED_SOURCES=all pour toutes (défaut en mode H24).
+const FOCUSED_SOURCES_DEFAULT = process.env.ENABLE_CONTINUOUS_SCRAPING !== 'false' ? 'all' : 'blocket,leboncoin,autoscout24,largus,lacentrale,mobile.de';
 
 async function runAllScrapersFull() {
   try {

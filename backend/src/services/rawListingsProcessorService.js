@@ -95,7 +95,8 @@ export async function processRawListings(options = {}) {
       }
 
       const AI_ENRICHABLE = ['largus', 'leboncoin', 'marktplaats', '2ememain', 'finn', 'otomoto'];
-      if (AI_ENRICHABLE.includes(row.source_platform) && process.env.OPENAI_API_KEY) {
+      const aiEnabled = !(process.env.DISABLE_AI_ENRICHMENT === 'true');
+      if (AI_ENRICHABLE.includes(row.source_platform) && process.env.OPENAI_API_KEY && aiEnabled) {
         const missingCritical = !listing.brand || !listing.model;
         const missingSpecs = [
           !listing.transmission,

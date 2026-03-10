@@ -8,7 +8,7 @@ import { toEUR, AGGREGATE_COUNTRIES } from '../config/aggregateCountries.js';
 /**
  * Get price history for a listing
  */
-export async function getListingPriceHistory(req, res) {
+export async function getListingPriceHistory(req, res, next) {
   try {
     const { id } = req.params;
     const { days = 30 } = req.query;
@@ -23,17 +23,14 @@ export async function getListingPriceHistory(req, res) {
     });
   } catch (error) {
     logger.error('Error getting price history', { error: error.message, listingId: req.params.id });
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 }
 
 /**
  * Get price drops for a listing
  */
-export async function getListingPriceDrops(req, res) {
+export async function getListingPriceDrops(req, res, next) {
   try {
     const { id } = req.params;
     const { min_drop = 10 } = req.query;
@@ -48,17 +45,14 @@ export async function getListingPriceDrops(req, res) {
     });
   } catch (error) {
     logger.error('Error getting price drops', { error: error.message, listingId: req.params.id });
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 }
 
 /**
  * Get price drops by model
  */
-export async function getPriceDropsByModel(req, res) {
+export async function getPriceDropsByModel(req, res, next) {
   try {
     const { brand, model, min_drop = 8, days = 30 } = req.query;
 
@@ -110,17 +104,14 @@ export async function getPriceDropsByModel(req, res) {
     });
   } catch (error) {
     logger.error('Error getting price drops by model', { error: error.message });
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 }
 
 /**
  * Get undervalued listings (hot deals)
  */
-export async function getUndervaluedListings(req, res) {
+export async function getUndervaluedListings(req, res, next) {
   try {
     const { threshold = 10, dom_min = 60, limit = 20 } = req.query;
 
@@ -169,17 +160,14 @@ export async function getUndervaluedListings(req, res) {
     });
   } catch (error) {
     logger.error('Error getting undervalued listings', { error: error.message });
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 }
 
 /**
  * Get fastest selling models (top models by sales velocity)
  */
-export async function getFastestSellingModels(req, res) {
+export async function getFastestSellingModels(req, res, next) {
   try {
     const { limit = 20, days = 30, brand = null, country = null, year = null } = req.query;
 
@@ -217,17 +205,14 @@ export async function getFastestSellingModels(req, res) {
     });
   } catch (error) {
     logger.error('Error getting fastest selling models', { error: error.message });
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 }
 
 /**
  * Get filter options for Market Insights (brands, countries, years)
  */
-export async function getFilterOptions(req, res) {
+export async function getFilterOptions(req, res, next) {
   try {
     // Get unique brands from sold listings
     const { data: brandsData, error: brandsError } = await supabase
@@ -299,17 +284,14 @@ export async function getFilterOptions(req, res) {
     });
   } catch (error) {
     logger.error('Error getting filter options', { error: error.message });
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 }
 
 /**
  * Get market analytics
  */
-export async function getMarketAnalytics(req, res) {
+export async function getMarketAnalytics(req, res, next) {
   try {
     const { brand, model, year } = req.query;
 
@@ -329,17 +311,14 @@ export async function getMarketAnalytics(req, res) {
     });
   } catch (error) {
     logger.error('Error getting market analytics', { error: error.message });
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 }
 
 /**
  * Get accumulated sales averages per country (DOM moyen, prix moyen)
  */
-export async function getSalesAggregatesEndpoint(req, res) {
+export async function getSalesAggregatesEndpoint(req, res, next) {
   try {
     const { brand, model, country } = req.query;
     const filters = {};
@@ -354,17 +333,14 @@ export async function getSalesAggregatesEndpoint(req, res) {
     });
   } catch (error) {
     logger.error('Error getting sales aggregates', { error: error.message });
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 }
 
 /**
  * Get statistics by country (for comparative charts)
  */
-export async function getStatsByCountry(req, res) {
+export async function getStatsByCountry(req, res, next) {
   try {
     const { days = 30 } = req.query;
     const cutoffDate = new Date();
@@ -485,17 +461,14 @@ export async function getStatsByCountry(req, res) {
     });
   } catch (error) {
     logger.error('Error getting stats by country', { error: error.message });
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 }
 
 /**
  * Export fastest selling models data as CSV
  */
-export async function exportFastestSellingModels(req, res) {
+export async function exportFastestSellingModels(req, res, next) {
   try {
     const { limit = 100, days = 30, brand = null, country = null, year = null, format = 'csv' } = req.query;
 
@@ -563,17 +536,14 @@ export async function exportFastestSellingModels(req, res) {
     }
   } catch (error) {
     logger.error('Error exporting fastest selling models', { error: error.message });
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 }
 
 /**
  * Compare multiple models side by side
  */
-export async function compareModels(req, res) {
+export async function compareModels(req, res, next) {
   try {
     const { models } = req.body; // Array of {brand, model, year?}
     const { days = 30 } = req.query;
@@ -614,17 +584,14 @@ export async function compareModels(req, res) {
     });
   } catch (error) {
     logger.error('Error comparing models', { error: error.message });
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 }
 
 /**
  * Get trends over time for a model
  */
-export async function getModelTrends(req, res) {
+export async function getModelTrends(req, res, next) {
   try {
     const { brand, model, year = null, months = 6 } = req.query;
 
@@ -767,17 +734,14 @@ export async function getModelTrends(req, res) {
     });
   } catch (error) {
     logger.error('Error getting model trends', { error: error.message });
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 }
 
 /**
  * Get profitability analysis for models
  */
-export async function getProfitabilityAnalysis(req, res) {
+export async function getProfitabilityAnalysis(req, res, next) {
   try {
     const { country = null, days = 90, minSales = 5 } = req.query;
 
@@ -911,17 +875,14 @@ export async function getProfitabilityAnalysis(req, res) {
     });
   } catch (error) {
     logger.error('Error getting profitability analysis', { error: error.message });
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 }
 
 /**
  * Create alert for fast-selling models
  */
-export async function createFastModelAlert(req, res) {
+export async function createFastModelAlert(req, res, next) {
   try {
     const { brand, model, year = null, alertType, threshold } = req.body;
     const userId = req.user.id;
@@ -975,17 +936,14 @@ export async function createFastModelAlert(req, res) {
     });
   } catch (error) {
     logger.error('Error creating fast model alert', { error: error.message });
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 }
 
 /**
  * Get intelligent recommendations
  */
-export async function getRecommendations(req, res) {
+export async function getRecommendations(req, res, next) {
   try {
     const { limit = 10, type = 'all' } = req.query;
 
@@ -1142,17 +1100,14 @@ export async function getRecommendations(req, res) {
     });
   } catch (error) {
     logger.error('Error getting recommendations', { error: error.message });
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 }
 
 /**
  * Get competition analysis
  */
-export async function getCompetitionAnalysis(req, res) {
+export async function getCompetitionAnalysis(req, res, next) {
   try {
     const { brand, model, year = null, country = null } = req.query;
 
@@ -1265,17 +1220,14 @@ export async function getCompetitionAnalysis(req, res) {
     });
   } catch (error) {
     logger.error('Error getting competition analysis', { error: error.message });
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 }
 
 /**
  * Add model to watchlist
  */
-export async function addToWatchlist(req, res) {
+export async function addToWatchlist(req, res, next) {
   try {
     const { brand, model, year = null, notes = null } = req.body;
     const userId = req.user.id;
@@ -1316,17 +1268,14 @@ export async function addToWatchlist(req, res) {
     });
   } catch (error) {
     logger.error('Error adding to watchlist', { error: error.message });
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 }
 
 /**
  * Get user watchlist
  */
-export async function getWatchlist(req, res) {
+export async function getWatchlist(req, res, next) {
   try {
     const userId = req.user.id;
 
@@ -1383,17 +1332,14 @@ export async function getWatchlist(req, res) {
     });
   } catch (error) {
     logger.error('Error getting watchlist', { error: error.message });
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 }
 
 /**
  * Remove from watchlist
  */
-export async function removeFromWatchlist(req, res) {
+export async function removeFromWatchlist(req, res, next) {
   try {
     const { id } = req.params;
     const userId = req.user.id;
@@ -1414,17 +1360,14 @@ export async function removeFromWatchlist(req, res) {
     });
   } catch (error) {
     logger.error('Error removing from watchlist', { error: error.message });
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 }
 
 /**
  * Get watchlist history
  */
-export async function getWatchlistHistory(req, res) {
+export async function getWatchlistHistory(req, res, next) {
   try {
     const { id } = req.params;
     const userId = req.user.id;
@@ -1462,17 +1405,14 @@ export async function getWatchlistHistory(req, res) {
     });
   } catch (error) {
     logger.error('Error getting watchlist history', { error: error.message });
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 }
 
 /**
  * Simple ML-based predictions (heuristic-based for now)
  */
-export async function getPredictions(req, res) {
+export async function getPredictions(req, res, next) {
   try {
     const { brand, model, year = null, currentPrice, currentDOM = 0 } = req.query;
 
@@ -1591,17 +1531,14 @@ export async function getPredictions(req, res) {
     });
   } catch (error) {
     logger.error('Error getting predictions', { error: error.message });
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 }
 
 /**
  * Export data as PDF (simple JSON export for now, PDF would require puppeteer/jsPDF)
  */
-export async function exportAsPDF(req, res) {
+export async function exportAsPDF(req, res, next) {
   try {
     const { type = 'fastest-selling', ...filters } = req.query;
 
@@ -1648,10 +1585,7 @@ export async function exportAsPDF(req, res) {
     });
   } catch (error) {
     logger.error('Error exporting as PDF', { error: error.message });
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 }
 
@@ -1659,7 +1593,7 @@ export async function exportAsPDF(req, res) {
  * Get recent sales monitoring (last 30 days)
  * Shows what sold fastest and at what price (last price before disappearance)
  */
-export async function getRecentSalesMonitoring(req, res) {
+export async function getRecentSalesMonitoring(req, res, next) {
   try {
     const { days = 30, limit = 50, country = null, brand = null, minDOM = null, maxDOM = null } = req.query;
 
@@ -1825,9 +1759,6 @@ export async function getRecentSalesMonitoring(req, res) {
     });
   } catch (error) {
     logger.error('Error getting recent sales monitoring', { error: error.message });
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 }

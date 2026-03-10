@@ -17,14 +17,15 @@ export async function runAutoScout24Scraper(searchUrls, options = {}, progressCa
   const results = { totalScraped: 0, saved: 0, errors: 0, processedUrls: [] };
 
   try {
-    const maxPages = Math.min(options.maxPages || 20, 20); // AS24 limite à 20 pages
+    const maxPages = Math.min(options.maxPages || 20, 20); // AS24 limite à 20 pages par recherche
     const urls = Array.isArray(searchUrls) ? searchUrls : [searchUrls];
+    const parallelUrls = parseInt(process.env.AUTOSCOUT24_PARALLEL_URLS || '5', 10) || 1;
 
-    logger.info('Starting AutoScout24 scraper', { urls, options });
+    logger.info('Starting AutoScout24 scraper', { urls: urls.length, parallelUrls, options });
 
-    for (const searchUrl of urls) {
+    async function scrapeOneUrl(searchUrl) {
       try {
-        const pageListings = await scrapeAutoscout24Streaming(searchUrl, maxPages, async (batch, pageNum) => {
+        await scrapeAutoscout24Streaming(searchUrl, maxPages, async (batch, pageNum) => {
           if (batch.length === 0) return;
 
           await saveRawListings(batch, SOURCE_PLATFORM);
@@ -52,11 +53,19 @@ export async function runAutoScout24Scraper(searchUrls, options = {}, progressCa
             });
           }
         });
-
-        results.processedUrls.push(searchUrl);
+        return { searchUrl, error: null };
       } catch (error) {
         logger.error('Error scraping AutoScout24 URL', { url: searchUrl, error: error.message });
-        results.errors++;
+        return { searchUrl, error };
+      }
+    }
+
+    for (let i = 0; i < urls.length; i += parallelUrls) {
+      const batch = urls.slice(i, i + parallelUrls);
+      const batchResults = await Promise.all(batch.map((url) => scrapeOneUrl(url)));
+      for (const { searchUrl, error } of batchResults) {
+        if (error) results.errors++;
+        results.processedUrls.push(searchUrl);
       }
     }
 
@@ -92,7 +101,7 @@ async function scrapeAutoscout24Streaming(baseUrl, maxPages, onPageDone) {
     return 'de';
   };
 
-  const concurrency = parseInt(process.env.AUTOSCOUT24_CONCURRENT_PAGES || '5', 10) || 1;
+    const concurrency = parseInt(process.env.AUTOSCOUT24_CONCURRENT_PAGES || '8', 10) || 1;
 
   try {
     for (let start = 1; start <= maxPages; start += concurrency) {

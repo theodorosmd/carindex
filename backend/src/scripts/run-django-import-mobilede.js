@@ -23,8 +23,14 @@ import { logger } from '../utils/logger.js';
 
 const startPage = parseInt(process.env.DJANGO_IMPORT_START_PAGE || '1', 10);
 
+const baseUrl = process.env.DJANGO_MOBILEDE_BASE_URL;
+if (!baseUrl) {
+  logger.error('DJANGO_MOBILEDE_BASE_URL required. Set in .env (see .env.example).');
+  process.exit(1);
+}
+
 const overrides = {
-  baseUrl: process.env.DJANGO_MOBILEDE_BASE_URL || 'http://75.119.141.234:8002',
+  baseUrl,
   username: process.env.DJANGO_MOBILEDE_USERNAME || process.env.DJANGO_API_USERNAME,
   password: process.env.DJANGO_MOBILEDE_PASSWORD || process.env.DJANGO_API_PASSWORD,
   extraQuery: process.env.DJANGO_API_CARS_QUERY || '',

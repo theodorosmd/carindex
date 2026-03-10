@@ -1,16 +1,13 @@
 import express from 'express';
 import { runScraper, getScraperStatus, getScraperRunStatus } from '../controllers/scraperController.js';
+import { authMiddleware } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Run scraper (public for now, add auth later)
-router.post('/run', runScraper);
-
-// Get scraper status
-router.get('/status', getScraperStatus);
-
-// Get specific run status (for polling progress)
-router.get('/run/:runId/status', getScraperRunStatus);
+// Scraper endpoints require authentication (used by admin dashboard)
+router.post('/run', authMiddleware, runScraper);
+router.get('/status', authMiddleware, getScraperStatus);
+router.get('/run/:runId/status', authMiddleware, getScraperRunStatus);
 
 export const scraperRoutes = router;
 
