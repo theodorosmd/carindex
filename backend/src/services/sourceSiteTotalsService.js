@@ -116,7 +116,7 @@ const SOURCE_CONFIG = {
     ]
   },
   bytbil: {
-    url: 'https://www.bytbil.com/bilar',
+    url: 'https://www.bytbil.com/',
     geoCode: 'se',
     patterns: [
       /(\d[\d\s]*)\s*fordon/i,

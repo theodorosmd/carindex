@@ -89,7 +89,7 @@ export const DEFAULT_SCRAPER_URLS = {
     'https://www.bilweb.se/bilar'
   ],
   bytbil: [
-    'https://www.bytbil.com/bilar'
+    'https://www.bytbil.com/'
   ],
   finn: [
     'https://www.finn.no/mobility/search/car?registration_class=1'

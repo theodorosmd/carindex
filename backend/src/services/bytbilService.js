@@ -6,7 +6,7 @@ import * as cheerio from 'cheerio';
 import { launchBrowser } from '../utils/puppeteerLaunch.js';
 import { fetchAndPersistSiteTotal } from './sourceSiteTotalsService.js';
 
-/** Extract total from Bytbil HTML. Button shows "Sök 82 011 fordon". */
+/** Extract total from Bytbil HTML. Button shows "Sök 82 105 fordon". */
 function parseSiteTotalFromHtml(html) {
   const match = html.match(/([\d\s]+)\s*fordon/i);
   if (!match) return null;
