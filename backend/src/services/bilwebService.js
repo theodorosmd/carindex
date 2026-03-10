@@ -171,7 +171,8 @@ async function scrapeBilwebViaScrapeDo(baseUrl, maxPages = 50) {
 
     let html;
     try {
-      html = await fetchViaScrapeDo(url, { render: false, geoCode: 'se' });
+      // render: true needed — bilweb blocks plain proxy IPs (same as blocket.se)
+      html = await fetchViaScrapeDo(url, { render: true, customWait: 3000, geoCode: 'se', retries: 1 });
     } catch (err) {
       logger.warn('Bilweb scrape.do fetch failed', { page: pageNum, error: err.message });
       break;
