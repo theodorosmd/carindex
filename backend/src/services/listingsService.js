@@ -110,12 +110,17 @@ export async function searchListingsService(filters, userPlan = null) {
     // Steering (support array)
     if (steering) {
       const steerings = Array.isArray(steering) ? steering : [steering];
-      const steeringMap = {
-        'left': 'LHD',
-        'right': 'RHD'
-      };
-      const mappedSteerings = steerings.map(s => steeringMap[s] || s);
-      query = query.in('steering', mappedSteerings);
+      const hasUnspecified = steerings.includes('unspecified');
+      const filtered = steerings.filter(s => s !== 'unspecified');
+      const steeringMap = { left: 'LHD', right: 'RHD' };
+      const mapped = filtered.map(s => steeringMap[s] || s).filter(Boolean);
+      if (mapped.length > 0 && hasUnspecified) {
+        query = query.or(mapped.map(m => `steering.eq.${m}`).join(',') + ',steering.is.null');
+      } else if (hasUnspecified) {
+        query = query.or('steering.is.null,steering.eq.');
+      } else if (mapped.length > 0) {
+        query = query.in('steering', mapped);
+      }
     }
 
     // Doors (support array)

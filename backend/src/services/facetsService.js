@@ -141,9 +141,17 @@ export async function getFacetsService(baseFilters = {}) {
 
     if (baseFilters.steering) {
       const steerings = Array.isArray(baseFilters.steering) ? baseFilters.steering : [baseFilters.steering];
+      const hasUnspecified = steerings.includes('unspecified');
+      const filtered = steerings.filter(s => s !== 'unspecified');
       const steeringMap = { left: 'LHD', right: 'RHD' };
-      const mapped = steerings.map(s => steeringMap[s] || s);
-      query = query.in('steering', mapped);
+      const mapped = filtered.map(s => steeringMap[s] || s).filter(Boolean);
+      if (mapped.length > 0 && hasUnspecified) {
+        query = query.or(mapped.map(m => `steering.eq.${m}`).join(',') + ',steering.is.null');
+      } else if (hasUnspecified) {
+        query = query.or('steering.is.null,steering.eq.');
+      } else if (mapped.length > 0) {
+        query = query.in('steering', mapped);
+      }
     }
 
     if (baseFilters.transmission) {
@@ -189,8 +197,8 @@ export async function getFacetsService(baseFilters = {}) {
       query = query.or(`posted_date.lt.${thirtyDaysAgoIso},posted_date.is.null`);
     }
 
-    // Order for consistent sampling (Supabase 1000-row limit per request)
-    query = query.order('id', { ascending: true });
+    // Order by most recent first - recent listings tend to have complete data (brand, model, country)
+    query = query.order('posted_date', { ascending: false });
 
     // Get total count first - create a separate count query
     let countQuery = supabase
@@ -244,9 +252,17 @@ export async function getFacetsService(baseFilters = {}) {
 
     if (baseFilters.steering) {
       const steerings = Array.isArray(baseFilters.steering) ? baseFilters.steering : [baseFilters.steering];
+      const hasUnspecified = steerings.includes('unspecified');
+      const filtered = steerings.filter(s => s !== 'unspecified');
       const steeringMap = { left: 'LHD', right: 'RHD' };
-      const mapped = steerings.map(s => steeringMap[s] || s);
-      countQuery = countQuery.in('steering', mapped);
+      const mapped = filtered.map(s => steeringMap[s] || s).filter(Boolean);
+      if (mapped.length > 0 && hasUnspecified) {
+        countQuery = countQuery.or(mapped.map(m => `steering.eq.${m}`).join(',') + ',steering.is.null');
+      } else if (hasUnspecified) {
+        countQuery = countQuery.or('steering.is.null,steering.eq.');
+      } else if (mapped.length > 0) {
+        countQuery = countQuery.in('steering', mapped);
+      }
     }
 
     if (baseFilters.transmission) {
@@ -388,9 +404,13 @@ export async function getFacetsService(baseFilters = {}) {
         facets.transmissions[listing.transmission] = (facets.transmissions[listing.transmission] || 0) + 1;
       }
 
-      // Steering - only count non-null, non-empty values
-      if (listing.steering && listing.steering.trim() !== '') {
-        facets.steering[listing.steering] = (facets.steering[listing.steering] || 0) + 1;
+      // Steering - count LHD, RHD, and null/empty as "unspecified"
+      if (listing.steering && String(listing.steering).trim() !== '') {
+        const code = String(listing.steering).toUpperCase().slice(0, 3);
+        const key = (code === 'LHD' || code === 'LEFT') ? 'LHD' : (code === 'RHD' || code === 'RIGHT') ? 'RHD' : code;
+        facets.steering[key] = (facets.steering[key] || 0) + 1;
+      } else {
+        facets.steering.unspecified = (facets.steering.unspecified || 0) + 1;
       }
 
       // Doors - only count non-null values
@@ -468,8 +488,17 @@ export async function getFacetsService(baseFilters = {}) {
       }
       if (baseFilters.steering) {
         const steerings = Array.isArray(baseFilters.steering) ? baseFilters.steering : [baseFilters.steering];
+        const hasUnspecified = steerings.includes('unspecified');
+        const filtered = steerings.filter(s => s !== 'unspecified');
         const steeringMap = { left: 'LHD', right: 'RHD' };
-        q = q.in('steering', steerings.map(s => steeringMap[s] || s));
+        const mapped = filtered.map(s => steeringMap[s] || s).filter(Boolean);
+        if (mapped.length > 0 && hasUnspecified) {
+          q = q.or(mapped.map(m => `steering.eq.${m}`).join(',') + ',steering.is.null');
+        } else if (hasUnspecified) {
+          q = q.or('steering.is.null,steering.eq.');
+        } else if (mapped.length > 0) {
+          q = q.in('steering', mapped);
+        }
       }
       if (baseFilters.transmission) {
         const transmissions = Array.isArray(baseFilters.transmission) ? baseFilters.transmission : [baseFilters.transmission];

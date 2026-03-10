@@ -133,6 +133,10 @@ export function renderListingsSearch() {
                 <input type="checkbox" name="steering" value="right" class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
                 <span class="ml-2 text-sm text-gray-700">${tr('RIGHT-HAND DRIVE', 'VOLANT À DROITE')} <span class="text-gray-500">(0)</span></span>
               </label>
+              <label class="flex items-center cursor-pointer">
+                <input type="checkbox" name="steering" value="unspecified" class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                <span class="ml-2 text-sm text-gray-700">${tr('NOT SPECIFIED', 'NON RENSEIGNÉ')} <span class="text-gray-500">(0)</span></span>
+              </label>
             </div>
           </div>
           
@@ -1044,29 +1048,18 @@ async function loadFacets(forceNoFilters = false) {
     // Steering - update counts only (already exists in HTML)
     if (facets.steering && facets.steering.length > 0) {
       facets.steering.forEach(({ name, count }) => {
-        // Handle both uppercase and lowercase values
         const nameUpper = name?.toUpperCase() || ''
-        
-        if (nameUpper === 'LHD' || nameUpper === 'LEFT') {
-          const checkbox = document.querySelector('input[name="steering"][value="left"]')
+        let value = ''
+        if (nameUpper === 'LHD' || nameUpper === 'LEFT') value = 'left'
+        else if (nameUpper === 'RHD' || nameUpper === 'RIGHT') value = 'right'
+        else if (nameUpper === 'UNSPECIFIED' || name === 'unspecified') value = 'unspecified'
+        if (value) {
+          const checkbox = document.querySelector(`input[name="steering"][value="${value}"]`)
           if (checkbox) {
             const label = checkbox.closest('label')
             if (label) {
               const countSpan = label.querySelector('.text-gray-500')
-              if (countSpan) {
-                countSpan.textContent = `(${formatNumber(count)})`
-              }
-            }
-          }
-        } else if (nameUpper === 'RHD' || nameUpper === 'RIGHT') {
-          const checkbox = document.querySelector('input[name="steering"][value="right"]')
-          if (checkbox) {
-            const label = checkbox.closest('label')
-            if (label) {
-              const countSpan = label.querySelector('.text-gray-500')
-              if (countSpan) {
-                countSpan.textContent = `(${formatNumber(count)})`
-              }
+              if (countSpan) countSpan.textContent = `(${formatNumber(count)})`
             }
           }
         }
@@ -1860,10 +1853,64 @@ function initializeSearch() {
   // Make searchListings available globally AFTER it's defined
   window.searchListings = searchListings
   
+  // Fallback: populate filters from search results when facets API fails or returns empty
+  function populateFiltersFromListings(listings) {
+    if (!listings || listings.length === 0) return
+    const brands = {}
+    const countries = {}
+    const fuelTypes = {}
+    const steeringCounts = { left: 0, right: 0, unspecified: 0 }
+    listings.forEach(l => {
+      if (l.brand) brands[l.brand] = (brands[l.brand] || 0) + 1
+      if (l.location_country) countries[l.location_country] = (countries[l.location_country] || 0) + 1
+      if (l.fuel_type) fuelTypes[l.fuel_type] = (fuelTypes[l.fuel_type] || 0) + 1
+      const s = (l.steering || '').toUpperCase()
+      if (s === 'LHD' || s === 'LEFT') steeringCounts.left++
+      else if (s === 'RHD' || s === 'RIGHT') steeringCounts.right++
+      else steeringCounts.unspecified++
+    })
+    const countryNames = { FR: 'France', SE: 'Suède', DE: 'Allemagne', BE: 'Belgique', NL: 'Pays-Bas', IT: 'Italie', ES: 'Espagne', AT: 'Autriche', CH: 'Suisse' }
+    const brandList = document.querySelector('#brand-list')
+    if (brandList && Object.keys(brands).length > 0) {
+      if (!brandList.querySelector('label')) {
+        populateFilterSection('brand-list', Object.entries(brands).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count), 'brand', n => n.toLowerCase(), n => n.toUpperCase())
+      }
+    }
+    const countrySelect = document.getElementById('country-filter')
+    if (countrySelect && Object.keys(countries).length > 0 && countrySelect.options.length <= 1) {
+      countrySelect.innerHTML = ''
+      const allOpt = document.createElement('option')
+      allOpt.value = ''
+      allOpt.textContent = tr('All countries', 'Tous les pays')
+      countrySelect.appendChild(allOpt)
+      Object.entries(countries).sort((a, b) => b[1] - a[1]).forEach(([code, count]) => {
+        const opt = document.createElement('option')
+        opt.value = code
+        opt.textContent = `${countryNames[code] || code} (${formatNumber(count)})`
+        countrySelect.appendChild(opt)
+      })
+    }
+    const fuelList = document.querySelector('#fuel-list')
+    if (fuelList && Object.keys(fuelTypes).length > 0) {
+      if (!fuelList.querySelector('label')) {
+        const fuelMap = { petrol: tr('PETROL', 'ESSENCE'), gasolina: tr('PETROL', 'ESSENCE'), diesel: tr('DIESEL', 'DIESEL'), benzine: tr('PETROL', 'ESSENCE'), benzin: tr('PETROL', 'ESSENCE'), hybrid: tr('HYBRID', 'HYBRIDE'), electric: tr('ELECTRIC', 'ÉLECTRIQUE') }
+        populateFilterSection('fuel-list', Object.entries(fuelTypes).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count), 'fuel', n => n.toLowerCase(), n => fuelMap[n?.toLowerCase()] || n?.toUpperCase())
+      }
+    }
+    const leftSpan = document.querySelector('input[name="steering"][value="left"]')?.closest('label')?.querySelector('.text-gray-500')
+    const rightSpan = document.querySelector('input[name="steering"][value="right"]')?.closest('label')?.querySelector('.text-gray-500')
+    const unspecSpan = document.querySelector('input[name="steering"][value="unspecified"]')?.closest('label')?.querySelector('.text-gray-500')
+    if (leftSpan && (steeringCounts.left > 0 || steeringCounts.right > 0 || steeringCounts.unspecified > 0)) {
+      leftSpan.textContent = `(${formatNumber(steeringCounts.left)})`
+      if (rightSpan) rightSpan.textContent = `(${formatNumber(steeringCounts.right)})`
+      if (unspecSpan) unspecSpan.textContent = `(${formatNumber(steeringCounts.unspecified)})`
+    }
+  }
+
   // Display results with virtual scrolling for large lists
   function displayResults(listings, total, page) {
     resultsCount.textContent = formatNumber(total) + ' ' + tr('listings found', 'annonces trouvées')
-    
+    populateFiltersFromListings(listings)
     if (listings.length === 0) {
       resultsContainer.innerHTML = `<div class="col-span-full text-center py-12"><svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg><p class="mt-4 text-gray-600">${tr('No results found', 'Aucun résultat trouvé')}</p><p class="text-sm text-gray-500 mt-2">${tr('Try modifying your search criteria', 'Essayez de modifier vos critères de recherche')}</p></div>`
       return
