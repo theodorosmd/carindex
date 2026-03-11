@@ -80,7 +80,7 @@ export async function runMobileDeScraper(searchUrls, options = {}, progressCallb
       }
       if (batchResults.some((r) => r.allListings.length > 0)) {
         const processResult = await processRawListings({
-          limit: 10000,
+          limit: 999999,
           sourcePlatform: SOURCE_PLATFORM
         });
         results.saved += (processResult.created || 0) + (processResult.updated || 0) + (processResult.sourceAdded || 0);
