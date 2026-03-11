@@ -76,7 +76,7 @@ async function scrapeLeBonCoinStreaming(baseUrl, maxPages, onPageDone) {
   const pageConcurrency = parseInt(process.env.LEBONCOIN_CONCURRENT_PAGES || '5', 10) || 1;
   const delayBetweenPages = parseInt(process.env.LEBONCOIN_DELAY_PAGES_MS || '400', 10) || 300;
   let consecutiveZeroBatches = 0;
-  const STOP_AFTER = 2; // 2 consecutive all-skip batches = watermark confirmed
+  const STOP_AFTER = parseInt(process.env.LEBONCOIN_WATERMARK_STOP || '2', 10);
 
   for (let start = 1; start <= maxPages; start += pageConcurrency) {
     const pageNums = [];

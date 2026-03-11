@@ -95,8 +95,7 @@ export async function saveRawListings(items, sourcePlatform, runId = null) {
       run_id: runId || null,
       raw_payload: item,
       scraped_at: now,
-      updated_at: now,
-      processed_at: null
+      updated_at: now
     });
   }
 
