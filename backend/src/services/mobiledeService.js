@@ -79,11 +79,13 @@ export async function runMobileDeScraper(searchUrls, options = {}, progressCallb
         }
       }
       if (batchResults.some((r) => r.allListings.length > 0)) {
-        const processResult = await processRawListings({
-          limit: 999999,
-          sourcePlatform: SOURCE_PLATFORM
-        });
-        results.saved += (processResult.created || 0) + (processResult.updated || 0) + (processResult.sourceAdded || 0);
+        // Process queue in batches of 5000 to avoid Supabase statement timeouts
+        const BATCH = 5000;
+        let batch;
+        do {
+          batch = await processRawListings({ limit: BATCH, sourcePlatform: SOURCE_PLATFORM });
+          results.saved += (batch.created || 0) + (batch.updated || 0) + (batch.sourceAdded || 0);
+        } while ((batch.processed ?? 0) >= BATCH);
       }
       if (progressCallback) {
         await progressCallback({
