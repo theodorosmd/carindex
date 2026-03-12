@@ -137,6 +137,7 @@ async function scrapeMobileDeUrl(browser, url, maxPages = 10, useScrapeDo = null
     const concurrency = parseInt(process.env.MOBILEDE_CONCURRENT_PAGES || '12', 10) || 1;
     const batchDelayMs = parseInt(process.env.MOBILEDE_BATCH_DELAY_MS || '800', 10) || 0;
     logger.info('mobile.de: using scrape.do (parallel)', { concurrency, maxPages, batchDelayMs });
+    let sitePosition = 0;
     for (let start = 1; start <= maxPages; start += concurrency) {
       const pageNums = [];
       for (let i = 0; i < concurrency && start + i <= maxPages; i++) {
@@ -162,6 +163,7 @@ async function scrapeMobileDeUrl(browser, url, maxPages = 10, useScrapeDo = null
         }
       }
       if (onBatchDone) {
+        batchListings.forEach(l => { l.sitePosition = ++sitePosition; });
         const { stop } = await onBatchDone(batchListings);
         if (stop) {
           logger.info('mobile.de: watermark reached, stopping early', { page: start });
@@ -524,7 +526,7 @@ export function mapMobileDeDataToListing(item, sourcePlatform = 'mobile.de') {
     images: Array.isArray(item.images) ? item.images : item.imageUrls ? [item.imageUrls].flat() : [],
     specifications: { ...(item.attributes || {}), ...(item.features || {}) },
     description: item.description || item.text || null,
-    posted_date: item.postedDate || item.date ? new Date(item.postedDate || item.date) : new Date(),
+    posted_date: item.postedDate || item.date ? new Date(item.postedDate || item.date) : null,
     fuel_type: fuelType,
     transmission,
     color: item.color || item.farbe || null,

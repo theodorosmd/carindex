@@ -31,6 +31,7 @@ export async function runFinnScraper(searchUrls, options = {}, progressCallback 
       const urls = Array.isArray(searchUrls) ? searchUrls : [searchUrls];
       for (const searchUrl of urls) {
         try {
+          let sitePosition = 0;
           for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
             const pageUrl = buildPageUrl(searchUrl, pageNum);
             let html;
@@ -53,6 +54,7 @@ export async function runFinnScraper(searchUrls, options = {}, progressCallback 
               } catch { enriched.push(item); }
               await new Promise(r => setTimeout(r, 500));
             }
+            enriched.forEach(l => { l.sitePosition = ++sitePosition; });
             await saveRawListings(enriched, SOURCE_PLATFORM);
             const processResult = await processRawListings({ limit: enriched.length + 100, sourcePlatform: SOURCE_PLATFORM });
             results.totalScraped += enriched.length;
@@ -148,6 +150,7 @@ async function scrapeFinnUrlStreaming(browser, url, maxPages, onPageDone) {
     });
 
     let currentPage = 1;
+    let sitePosition = 0;
 
     while (currentPage <= maxPages) {
       const pageUrl = buildPageUrl(url, currentPage);
@@ -207,6 +210,7 @@ async function scrapeFinnUrlStreaming(browser, url, maxPages, onPageDone) {
         }
       }
 
+      enriched.forEach(l => { l.sitePosition = ++sitePosition; });
       await onPageDone(enriched, currentPage);
       await new Promise(r => setTimeout(r, 2000 + Math.random() * 2000));
       currentPage++;
@@ -504,7 +508,7 @@ export function mapFinnDataToListing(item) {
     images: (item.images && item.images.length > 0) ? item.images : (item.image ? [item.image] : []),
     specifications: specs,
     description: item.description || null,
-    posted_date: new Date(),
+    posted_date: null,
     fuel_type: fuelType,
     transmission,
     steering: 'LHD',

@@ -128,6 +128,7 @@ async function scrapeAutoscout24Streaming(baseUrl, maxPages, onPageDone) {
   };
 
     const concurrency = parseInt(process.env.AUTOSCOUT24_CONCURRENT_PAGES || '8', 10) || 1;
+    let sitePosition = 0;
 
   try {
     for (let start = 1; start <= maxPages; start += concurrency) {
@@ -175,6 +176,7 @@ async function scrapeAutoscout24Streaming(baseUrl, maxPages, onPageDone) {
         }
         if (listings.length > 0) {
           const enriched = await maybeEnrichDetails(listings, browser);
+          enriched.forEach(l => { l.sitePosition = ++sitePosition; });
           await onPageDone(enriched, page);
         }
       }

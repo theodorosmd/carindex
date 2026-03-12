@@ -26,6 +26,7 @@ export async function runGaspedaalScraper(searchUrls, options = {}, progressCall
       logger.info('Starting Gaspedaal scraper (scrape.do first)', { urls, options });
       for (const searchUrl of urls) {
         try {
+          let sitePosition = 0;
           for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
             const pageUrl = buildPageUrl(searchUrl, pageNum);
             let html;
@@ -40,6 +41,7 @@ export async function runGaspedaalScraper(searchUrls, options = {}, progressCall
             }
             const listings = parseSearchPage(html);
             if (listings.length === 0) break;
+            listings.forEach(l => { l.sitePosition = ++sitePosition; });
             await saveRawListings(listings, SOURCE_PLATFORM);
             const processResult = await processRawListings({ limit: listings.length + 100, sourcePlatform: SOURCE_PLATFORM });
             results.totalScraped += listings.length;
@@ -127,6 +129,7 @@ async function scrapeGaspedaalStreaming(browser, baseUrl, maxPages, onPageDone) 
       'Referer': 'https://www.gaspedaal.nl/'
     });
 
+    let sitePosition = 0;
     for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
       const pageUrl = buildPageUrl(baseUrl, pageNum);
 
@@ -165,6 +168,7 @@ async function scrapeGaspedaalStreaming(browser, baseUrl, maxPages, onPageDone) 
 
       logger.info('Gaspedaal search page parsed', { page: pageNum, found: listings.length, usedFallback });
 
+      listings.forEach(l => { l.sitePosition = ++sitePosition; });
       await onPageDone(listings, pageNum);
       await new Promise(r => setTimeout(r, 2000 + Math.random() * 2000));
     }
@@ -463,7 +467,7 @@ export function mapGaspedaalDataToListing(item) {
     images: Array.isArray(item.images) ? item.images : [],
     specifications: {},
     description: null,
-    posted_date: new Date(),
+    posted_date: null,
     fuel_type: fuelType,
     transmission,
     steering: 'LHD',

@@ -28,6 +28,7 @@ export async function runBilwebScraper(searchUrls, options = {}, progressCallbac
         try {
           const listings = await scrapeBilwebViaScrapeDo(searchUrl, options.maxPages || 50);
           if (listings.length > 0) {
+            listings.forEach((l, i) => { l.sitePosition = i + 1; });
             await saveRawListings(listings, 'bilweb');
             for (const listing of listings) {
               try {
@@ -79,6 +80,7 @@ export async function runBilwebScraper(searchUrls, options = {}, progressCallbac
 
         // Stage 1: Store raw scraped data as-is
         try {
+          listings.forEach((l, i) => { l.sitePosition = i + 1; });
           await saveRawListings(listings, 'bilweb');
         } catch (rawErr) {
           logger.warn('Raw listing save failed', { error: rawErr.message });
@@ -415,7 +417,7 @@ export function mapBilwebDataToListing(item) {
     images: item.image ? [item.image] : (item.images || []),
     specifications: item.specs || item.specifications || {},
     description: item.description || null,
-    posted_date: new Date().toISOString()
+    posted_date: null
   };
 }
 

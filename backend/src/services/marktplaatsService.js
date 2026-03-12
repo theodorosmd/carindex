@@ -7,6 +7,11 @@ import { launchBrowser } from '../utils/puppeteerLaunch.js';
 
 const SOURCE_PLATFORM = 'marktplaats';
 
+// Enable detail-page enrichment via env (default: true when SCRAPE_DO_TOKEN is set)
+const ENRICH_DETAILS = process.env.MARKTPLAATS_ENRICH_DETAILS !== 'false';
+const DETAIL_CONCURRENCY = parseInt(process.env.MARKTPLAATS_DETAIL_CONCURRENCY || '3', 10);
+const DETAIL_DELAY_MS = parseInt(process.env.MARKTPLAATS_DETAIL_DELAY_MS || '300', 10);
+
 /**
  * Run Marktplaats.nl scraper
  * Hybrid approach: Puppeteer primary, scrape.do fallback (like Gaspedaal)
@@ -160,11 +165,245 @@ async function scrapeMarktplaatsStreaming(browser, baseUrl, maxPages, preferScra
       logger.info('Marktplaats search page parsed', { page: pageNum, found: listings.length, usedFallback });
 
       listings.forEach(l => { l.sitePosition = ++sitePosition; });
+
+      // Enrich with detail-page specs (description, power_hp, displacement, drivetrain)
+      if (ENRICH_DETAILS && process.env.SCRAPE_DO_TOKEN) {
+        await enrichListingsWithDetails(listings);
+      }
+
       await onPageDone(listings, pageNum);
       await new Promise(r => setTimeout(r, 2500 + Math.random() * 2000));
     }
   } finally {
     if (page) await page.close();
+  }
+}
+
+// ── Detail-page enrichment ────────────────────────────────────────────────────
+
+/**
+ * Parse a Marktplaats detail-page HTML.
+ * Marktplaats is a Next.js app — __NEXT_DATA__ is server-side rendered with
+ * the full listing payload including description and all spec attributes.
+ * Falls back to JSON-LD and spec-table cheerio parsing.
+ */
+function parseMarktplaatsDetailPage(html) {
+  const result = {};
+
+  // ── Strategy 1: __NEXT_DATA__ (Next.js SSR) ──────────────────────────────
+  const nextMatch = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+  if (nextMatch) {
+    try {
+      const nd = JSON.parse(nextMatch[1]);
+      // Marktplaats wraps listing under several possible paths
+      const listing =
+        nd?.props?.pageProps?.listing ||
+        nd?.props?.pageProps?.ad ||
+        nd?.props?.pageProps?.data?.listing ||
+        null;
+
+      if (listing) {
+        // Description
+        const desc =
+          listing.description ||
+          listing.bodyText ||
+          (Array.isArray(listing.descriptionSections)
+            ? listing.descriptionSections.map(s => s.text || '').join('\n')
+            : null);
+        if (desc && typeof desc === 'string' && desc.length > 10) {
+          result.description = desc.slice(0, 3000);
+        }
+
+        // Attributes: may be [{key,value}] array or flat object
+        const rawAttrs = listing.attributes || listing.specs || listing.vehicleAttributes || {};
+        const attrObj = Array.isArray(rawAttrs)
+          ? Object.fromEntries(rawAttrs.map(a => [
+              (a.key || a.name || '').toLowerCase(),
+              a.value ?? a.label ?? ''
+            ]))
+          : Object.fromEntries(
+              Object.entries(rawAttrs).map(([k, v]) => [k.toLowerCase(), v])
+            );
+
+        // Power (kW → hp or direct PS/hp)
+        const kw = parseFloat(attrObj.powerkw || attrObj.powerkw || attrObj.vermogenkw || '');
+        const ps = parseFloat(attrObj.powerhp || attrObj.powerps || attrObj.vermogenpk || attrObj.pk || '');
+        if (!isNaN(kw) && kw > 0) result.power_hp = Math.round(kw * 1.341);
+        else if (!isNaN(ps) && ps > 0) result.power_hp = Math.round(ps);
+
+        // Fuel
+        const fuelRaw = String(attrObj.fuel || attrObj.fueltype || attrObj.brandstof || '').toLowerCase();
+        if (fuelRaw) {
+          const FM = { benzine: 'petrol', petrol: 'petrol', diesel: 'diesel',
+            elektrisch: 'electric', electric: 'electric', hybride: 'hybrid', hybrid: 'hybrid',
+            lpg: 'lpg', cng: 'cng', aardgas: 'cng', waterstof: 'hydrogen' };
+          result.fuelType = FM[fuelRaw] || fuelRaw;
+        }
+
+        // Color
+        const colorRaw = attrObj.color || attrObj.colour || attrObj.kleur || attrObj.exteriorcolor;
+        if (colorRaw) result.color = String(colorRaw).toLowerCase();
+
+        // Doors
+        const doors = parseInt(attrObj.numberofdoors || attrObj.doors || attrObj.deuren || '');
+        if (!isNaN(doors) && doors > 0 && doors <= 10) result.doors = doors;
+
+        // Displacement (stored as cc or L)
+        const displRaw = String(attrObj.displacement || attrObj.enginecapacity || attrObj.cilinderinhoud || '').replace(/[^\d.]/g, '');
+        if (displRaw) {
+          const val = parseFloat(displRaw);
+          if (!isNaN(val) && val > 0) {
+            result.displacement = val < 20 ? Math.round(val * 1000) : Math.round(val);
+          }
+        }
+
+        // Transmission
+        const transRaw = String(attrObj.transmission || attrObj.transmissie || attrObj.versnellingsbak || '').toLowerCase();
+        if (transRaw) {
+          if (/automaat|automatic|cvt/.test(transRaw)) result.transmission = 'automatic';
+          else if (/handgeschakeld|manual|schakeling/.test(transRaw)) result.transmission = 'manual';
+        }
+
+        // Drivetrain
+        const driveRaw = String(attrObj.drive || attrObj.drivetrain || attrObj.aandrijving || '').toLowerCase();
+        if (driveRaw) {
+          if (/4x4|awd|4wd|allwiel|vierwiel/.test(driveRaw)) result.drivetrain = 'awd';
+          else if (/front|fwd|voorwiel/.test(driveRaw)) result.drivetrain = 'fwd';
+          else if (/rear|rwd|achterwiel/.test(driveRaw)) result.drivetrain = 'rwd';
+        }
+
+        // Body type / category
+        const bodyRaw = String(attrObj.bodytype || attrObj.body || attrObj.carrosserie ||
+          listing.l3Category || listing.categoryName || '').toLowerCase();
+        if (bodyRaw) {
+          const BM = {
+            sedan: 'sedan', hatchback: 'hatchback', stationwagon: 'estate', station: 'estate',
+            suv: 'suv', terreinwagen: 'suv', cabriolet: 'convertible', cabrio: 'convertible',
+            'coupé': 'coupe', coupe: 'coupe', mpv: 'mpv', bus: 'mpv',
+            'pick-up': 'pickup', bestelwagen: 'van', bestelbus: 'van',
+          };
+          for (const [k, v] of Object.entries(BM)) {
+            if (bodyRaw.includes(k)) { result.bodyType = v; break; }
+          }
+        }
+      }
+    } catch { /* JSON parse failed — try fallbacks */ }
+  }
+
+  // ── Strategy 2: JSON-LD ───────────────────────────────────────────────────
+  if (Object.keys(result).length < 2) {
+    const $ = cheerio.load(html);
+    $('script[type="application/ld+json"]').each((_, el) => {
+      try {
+        const ld = JSON.parse($(el).html() || '');
+        if (ld?.description && !result.description) result.description = ld.description;
+        if (ld?.fuelType && !result.fuelType) result.fuelType = ld.fuelType.toLowerCase();
+        if (ld?.color && !result.color) result.color = ld.color.toLowerCase();
+        if (ld?.numberOfDoors && !result.doors) {
+          const d = parseInt(ld.numberOfDoors, 10);
+          if (!isNaN(d) && d > 0) result.doors = d;
+        }
+        if (ld?.vehicleEngine?.enginePower?.value && !result.power_hp) {
+          result.power_hp = Math.round(parseFloat(ld.vehicleEngine.enginePower.value));
+        }
+      } catch {}
+    });
+  }
+
+  // ── Strategy 3: cheerio spec-table fallback ────────────────────────────────
+  if (!result.description || !result.power_hp) {
+    const $ = cheerio.load(html);
+    if (!result.description) {
+      const desc = $('[class*="description" i], [class*="Description"], [data-testid*="description" i]').first().text().trim();
+      if (desc && desc.length > 20) result.description = desc.slice(0, 3000);
+    }
+    $('dl dt, [class*="Attribute" i] [class*="label" i], [class*="spec" i] th').each((_, el) => {
+      const label = $(el).text().toLowerCase().trim();
+      const value = $(el).next('dd, [class*="value" i], td').text().trim();
+      if (!value) return;
+      if ((label.includes('vermogen') || label.includes(' pk') || label.includes(' kw')) && !result.power_hp) {
+        const m = value.match(/(\d+)\s*(pk|kw|hp)/i);
+        if (m) {
+          const n = parseInt(m[1], 10);
+          result.power_hp = m[2].toLowerCase() === 'kw' ? Math.round(n * 1.341) : n;
+        }
+      }
+      if ((label.includes('brandstof') || label.includes('fuel')) && !result.fuelType) {
+        const FM = { benzine: 'petrol', diesel: 'diesel', elektrisch: 'electric', hybride: 'hybrid', lpg: 'lpg' };
+        const raw = value.toLowerCase();
+        for (const [k, v] of Object.entries(FM)) {
+          if (raw.includes(k)) { result.fuelType = v; break; }
+        }
+      }
+      if ((label.includes('kleur') || label.includes('color')) && !result.color) result.color = value.toLowerCase();
+      if (label.includes('deur') && !result.doors) {
+        const d = parseInt(value, 10);
+        if (!isNaN(d) && d > 0 && d <= 10) result.doors = d;
+      }
+      if ((label.includes('inhoud') || label.includes('cilinderinhoud') || label.includes('displacement')) && !result.displacement) {
+        const m = value.match(/([\d.,]+)\s*(cc|cm|l\b)/i);
+        if (m) {
+          const n = parseFloat(m[1].replace(',', '.'));
+          result.displacement = m[2].toLowerCase() === 'l' ? Math.round(n * 1000) : Math.round(n);
+        }
+      }
+    });
+  }
+
+  return Object.keys(result).length > 0 ? result : null;
+}
+
+/**
+ * Fetch Marktplaats detail page and return parsed specs.
+ * render=false is tried first (cheaper; works if Next.js SSR is present).
+ * Falls back to render=true on anti-bot blocks.
+ */
+async function fetchMarktplaatsDetails(url) {
+  let html;
+  try {
+    html = await fetchViaScrapeDo(url, { render: false, geoCode: 'nl', retries: 1 });
+    // If the page looks like a bot-block (very short), retry with render=true
+    if (!html || html.length < 1000) {
+      html = await fetchViaScrapeDo(url, { render: true, customWait: 3000, geoCode: 'nl', retries: 1 });
+    }
+  } catch (err) {
+    if (err.message?.includes('404') || err.message?.includes('410')) return { gone: true };
+    // Try render=true as last resort
+    try {
+      html = await fetchViaScrapeDo(url, { render: true, customWait: 3000, geoCode: 'nl', retries: 1 });
+    } catch {
+      throw err;
+    }
+  }
+  return parseMarktplaatsDetailPage(html) || {};
+}
+
+/**
+ * Enrich a batch of listings with detail-page specs (concurrent).
+ * Mutates listings in place by merging detail specs.
+ */
+async function enrichListingsWithDetails(listings) {
+  const needsEnrich = listings.filter(l => l.url && (!l.power_hp || !l.description));
+  if (needsEnrich.length === 0) return;
+
+  logger.debug('Marktplaats detail enrichment', { count: needsEnrich.length, concurrency: DETAIL_CONCURRENCY });
+
+  for (let i = 0; i < needsEnrich.length; i += DETAIL_CONCURRENCY) {
+    const chunk = needsEnrich.slice(i, i + DETAIL_CONCURRENCY);
+    await Promise.all(chunk.map(async (listing) => {
+      try {
+        const specs = await fetchMarktplaatsDetails(listing.url);
+        if (specs && !specs.gone) {
+          // Merge specs into listing — only fill missing fields
+          for (const [k, v] of Object.entries(specs)) {
+            if (v != null && !listing[k]) listing[k] = v;
+          }
+        }
+      } catch (err) {
+        logger.debug('Marktplaats detail fetch failed', { url: listing.url, error: err.message });
+      }
+      await new Promise(r => setTimeout(r, DETAIL_DELAY_MS));
+    }));
   }
 }
 
@@ -438,8 +677,10 @@ export function mapMarktplaatsDataToListing(item) {
   const brand = (item.brand || '').toLowerCase() || null;
   const model = (item.model || '').toLowerCase() || null;
 
+  // fuelType may come from detail page (as `fuelType`) or search page extraction
   const fuelType = cleanFuelType(item.fuelType || '');
   const transmission = cleanTransmission(item.transmission || '');
+  // bodyType from detail page overrides search-page extraction
   const category = cleanCategory(item.bodyType || '');
 
   const locationCity = item.locationCity || null;
@@ -465,7 +706,7 @@ export function mapMarktplaatsDataToListing(item) {
     url: item.url || null,
     images: Array.isArray(item.images) ? item.images : [],
     specifications: {},
-    description: null,
+    description: item.description || null,
     posted_date: null,
     fuel_type: fuelType,
     transmission,
@@ -477,6 +718,6 @@ export function mapMarktplaatsDataToListing(item) {
     version,
     trim,
     category,
-    drivetrain: null,
+    drivetrain: item.drivetrain || null,
   };
 }

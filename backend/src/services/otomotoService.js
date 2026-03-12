@@ -72,6 +72,7 @@ export async function runOtomotoScraper(searchUrls, options = {}, progressCallba
  * Scrape OtoMoto.pl page-by-page, calling onPageDone(listings, pageNum) after each page.
  */
 async function scrapeOtomotoStreaming(baseUrl, maxPages, onPageDone) {
+  let sitePosition = 0;
   for (let page = 1; page <= maxPages; page++) {
     const pageUrl = page === 1 ? baseUrl : (baseUrl.includes('?') ? `${baseUrl}&page=${page}` : `${baseUrl}?page=${page}`);
 
@@ -114,6 +115,7 @@ async function scrapeOtomotoStreaming(baseUrl, maxPages, onPageDone) {
       await new Promise(r => setTimeout(r, 800 + Math.random() * 700));
     }
 
+    enriched.forEach(l => { l.sitePosition = ++sitePosition; });
     await onPageDone(enriched, page);
 
     await new Promise(r => setTimeout(r, 2000 + Math.random() * 2000));
@@ -399,7 +401,7 @@ export function mapOtomotoDataToListing(item) {
     images: Array.isArray(item.images) ? item.images : [],
     specifications: item.specifications || {},
     description: item.description || null,
-    posted_date: new Date(),
+    posted_date: null,
     fuel_type: fuelType,
     transmission,
     steering: 'LHD',

@@ -85,6 +85,7 @@ async function scrapeLaCentraleStreaming(baseUrl, maxPages, onPageDone) {
   let browser = null;
   const pageConcurrency = parseInt(process.env.LACENTRALE_CONCURRENT_PAGES || '5', 10) || 1;
 
+  let sitePosition = 0;
   try {
     for (let start = 1; start <= maxPages; start += pageConcurrency) {
       const pageNums = [];
@@ -95,10 +96,11 @@ async function scrapeLaCentraleStreaming(baseUrl, maxPages, onPageDone) {
         batchResults = await Promise.all(pageNums.map(async (page) => {
           const pageUrl = buildPageUrl(baseUrl, page);
           try {
+            // Try render:false first (cheaper), then render:true with longer wait for JS-heavy pages
             let html = await fetchViaScrapeDo(pageUrl, { render: false, geoCode: 'fr' });
             let listings = parseSearchPage(html);
             if (listings.length === 0 && html?.length > 500) {
-              html = await fetchViaScrapeDo(pageUrl, { render: true, customWait: 5000, geoCode: 'fr' });
+              html = await fetchViaScrapeDo(pageUrl, { render: true, customWait: 8000, geoCode: 'fr' });
               listings = parseSearchPage(html);
             }
             return { page, listings };
@@ -124,6 +126,7 @@ async function scrapeLaCentraleStreaming(baseUrl, maxPages, onPageDone) {
         if (listings.length === 0) continue;
         logger.info('La Centrale search page parsed', { page, found: listings.length });
         const enriched = await enrichListingsWithDetails(listings, usePuppeteer ? browser : null);
+        enriched.forEach(l => { l.sitePosition = ++sitePosition; });
         await onPageDone(enriched, page);
       }
       if (batchResults[0]?.listings?.length === 0) break;
@@ -154,12 +157,33 @@ function parseSearchPage(html) {
 }
 
 /**
- * Extract listings from __PRELOADED_STATE__ JavaScript variable.
- * La Centrale embeds all search data in: window.__PRELOADED_STATE__ = {...}
+ * Extract listings from __PRELOADED_STATE__ (legacy) or __NEXT_DATA__ (Next.js).
+ * La Centrale may use either depending on their deployment.
  */
 function parsePreloadedState(html) {
   const listings = [];
 
+  // Try __NEXT_DATA__ first (standard Next.js JSON embedded in <script id="__NEXT_DATA__">)
+  const nextDataMatch = html.match(/<script[^>]*id=["']__NEXT_DATA__["'][^>]*>([^<]+)<\/script>/);
+  if (nextDataMatch) {
+    try {
+      const nextJson = JSON.parse(nextDataMatch[1]);
+      const pageProps = nextJson?.props?.pageProps || {};
+      // Try multiple possible Next.js paths for search results
+      const nextHits =
+        pageProps?.searchResults?.hits ||
+        pageProps?.results?.hits ||
+        pageProps?.listings ||
+        pageProps?.data?.hits ||
+        pageProps?.search?.hits ||
+        [];
+      if (nextHits.length > 0) {
+        return extractHitsToListings(nextHits);
+      }
+    } catch { /* fall through to __PRELOADED_STATE__ */ }
+  }
+
+  // Fallback: legacy __PRELOADED_STATE__ patterns
   const patterns = [
     /__PRELOADED_STATE__\s*=\s*({[\s\S]*?});\s*<\/script/,
     /__PRELOADED_STATE__\s*=\s*({[\s\S]*?});/,
@@ -180,7 +204,14 @@ function parsePreloadedState(html) {
   if (!json) return [];
 
   const hits = json?.search?.hits || json?.searchResults?.hits || [];
+  return extractHitsToListings(hits);
+}
 
+/**
+ * Shared hit extraction logic for both __NEXT_DATA__ and __PRELOADED_STATE__.
+ */
+function extractHitsToListings(hits) {
+  const listings = [];
   for (const hit of hits) {
     try {
       const item = hit?.item || hit;
@@ -225,7 +256,6 @@ function parsePreloadedState(html) {
       logger.debug('La Centrale failed to parse hit', { error: err.message });
     }
   }
-
   return listings;
 }
 
@@ -238,12 +268,32 @@ function parseSearchPageHtml(html) {
   const seen = new Set();
 
   const cardSelectors = [
+    // URL-based selectors (most reliable)
     'a[href*="auto-occasion-annonce-"]',
     'a[href*="/auto-occasion-annonce"]',
+    'a[href*="/annonce-voiture"]',
+    'a[href*="/voiture-occasion"]',
+    // Class-based selectors
     '[class*="searchCard"]',
     '[class*="SearchCard"]',
+    '[class*="adCard"]',
+    '[class*="AdCard"]',
+    '[class*="listingCard"]',
+    '[class*="ListingCard"]',
+    '[class*="vehicleCard"]',
+    '[class*="VehicleCard"]',
+    '[class*="carCard"]',
+    '[class*="CarCard"]',
+    // Data attribute selectors
     '[data-testid*="listing"]',
+    '[data-testid*="ad-card"]',
+    '[data-testid*="vehicle"]',
+    '[data-cy*="listing"]',
+    // Semantic selectors
     'article[class*="result"]',
+    'article[class*="card"]',
+    'li[class*="result"]',
+    'li[class*="listing"]',
   ];
 
   let cards = $();
@@ -336,11 +386,13 @@ async function scrapeLaCentralePagePuppeteer(browser, pageUrl) {
       const items = [];
       const seen = new Set();
 
-      const links = document.querySelectorAll('a[href*="auto-occasion-annonce-"]');
+      const links = document.querySelectorAll(
+        'a[href*="auto-occasion-annonce-"], a[href*="/annonce-voiture"], a[href*="/voiture-occasion"]'
+      );
       links.forEach(a => {
         const href = a.href || a.getAttribute('href');
         if (!href) return;
-        const idMatch = href.match(/annonce-(\w+)\.html/) || href.match(/annonce-(\w+)/);
+        const idMatch = href.match(/annonce-(\w+)\.html/) || href.match(/annonce-(\w+)/) || href.match(/voiture[^/]*-(\d{5,})/i);
         if (!idMatch || seen.has(idMatch[1])) return;
         seen.add(idMatch[1]);
 
@@ -404,10 +456,14 @@ async function fetchListingDetails(listingUrl, browser) {
 
   let html;
   if (isScrapeDoAvailable() && !browser) {
-    // Try cheap render=false first; fall back to render=true only if parse yields no useful data
+    // Try cheap render=false first; fall back to render=true if specs (color, doors) are missing.
+    // fragment_tracking_state (which carries color/doors) requires JS rendering — don't skip render=true
+    // just because price/jsonBrand/fullTitle are present from static JSON-LD.
     html = await fetchViaScrapeDo(listingUrl, { render: false, geoCode: 'fr' });
     const quickParse = parseDetailPage(html);
-    if (!quickParse?.price && !quickParse?.jsonBrand && !quickParse?.fullTitle) {
+    const hasBasicData = quickParse?.price || quickParse?.jsonBrand || quickParse?.fullTitle;
+    const hasSpecs = quickParse?.color != null && quickParse?.doors != null;
+    if (!hasBasicData || !hasSpecs) {
       html = await fetchViaScrapeDo(listingUrl, { render: true, customWait: 4000, geoCode: 'fr' });
     } else {
       return quickParse;
@@ -427,7 +483,9 @@ async function fetchListingDetails(listingUrl, browser) {
     // scrape.do not available, not browser — same render=false-first logic
     html = await fetchViaScrapeDo(listingUrl, { render: false, geoCode: 'fr' });
     const quickParse = parseDetailPage(html);
-    if (!quickParse?.price && !quickParse?.jsonBrand && !quickParse?.fullTitle) {
+    const hasBasicData = quickParse?.price || quickParse?.jsonBrand || quickParse?.fullTitle;
+    const hasSpecs = quickParse?.color != null && quickParse?.doors != null;
+    if (!hasBasicData || !hasSpecs) {
       html = await fetchViaScrapeDo(listingUrl, { render: true, customWait: 4000, geoCode: 'fr' });
     } else {
       return quickParse;
@@ -750,7 +808,7 @@ export function mapLaCentraleDataToListing(item) {
     images,
     specifications: item.specifications || {},
     description: item.description || null,
-    posted_date: new Date(),
+    posted_date: null,
     fuel_type: fuelType,
     transmission,
     steering: 'LHD',

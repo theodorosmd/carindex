@@ -34,7 +34,17 @@ export async function searchListingsService(filters, userPlan = null) {
     // Include specifications to extract mileage if mileage field is 0/null
     // Include price drop fields for badge display
     const selectColumns = 'id, brand, model, year, mileage, price, currency, location_city, location_region, location_country, fuel_type, transmission, steering, doors, color, url, images, posted_date, source_platform, status, specifications, price_drop_pct, price_drop_amount, last_price_drop_date';
-    
+
+    // Detect if any meaningful filter is active (used to decide count strategy)
+    const hasFilters = !!(
+      searchQuery || brand || model ||
+      min_price || max_price || min_year || max_year ||
+      min_mileage || max_mileage || country || fuel_type ||
+      transmission || steering || doors || seller_type ||
+      (color && color !== 'any') || keyword || publication_date ||
+      filters.version || filters.trim
+    );
+
     // Start building the query
     // Use 'planned' count for large tables (509K+ rows) - exact count triggers statement timeout
     const countOption = 'planned';
@@ -201,6 +211,26 @@ export async function searchListingsService(filters, userPlan = null) {
       throw error;
     }
 
+    // For unfiltered queries the Postgres planner estimate ('planned') is stale.
+    // Use listing_totals_cache (maintained by statement-level triggers) to get an
+    // accurate grand total without the risk of a COUNT(*) statement timeout.
+    let totalCount = count || 0;
+    if (!hasFilters) {
+      try {
+        const { data: cacheRow } = await supabase
+          .from('listing_totals_cache')
+          .select('active_count')
+          .eq('id', 1)
+          .single();
+        // active_count mirrors the listings WHERE status='active' — matches our query filter
+        if (cacheRow?.active_count) {
+          totalCount = Number(cacheRow.active_count);
+        }
+      } catch {
+        // fall back to planned estimate if cache unavailable
+      }
+    }
+
     // Batch fetch sources for all listings (same car on multiple scrapers)
     const listingIds = (listings || []).map((l) => l.id);
     let sourcesByListing = new Map();
@@ -272,7 +302,7 @@ export async function searchListingsService(filters, userPlan = null) {
     );
 
     return {
-      total: count || 0,
+      total: totalCount,
       limit,
       offset,
       listings: enrichedListings

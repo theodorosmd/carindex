@@ -42,7 +42,7 @@ const MAPPERS = {
 
 const MAX_SAFE_MILEAGE = 2_147_483_647; // PostgreSQL int4 max
 
-const AI_ENRICHABLE = new Set(['largus', 'leboncoin', 'marktplaats', '2ememain', 'finn', 'otomoto']);
+const AI_ENRICHABLE = new Set(['largus', 'leboncoin', 'marktplaats', '2ememain', 'finn', 'otomoto', 'autoscout24', 'mobile_de', 'mobile.de', 'blocket', 'bilweb', 'bytbil', 'gaspedaal', 'coches.net', 'subito']);
 
 /**
  * Apply post-processing normalizations common to all sources:
@@ -80,7 +80,7 @@ export async function processRawListings(options = {}) {
 
   let query = supabase
     .from('raw_listings')
-    .select('id, source_platform, source_listing_id, raw_payload')
+    .select('id, source_platform, source_listing_id, raw_payload, scraped_at, run_id')
     .is('processed_at', null)
     .limit(limit)
     .order('scraped_at', { ascending: true });
@@ -107,6 +107,15 @@ export async function processRawListings(options = {}) {
 
   const aiEnabled = !(process.env.DISABLE_AI_ENRICHMENT === 'true') && !!process.env.OPENAI_API_KEY;
 
+  // Compute run_start per run_id (earliest scraped_at in this batch per run)
+  const runStarts = {};
+  for (const row of rawRows) {
+    if (!row.run_id) continue;
+    if (!runStarts[row.run_id] || row.scraped_at < runStarts[row.run_id]) {
+      runStarts[row.run_id] = row.scraped_at;
+    }
+  }
+
   for (const row of rawRows) {
     try {
       const mapper = MAPPERS[row.source_platform];
@@ -126,6 +135,19 @@ export async function processRawListings(options = {}) {
 
       // Post-processing: mileage cap + canonical fuel/transmission
       listing = postProcess(listing);
+
+      // Compute posted_date based on site position (preserves site sort order)
+      if (!listing.posted_date) {
+        const sitePosition = row.raw_payload?.sitePosition;
+        const runStart = row.run_id ? runStarts[row.run_id] : null;
+        if (sitePosition && runStart) {
+          // position 1 (newest on site) = runStart, position N = runStart - (N-1)s
+          const offsetMs = (sitePosition - 1) * 1000;
+          listing.posted_date = new Date(new Date(runStart).getTime() - offsetMs);
+        } else {
+          listing.posted_date = row.scraped_at ? new Date(row.scraped_at) : new Date();
+        }
+      }
 
       listing = {
         ...listing,

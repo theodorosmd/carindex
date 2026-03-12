@@ -54,6 +54,7 @@ export async function runLargusScraper(searchUrls, options = {}, progressCallbac
 
         if (listings.length > 0) {
           // Stage 1: raw_listings (for debugging, re-processing)
+          listings.forEach((l, i) => { l.sitePosition = i + 1; });
           const { saved } = await saveRawListings(listings, SOURCE_PLATFORM);
           results.totalScraped += listings.length;
 
@@ -576,7 +577,7 @@ export function mapLargusDataToListing(item, sourcePlatform = 'largus') {
     images: Array.isArray(item.images) ? item.images : item.imageUrls ? [item.imageUrls].flat() : [],
     specifications,
     description,
-    posted_date: item.postedDate || item.date ? new Date(item.postedDate || item.date) : new Date(),
+    posted_date: item.postedDate || item.date ? new Date(item.postedDate || item.date) : null,
     fuel_type: fuelType,
     transmission: item.transmission || null,
     steering: 'LHD',
