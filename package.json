@@ -4,7 +4,7 @@
   "description": "Carindex - Automotive Market Intelligence Platform",
   "scripts": {
     "check-vps-activity": "cd backend && node src/scripts/check-vps-activity.js",
-    "postinstall": "cd frontend && npm install",
+    "postinstall": "node -e \"if (!process.env.RAILWAY_ENVIRONMENT && !process.env.CI) { require('child_process').execSync('npm install --prefix frontend', {stdio:'inherit'}) }\"",
     "dev:frontend": "cd frontend && npm run dev",
     "dev:backend": "cd backend && npm run dev",
     "dev:backend:api": "cd backend && npm run dev:backend:api",
