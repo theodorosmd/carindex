@@ -267,11 +267,14 @@ async function main() {
     }
 
     // Fetch batch of mobile_de listings missing power_hp
+    // Order by scraped_at DESC: process recently scraped (active) listings first,
+    // before old Django imports that are mostly expired (410 Gone)
     const { data: listings, error } = await supabase
       .from('listings')
       .select('id, source_listing_id, url')
       .eq('source_platform', 'mobile_de')
       .is('power_hp', null)
+      .order('scraped_at', { ascending: false, nullsLast: true })
       .range(offset, offset + PAGE_SIZE - 1);
 
     if (error) {
