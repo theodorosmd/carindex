@@ -133,7 +133,7 @@ export async function renderAdminDashboard() {
             <a href="#/evaluations" class="text-gray-600 hover:text-blue-600 transition text-base py-2">${tr('Evaluations', 'Évaluations')}</a>
             <a href="#/auction-margin" class="text-gray-600 hover:text-blue-600 transition text-base py-2">${tr('Calculator', 'Calculateur')}</a>
             <div class="pt-2 border-t border-gray-200">
-              <button onclick="window.logout()" class="w-full text-left px-0 py-2 text-gray-600 hover:text-blue-600 transition text-base">Logout</button>
+              <button onclick="window.logout()" class="w-full text-left px-0 py-2 text-gray-600 hover:text-blue-600 transition text-base">${tr('Logout', 'Déconnexion')}</button>
             </div>
           </div>
         </div>
@@ -145,14 +145,14 @@ export async function renderAdminDashboard() {
       <div class="container mx-auto px-3 sm:px-6 max-w-[100vw]">
         <!-- Page Header -->
         <div class="mb-6 sm:mb-8">
-          <h1 class="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Admin Dashboard</h1>
-          <p class="text-sm sm:text-base text-gray-600">Carindex platform management</p>
+          <h1 class="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">${tr('Admin Dashboard', 'Tableau de Bord Admin')}</h1>
+          <p class="text-sm sm:text-base text-gray-600">${tr('Carindex platform management', 'Gestion de la plateforme Carindex')}</p>
         </div>
 
         <!-- Loading State -->
         <div id="loading-state" class="text-center py-12">
           <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          <p class="mt-4 text-gray-600">Loading...</p>
+          <p class="mt-4 text-gray-600">${tr('Loading...', 'Chargement...')}</p>
         </div>
 
         <!-- Error State -->
@@ -167,50 +167,50 @@ export async function renderAdminDashboard() {
             <!-- Total Users -->
             <div class="bg-white rounded-lg sm:rounded-xl shadow-lg p-4 sm:p-6">
               <div class="flex items-center justify-between mb-3 sm:mb-4">
-                <h3 class="text-base sm:text-lg font-semibold text-gray-900">Users</h3>
+                <h3 class="text-base sm:text-lg font-semibold text-gray-900">${tr('Users', 'Utilisateurs')}</h3>
                 <svg class="w-6 h-6 sm:w-8 sm:h-8 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
                 </svg>
               </div>
               <div class="text-2xl sm:text-3xl font-bold text-gray-900" id="total-users">-</div>
-              <div class="text-xs sm:text-sm text-gray-500 mt-1 sm:mt-2" id="recent-users">New (7d): -</div>
+              <div class="text-xs sm:text-sm text-gray-500 mt-1 sm:mt-2" id="recent-users">${tr('New (7d):', 'Nouveaux (7j):')} -</div>
             </div>
 
             <!-- Total Listings -->
             <div class="bg-white rounded-lg sm:rounded-xl shadow-lg p-4 sm:p-6">
               <div class="flex items-center justify-between mb-3 sm:mb-4">
-                <h3 class="text-base sm:text-lg font-semibold text-gray-900">Listings</h3>
+                <h3 class="text-base sm:text-lg font-semibold text-gray-900">${tr('Listings', 'Annonces')}</h3>
                 <svg class="w-6 h-6 sm:w-8 sm:h-8 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                 </svg>
               </div>
               <div class="text-2xl sm:text-3xl font-bold text-gray-900" id="total-listings">-</div>
-              <div class="text-xs sm:text-sm text-gray-500 mt-1 sm:mt-2" id="active-listings">Active: -</div>
+              <div class="text-xs sm:text-sm text-gray-500 mt-1 sm:mt-2" id="active-listings">${tr('Active:', 'Actives:')} -</div>
               <div class="text-xs text-gray-400 mt-1" id="listings-cache-time"></div>
             </div>
 
             <!-- Total Alerts -->
             <div class="bg-white rounded-lg sm:rounded-xl shadow-lg p-4 sm:p-6">
               <div class="flex items-center justify-between mb-3 sm:mb-4">
-                <h3 class="text-base sm:text-lg font-semibold text-gray-900">Alerts</h3>
+                <h3 class="text-base sm:text-lg font-semibold text-gray-900">${tr('Alerts', 'Alertes')}</h3>
                 <svg class="w-6 h-6 sm:w-8 sm:h-8 text-purple-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
                 </svg>
               </div>
               <div class="text-2xl sm:text-3xl font-bold text-gray-900" id="total-alerts">-</div>
-              <div class="text-xs sm:text-sm text-gray-500 mt-1 sm:mt-2" id="active-alerts">Active: -</div>
+              <div class="text-xs sm:text-sm text-gray-500 mt-1 sm:mt-2" id="active-alerts">${tr('Active:', 'Actives:')} -</div>
             </div>
 
             <!-- Plan Distribution -->
             <div class="bg-white rounded-lg sm:rounded-xl shadow-lg p-4 sm:p-6">
               <div class="flex items-center justify-between mb-3 sm:mb-4">
-                <h3 class="text-base sm:text-lg font-semibold text-gray-900">Plans</h3>
+                <h3 class="text-base sm:text-lg font-semibold text-gray-900">${tr('Plans', 'Plans')}</h3>
                 <svg class="w-6 h-6 sm:w-8 sm:h-8 text-yellow-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
                 </svg>
               </div>
               <div class="text-xs sm:text-sm text-gray-600 space-y-1" id="plan-distribution">
-                <div>Loading...</div>
+                <div>${tr('Loading...', 'Chargement...')}</div>
               </div>
             </div>
           </div>
@@ -218,19 +218,19 @@ export async function renderAdminDashboard() {
           <!-- Scraper Dashboard -->
           <div class="bg-white rounded-lg sm:rounded-xl shadow-lg p-3 sm:p-6 mb-6 sm:mb-8 overflow-hidden">
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 sm:mb-6 gap-3">
-              <h2 class="text-base sm:text-xl font-bold text-gray-900">Scrapers & Crons Dashboard</h2>
+              <h2 class="text-base sm:text-xl font-bold text-gray-900">${tr('Scrapers & Crons Dashboard', 'Tableau de Bord Scrapers & Crons')}</h2>
               <div class="flex flex-row items-center gap-2">
-                <span id="scraper-dashboard-last-update" class="text-xs text-gray-500 hidden sm:inline">Auto refresh (30s)</span>
+                <span id="scraper-dashboard-last-update" class="text-xs text-gray-500 hidden sm:inline">${tr('Auto refresh (30s)', 'Actualisation auto (30s)')}</span>
                 <button onclick="loadScraperDashboard()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition text-sm font-medium whitespace-nowrap">
-                  🔄 Refresh
+                  🔄 ${tr('Refresh', 'Actualiser')}
                 </button>
               </div>
             </div>
-            <p class="text-xs sm:text-sm text-gray-600 mb-4 sm:mb-6">Overview of runs, crons, and statuses (OK / pending / error) per site</p>
+            <p class="text-xs sm:text-sm text-gray-600 mb-4 sm:mb-6">${tr('Overview of runs, crons, and statuses (OK / pending / error) per site', 'Vue d\'ensemble des runs, crons et statuts (OK / en attente / erreur) par site')}</p>
             <div id="scraper-dashboard-content" class="space-y-6">
               <div class="text-center py-8 text-gray-500">
                 <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                <p class="mt-2">Loading...</p>
+                <p class="mt-2">${tr('Loading...', 'Chargement...')}</p>
               </div>
             </div>
           </div>
@@ -239,17 +239,17 @@ export async function renderAdminDashboard() {
           <div class="bg-white rounded-lg sm:rounded-xl shadow-lg p-4 sm:p-6 mb-6 sm:mb-8">
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6 gap-2">
               <div>
-                <h2 class="text-lg sm:text-xl font-bold text-gray-900">Plan Usage</h2>
-                <p class="text-sm text-gray-500 mt-0.5">Users at ≥80% of their plan quota this month</p>
+                <h2 class="text-lg sm:text-xl font-bold text-gray-900">${tr('Plan Usage', 'Utilisation des Plans')}</h2>
+                <p class="text-sm text-gray-500 mt-0.5">${tr('Users at ≥80% of their plan quota this month', 'Utilisateurs à ≥80% de leur quota ce mois')}</p>
               </div>
               <button onclick="loadUsageMonitoring()" class="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium whitespace-nowrap">
-                Refresh
+                ${tr('Refresh', 'Actualiser')}
               </button>
             </div>
             <div id="usage-monitoring-content">
               <div class="text-center py-8 text-gray-500">
                 <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                <p class="mt-2">Loading...</p>
+                <p class="mt-2">${tr('Loading...', 'Chargement...')}</p>
               </div>
             </div>
           </div>
@@ -257,11 +257,11 @@ export async function renderAdminDashboard() {
           <!-- Users Management -->
           <div class="bg-white rounded-lg sm:rounded-xl shadow-lg p-4 sm:p-6 mb-6 sm:mb-8">
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6 gap-2">
-              <h2 class="text-lg sm:text-xl font-bold text-gray-900">User Management</h2>
+              <h2 class="text-lg sm:text-xl font-bold text-gray-900">${tr('User Management', 'Gestion des Utilisateurs')}</h2>
               <div class="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2 w-full sm:w-auto">
-                <input type="text" id="user-search" placeholder="Search for a user..." class="flex-1 sm:flex-none px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-0">
+                <input type="text" id="user-search" placeholder="${tr('Search for a user...', 'Rechercher un utilisateur...')}" class="flex-1 sm:flex-none px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-0">
                 <button id="refresh-users" class="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium whitespace-nowrap">
-                  Refresh
+                  ${tr('Refresh', 'Actualiser')}
                 </button>
               </div>
             </div>
@@ -272,17 +272,17 @@ export async function renderAdminDashboard() {
                     <thead class="bg-gray-50">
                       <tr>
                         <th class="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                        <th class="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Plan</th>
-                        <th class="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                        <th class="hidden sm:table-cell px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Signup</th>
-                        <th class="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        <th class="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${tr('Plan', 'Plan')}</th>
+                        <th class="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${tr('Role', 'Rôle')}</th>
+                        <th class="hidden sm:table-cell px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${tr('Signup', 'Inscription')}</th>
+                        <th class="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${tr('Actions', 'Actions')}</th>
                       </tr>
                     </thead>
                 <tbody id="users-table-body" class="bg-white divide-y divide-gray-200">
                   <tr>
                     <td colspan="5" class="px-3 sm:px-4 py-8 text-center text-gray-500">
                       <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                      <p class="mt-2">Loading...</p>
+                      <p class="mt-2">${tr('Loading...', 'Chargement...')}</p>
                     </td>
                   </tr>
                 </tbody>
@@ -299,69 +299,69 @@ export async function renderAdminDashboard() {
           <!-- Fastest Selling Models Widget -->
           <div class="bg-white rounded-lg sm:rounded-xl shadow-lg p-4 sm:p-6 mb-6 sm:mb-8">
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6 gap-2">
-              <h2 class="text-lg sm:text-xl font-bold text-gray-900">⚡ Modèles qui se Vendent le Plus Vite</h2>
+              <h2 class="text-lg sm:text-xl font-bold text-gray-900">⚡ ${tr('Fastest Selling Models', 'Modèles qui se Vendent le Plus Vite')}</h2>
               <div class="flex flex-wrap items-center gap-2">
                 <select id="fastest-models-country" onchange="loadFastestModelsWidget()" class="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="">All countries</option>
-                  <option value="FR">France</option>
-                  <option value="DE">Germany</option>
-                  <option value="SE">Sweden</option>
-                  <option value="NO">Norway</option>
-                  <option value="FI">Finland</option>
-                  <option value="DK">Denmark</option>
-                  <option value="NL">Netherlands</option>
-                  <option value="BE">Belgium</option>
-                  <option value="ES">Spain</option>
-                  <option value="IT">Italy</option>
-                  <option value="CH">Switzerland</option>
-                  <option value="PL">Poland</option>
+                  <option value="">${tr('All countries', 'Tous les pays')}</option>
+                  <option value="FR">${tr('France', 'France')}</option>
+                  <option value="DE">${tr('Germany', 'Allemagne')}</option>
+                  <option value="SE">${tr('Sweden', 'Suède')}</option>
+                  <option value="NO">${tr('Norway', 'Norvège')}</option>
+                  <option value="FI">${tr('Finland', 'Finlande')}</option>
+                  <option value="DK">${tr('Denmark', 'Danemark')}</option>
+                  <option value="NL">${tr('Netherlands', 'Pays-Bas')}</option>
+                  <option value="BE">${tr('Belgium', 'Belgique')}</option>
+                  <option value="ES">${tr('Spain', 'Espagne')}</option>
+                  <option value="IT">${tr('Italy', 'Italie')}</option>
+                  <option value="CH">${tr('Switzerland', 'Suisse')}</option>
+                  <option value="PL">${tr('Poland', 'Pologne')}</option>
                 </select>
                 <select id="fastest-models-period" onchange="loadFastestModelsWidget()" class="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="30">1 month</option>
-                  <option value="90">3 months</option>
-                  <option value="180">6 months</option>
-                  <option value="365">1 year</option>
+                  <option value="30">${tr('1 month', '1 mois')}</option>
+                  <option value="90">${tr('3 months', '3 mois')}</option>
+                  <option value="180">${tr('6 months', '6 mois')}</option>
+                  <option value="365">${tr('1 year', '1 an')}</option>
                 </select>
                 <a href="#/market-insights" class="text-blue-600 hover:text-blue-700 text-sm font-medium">
-                  View all insights →
+                  ${tr('View all insights →', 'Voir tous les insights →')}
                 </a>
               </div>
             </div>
             <div id="fastest-models-widget" class="space-y-3">
               <div class="text-center py-8 text-gray-500">
                 <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                <p class="mt-2">Loading...</p>
+                <p class="mt-2">${tr('Loading...', 'Chargement...')}</p>
               </div>
             </div>
           </div>
 
           <!-- Source Distribution -->
           <div class="bg-white rounded-lg sm:rounded-xl shadow-lg p-4 sm:p-6 mb-6 sm:mb-8">
-            <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-4 sm:mb-6">Listings by source</h2>
+            <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-4 sm:mb-6">${tr('Listings by source', 'Annonces par source')}</h2>
             <div id="source-distribution" class="space-y-3">
-              <div class="text-center py-8 text-gray-500">Loading...</div>
+              <div class="text-center py-8 text-gray-500">${tr('Loading...', 'Chargement...')}</div>
             </div>
           </div>
 
           <!-- Scraper Control -->
           <div class="bg-white rounded-lg sm:rounded-xl shadow-lg p-4 sm:p-6">
-            <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-4 sm:mb-6">Scraper Control</h2>
-            <p class="text-sm text-gray-600 mb-6">Manually trigger scraping to update data</p>
+            <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-4 sm:mb-6">${tr('Scraper Control', 'Contrôle des Scrapers')}</h2>
+            <p class="text-sm text-gray-600 mb-6">${tr('Manually trigger scraping to update data', 'Déclencher manuellement les scrapers pour mettre à jour les données')}</p>
             
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               <!-- AutoScout24 -->
               <div class="border border-gray-200 rounded-lg p-4">
                 <div class="flex items-center justify-between mb-3">
                   <h3 class="font-semibold text-gray-900">AutoScout24</h3>
-                  <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-medium">Germany</span>
+                  <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-medium">${tr('Germany', 'Allemagne')}</span>
                 </div>
-                <p class="text-xs text-gray-500 mb-3">Scrapes listings from AutoScout24</p>
+                <p class="text-xs text-gray-500 mb-3">${tr('Scrapes listings from AutoScout24', 'Scrape les annonces depuis AutoScout24')}</p>
                 <div class="space-y-2">
-                  <input type="url" id="autoscout-url" placeholder="AutoScout24 search URL" 
+                  <input type="url" id="autoscout-url" placeholder="${tr('AutoScout24 search URL', 'URL de recherche AutoScout24')}"
                          class="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <button onclick="triggerScraper('autoscout24', 'autoscout-url')" 
+                  <button onclick="triggerScraper('autoscout24', 'autoscout-url')"
                           class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium">
-                    Run scraper
+                    ${tr('Run scraper', 'Lancer le scraper')}
                   </button>
                 </div>
                 <div id="autoscout-status" class="mt-3 text-xs"></div>
@@ -371,15 +371,15 @@ export async function renderAdminDashboard() {
               <div class="border border-gray-200 rounded-lg p-4">
                 <div class="flex items-center justify-between mb-3">
                   <h3 class="font-semibold text-gray-900">mobile.de</h3>
-                  <span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium">Germany</span>
+                  <span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium">${tr('Germany', 'Allemagne')}</span>
                 </div>
-                <p class="text-xs text-gray-500 mb-3">Scrapes listings from mobile.de</p>
+                <p class="text-xs text-gray-500 mb-3">${tr('Scrapes listings from mobile.de', 'Scrape les annonces depuis mobile.de')}</p>
                 <div class="space-y-2">
-                  <input type="url" id="mobilede-url" placeholder="mobile.de search URL" 
+                  <input type="url" id="mobilede-url" placeholder="${tr('mobile.de search URL', 'URL de recherche mobile.de')}"
                          class="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
-                  <button onclick="triggerScraper('mobile.de', 'mobilede-url')" 
+                  <button onclick="triggerScraper('mobile.de', 'mobilede-url')"
                           class="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium">
-                    Run scraper
+                    ${tr('Run scraper', 'Lancer le scraper')}
                   </button>
                 </div>
                 <div id="mobilede-status" class="mt-3 text-xs"></div>
@@ -389,15 +389,15 @@ export async function renderAdminDashboard() {
               <div class="border border-gray-200 rounded-lg p-4">
                 <div class="flex items-center justify-between mb-3">
                   <h3 class="font-semibold text-gray-900">LeBonCoin</h3>
-                  <span class="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-medium">France</span>
+                  <span class="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-medium">${tr('France', 'France')}</span>
                 </div>
-                <p class="text-xs text-gray-500 mb-3">Scrapes listings from LeBonCoin</p>
+                <p class="text-xs text-gray-500 mb-3">${tr('Scrapes listings from LeBonCoin', 'Scrape les annonces depuis LeBonCoin')}</p>
                 <div class="space-y-2">
-                  <input type="url" id="leboncoin-url" placeholder="LeBonCoin search URL" 
+                  <input type="url" id="leboncoin-url" placeholder="${tr('LeBonCoin search URL', 'URL de recherche LeBonCoin')}"
                          class="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500">
-                  <button onclick="triggerScraper('leboncoin', 'leboncoin-url')" 
+                  <button onclick="triggerScraper('leboncoin', 'leboncoin-url')"
                           class="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm font-medium">
-                    Run scraper
+                    ${tr('Run scraper', 'Lancer le scraper')}
                   </button>
                 </div>
                 <div id="leboncoin-status" class="mt-3 text-xs"></div>
@@ -407,16 +407,16 @@ export async function renderAdminDashboard() {
               <div class="border border-gray-200 rounded-lg p-4">
                 <div class="flex items-center justify-between mb-3">
                   <h3 class="font-semibold text-gray-900">L'Argus</h3>
-                  <span class="px-2 py-1 bg-amber-100 text-amber-700 rounded text-xs font-medium">France</span>
+                  <span class="px-2 py-1 bg-amber-100 text-amber-700 rounded text-xs font-medium">${tr('France', 'France')}</span>
                 </div>
-                <p class="text-xs text-gray-500 mb-3">Scrapes listings from occasion.largus.fr</p>
+                <p class="text-xs text-gray-500 mb-3">${tr('Scrapes listings from occasion.largus.fr', 'Scrape les annonces depuis occasion.largus.fr')}</p>
                 <div class="space-y-2">
-                  <input type="url" id="largus-url" placeholder="https://occasion.largus.fr/auto/" 
-                         value="https://occasion.largus.fr/auto/" 
+                  <input type="url" id="largus-url" placeholder="https://occasion.largus.fr/auto/"
+                         value="https://occasion.largus.fr/auto/"
                          class="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500">
-                  <button onclick="triggerScraper('largus', 'largus-url')" 
+                  <button onclick="triggerScraper('largus', 'largus-url')"
                           class="w-full px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition text-sm font-medium">
-                    Run scraper
+                    ${tr('Run scraper', 'Lancer le scraper')}
                   </button>
                 </div>
                 <div id="largus-status" class="mt-3 text-xs"></div>
@@ -426,16 +426,16 @@ export async function renderAdminDashboard() {
               <div class="border border-gray-200 rounded-lg p-4">
                 <div class="flex items-center justify-between mb-3">
                   <h3 class="font-semibold text-gray-900">Gaspedaal.nl</h3>
-                  <span class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-medium">Netherlands</span>
+                  <span class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-medium">${tr('Netherlands', 'Pays-Bas')}</span>
                 </div>
-                <p class="text-xs text-gray-500 mb-3">Scrape les annonces depuis gaspedaal.nl</p>
+                <p class="text-xs text-gray-500 mb-3">${tr('Scrapes listings from gaspedaal.nl', 'Scrape les annonces depuis gaspedaal.nl')}</p>
                 <div class="space-y-2">
-                  <input type="url" id="gaspedaal-url" placeholder="https://www.gaspedaal.nl/zoeken?srt=df-a" 
-                         value="https://www.gaspedaal.nl/zoeken?srt=df-a" 
+                  <input type="url" id="gaspedaal-url" placeholder="https://www.gaspedaal.nl/zoeken?srt=df-a"
+                         value="https://www.gaspedaal.nl/zoeken?srt=df-a"
                          class="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500">
-                  <button onclick="triggerScraper('gaspedaal', 'gaspedaal-url')" 
+                  <button onclick="triggerScraper('gaspedaal', 'gaspedaal-url')"
                           class="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm font-medium">
-                    Run scraper
+                    ${tr('Run scraper', 'Lancer le scraper')}
                   </button>
                 </div>
                 <div id="gaspedaal-status" class="mt-3 text-xs"></div>
@@ -445,16 +445,16 @@ export async function renderAdminDashboard() {
               <div class="border border-gray-200 rounded-lg p-4">
                 <div class="flex items-center justify-between mb-3">
                   <h3 class="font-semibold text-gray-900">Marktplaats.nl</h3>
-                  <span class="px-2 py-1 bg-orange-100 text-orange-700 rounded text-xs font-medium">Netherlands</span>
+                  <span class="px-2 py-1 bg-orange-100 text-orange-700 rounded text-xs font-medium">${tr('Netherlands', 'Pays-Bas')}</span>
                 </div>
-                <p class="text-xs text-gray-500 mb-3">Scrape les annonces auto Te koop depuis marktplaats.nl</p>
+                <p class="text-xs text-gray-500 mb-3">${tr('Scrapes car listings from marktplaats.nl', 'Scrape les annonces auto depuis marktplaats.nl')}</p>
                 <div class="space-y-2">
-                  <input type="url" id="marktplaats-url" placeholder="https://www.marktplaats.nl/l/auto-s/#f:10882" 
-                         value="https://www.marktplaats.nl/l/auto-s/#f:10882" 
+                  <input type="url" id="marktplaats-url" placeholder="https://www.marktplaats.nl/l/auto-s/#f:10882"
+                         value="https://www.marktplaats.nl/l/auto-s/#f:10882"
                          class="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500">
-                  <button onclick="triggerScraper('marktplaats', 'marktplaats-url')" 
+                  <button onclick="triggerScraper('marktplaats', 'marktplaats-url')"
                           class="w-full px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition text-sm font-medium">
-                    Run scraper
+                    ${tr('Run scraper', 'Lancer le scraper')}
                   </button>
                 </div>
                 <div id="marktplaats-status" class="mt-3 text-xs"></div>
@@ -463,9 +463,9 @@ export async function renderAdminDashboard() {
 
             <!-- Scraping History -->
             <div class="mt-6 border-t border-gray-200 pt-6">
-              <h3 class="font-semibold text-gray-900 mb-4">Historique des scrapings</h3>
+              <h3 class="font-semibold text-gray-900 mb-4">${tr('Scraping history', 'Historique des scrapings')}</h3>
               <div id="scraping-history" class="space-y-2 max-h-64 overflow-y-auto">
-                <div class="text-sm text-gray-500 text-center py-4">Aucun scraping récent</div>
+                <div class="text-sm text-gray-500 text-center py-4">${tr('No recent scraping', 'Aucun scraping récent')}</div>
               </div>
             </div>
           </div>

@@ -1,5 +1,5 @@
 import { getAuthToken } from '../main.js';
-import { tr, renderLanguageToggle, formatCurrency, capitalize } from '../utils/i18n.js';
+import { tr, renderLanguageToggle, attachLanguageToggle, formatCurrency, capitalize } from '../utils/i18n.js';
 
 const API_BASE = '/api/v1';
 const COUNTRY_NAMES = {
@@ -48,12 +48,12 @@ export function renderArbitrage() {
             <a href="#/" class="flex items-center space-x-2 shrink-0">
               <span class="text-lg sm:text-2xl font-bold text-blue-600">Carindex</span>
             </a>
-            <h1 class="text-base sm:text-xl font-semibold text-gray-900 truncate">Vehicle Arbitrage</h1>
+            <h1 class="text-base sm:text-xl font-semibold text-gray-900 truncate">${tr('Vehicle Arbitrage', 'Arbitrage Véhicule')}</h1>
           </div>
           <nav class="flex items-center space-x-2 sm:space-x-4 shrink-0 text-sm sm:text-base">
             ${renderLanguageToggle()}
-            <a href="#/dashboard" class="text-gray-600 hover:text-blue-600 whitespace-nowrap">Dashboard</a>
-            <a href="#/search" class="text-gray-600 hover:text-blue-600 whitespace-nowrap">Search</a>
+            <a href="#/dashboard" class="text-gray-600 hover:text-blue-600 whitespace-nowrap">${tr('Dashboard', 'Dashboard')}</a>
+            <a href="#/search" class="text-gray-600 hover:text-blue-600 whitespace-nowrap">${tr('Search', 'Rechercher')}</a>
           </nav>
         </div>
       </div>
@@ -62,38 +62,38 @@ export function renderArbitrage() {
     <div class="container mx-auto px-3 sm:px-6 py-4 sm:py-8 max-w-[100vw] overflow-x-hidden">
       <!-- Opportunités auto-détectées -->
       <div class="bg-white rounded-xl shadow-lg p-3 sm:p-6 mb-6 overflow-hidden">
-        <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-2 sm:mb-4">🔄 Auto-detected opportunities</h2>
-        <p class="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">Updated daily (4h). Buy in cheaper country, sell in more expensive country.</p>
-        <div id="auto-opp-result" class="overflow-x-auto -mx-2 sm:mx-0 rounded-lg border border-gray-200" style="-webkit-overflow-scrolling: touch">Loading...</div>
+        <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-2 sm:mb-4">🔄 ${tr('Auto-detected opportunities', 'Opportunités auto-détectées')}</h2>
+        <p class="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">${tr('Updated daily (4h). Buy in cheaper country, sell in more expensive country.', 'Mis à jour quotidiennement (4h). Achetez dans le pays moins cher, vendez dans le pays plus cher.')}</p>
+        <div id="auto-opp-result" class="overflow-x-auto -mx-2 sm:mx-0 rounded-lg border border-gray-200" style="-webkit-overflow-scrolling: touch">${tr('Loading...', 'Chargement...')}</div>
       </div>
 
       <!-- Simulateur coûts d'import -->
       <div class="bg-white rounded-xl shadow-lg p-3 sm:p-6 mb-6 overflow-hidden">
-        <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">💰 Import cost simulator</h2>
+        <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">💰 ${tr('Import cost simulator', 'Simulateur de coûts d\'import')}</h2>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mb-4">
           <div>
-            <label class="block text-sm font-medium text-gray-600 mb-1">Purchase price (€)</label>
+            <label class="block text-sm font-medium text-gray-600 mb-1">${tr('Purchase price (€)', 'Prix d\'achat (€)')}</label>
             <input type="number" id="sim-price" placeholder="25000" class="w-full px-3 py-2 border rounded-lg">
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-600 mb-1">Buy country</label>
+            <label class="block text-sm font-medium text-gray-600 mb-1">${tr('Buy country', 'Pays d\'achat')}</label>
             <select id="sim-buy" class="w-full px-3 py-2 border rounded-lg">
               ${Object.entries(COUNTRY_NAMES).map(([c, n]) => `<option value="${c}">${n}</option>`).join('')}
             </select>
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-600 mb-1">Sell country</label>
+            <label class="block text-sm font-medium text-gray-600 mb-1">${tr('Sell country', 'Pays de vente')}</label>
             <select id="sim-sell" class="w-full px-3 py-2 border rounded-lg">
               ${Object.entries(COUNTRY_NAMES).map(([c, n]) => `<option value="${c}">${n}</option>`).join('')}
             </select>
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-600 mb-1">Repairs (€)</label>
-            <input type="number" id="sim-reconditioning" placeholder="500" min="0" class="w-full px-3 py-2 border rounded-lg" title="Estimated repairs/reconditioning before resale">
+            <label class="block text-sm font-medium text-gray-600 mb-1">${tr('Repairs (€)', 'Réparations (€)')}</label>
+            <input type="number" id="sim-reconditioning" placeholder="500" min="0" class="w-full px-3 py-2 border rounded-lg" title="${tr('Estimated repairs/reconditioning before resale', 'Réparations/remise en état estimées avant revente')}">
           </div>
           <div class="flex items-end">
             <button onclick="window.calcImportCosts()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-              Calculate
+              ${tr('Calculate', 'Calculer')}
             </button>
           </div>
         </div>
@@ -102,73 +102,77 @@ export function renderArbitrage() {
 
       <!-- Comparaison prix par pays -->
       <div class="bg-white rounded-xl shadow-lg p-3 sm:p-6 mb-6 overflow-hidden">
-        <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">📊 Price comparison by country</h2>
+        <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">📊 ${tr('Price comparison by country', 'Comparaison de prix par pays')}</h2>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">
-          <input type="text" id="comp-brand" placeholder="Brand (e.g. bmw)" class="px-3 py-2 border rounded-lg">
-          <input type="text" id="comp-model" placeholder="Model (e.g. x3)" class="px-3 py-2 border rounded-lg">
-          <input type="number" id="comp-year" placeholder="Year (optional)" class="px-3 py-2 border rounded-lg" min="2000">
-          <button onclick="window.loadPriceComparison()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Compare</button>
+          <input type="text" id="comp-brand" placeholder="${tr('Brand (e.g. bmw)', 'Marque (ex. bmw)')}" class="px-3 py-2 border rounded-lg">
+          <input type="text" id="comp-model" placeholder="${tr('Model (e.g. x3)', 'Modèle (ex. x3)')}" class="px-3 py-2 border rounded-lg">
+          <input type="number" id="comp-year" placeholder="${tr('Year (optional)', 'Année (optionnel)')}" class="px-3 py-2 border rounded-lg" min="2000">
+          <button onclick="window.loadPriceComparison()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">${tr('Compare', 'Comparer')}</button>
         </div>
         <div id="comp-result" class="overflow-x-auto"></div>
       </div>
 
       <!-- Opportunités d'arbitrage -->
       <div class="bg-white rounded-xl shadow-lg p-3 sm:p-6 mb-6 overflow-hidden">
-        <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">🎯 Arbitrage opportunities</h2>
-        <p class="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">Country pairs where you can buy cheaper and sell higher (margin after costs)</p>
+        <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">🎯 ${tr('Arbitrage opportunities', 'Opportunités d\'arbitrage')}</h2>
+        <p class="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">${tr('Country pairs where you can buy cheaper and sell higher (margin after costs)', 'Paires de pays où acheter moins cher et vendre plus cher (marge après coûts)')}</p>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">
-          <input type="text" id="opp-brand" placeholder="Brand" class="px-3 py-2 border rounded-lg">
-          <input type="text" id="opp-model" placeholder="Model" class="px-3 py-2 border rounded-lg">
-          <input type="number" id="opp-year" placeholder="Year" class="px-3 py-2 border rounded-lg" min="2000">
-          <button onclick="window.loadOpportunities()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">Search</button>
+          <input type="text" id="opp-brand" placeholder="${tr('Brand', 'Marque')}" class="px-3 py-2 border rounded-lg">
+          <input type="text" id="opp-model" placeholder="${tr('Model', 'Modèle')}" class="px-3 py-2 border rounded-lg">
+          <input type="number" id="opp-year" placeholder="${tr('Year', 'Année')}" class="px-3 py-2 border rounded-lg" min="2000">
+          <button onclick="window.loadOpportunities()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">${tr('Search', 'Rechercher')}</button>
         </div>
         <div id="opp-result" class="overflow-x-auto"></div>
       </div>
 
       <!-- Annonces avec opportunité -->
       <div id="list-listings-section" class="bg-white rounded-xl shadow-lg p-3 sm:p-6 mb-6 overflow-hidden">
-        <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">🚗 Listings with opportunity</h2>
-        <p class="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">Real listings below the median of the target sell country</p>
+        <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">🚗 ${tr('Listings with opportunity', 'Annonces avec opportunité')}</h2>
+        <p class="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">${tr('Real listings below the median of the target sell country', 'Annonces réelles sous la médiane du pays de vente cible')}</p>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 mb-4 flex-wrap">
-          <input type="text" id="list-brand" placeholder="Brand" class="px-3 py-2 border rounded-lg">
-          <input type="text" id="list-model" placeholder="Model" class="px-3 py-2 border rounded-lg">
-          <input type="number" id="list-year" placeholder="Year" class="px-3 py-2 border rounded-lg">
+          <input type="text" id="list-brand" placeholder="${tr('Brand', 'Marque')}" class="px-3 py-2 border rounded-lg">
+          <input type="text" id="list-model" placeholder="${tr('Model', 'Modèle')}" class="px-3 py-2 border rounded-lg">
+          <input type="number" id="list-year" placeholder="${tr('Year', 'Année')}" class="px-3 py-2 border rounded-lg">
           <select id="list-buy" class="px-3 py-2 border rounded-lg">
-            <option value="">Buy...</option>
+            <option value="">${tr('Buy...', 'Acheter...')}</option>
             ${Object.entries(COUNTRY_NAMES).map(([c, n]) => `<option value="${c}">${n}</option>`).join('')}
           </select>
           <select id="list-sell" class="px-3 py-2 border rounded-lg">
-            <option value="">Sell...</option>
+            <option value="">${tr('Sell...', 'Vendre...')}</option>
             ${Object.entries(COUNTRY_NAMES).map(([c, n]) => `<option value="${c}">${n}</option>`).join('')}
           </select>
-          <button onclick="window.loadListingsArbitrage()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 col-span-full md:col-span-1">Search</button>
+          <button onclick="window.loadListingsArbitrage()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 col-span-full md:col-span-1">${tr('Search', 'Rechercher')}</button>
         </div>
         <div id="list-result" class="overflow-x-auto"></div>
       </div>
 
       <!-- Alerte arbitrage -->
       <div class="bg-white rounded-xl shadow-lg p-3 sm:p-6 mb-6 overflow-hidden">
-        <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">🔔 Arbitrage alert</h2>
-        <p class="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">Get an email when a profitable listing appears (buy in X, sell in Y)</p>
+        <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">🔔 ${tr('Arbitrage alert', 'Alerte arbitrage')}</h2>
+        <p class="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">${tr('Get an email when a profitable listing appears (buy in X, sell in Y)', 'Recevez un email quand une annonce profitable apparaît (acheter en X, vendre en Y)')}</p>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 mb-4">
-          <input type="text" id="alert-name" placeholder="Alert name" class="px-3 py-2 border rounded-lg">
-          <input type="text" id="alert-brand" placeholder="Brand" class="px-3 py-2 border rounded-lg">
-          <input type="text" id="alert-model" placeholder="Model" class="px-3 py-2 border rounded-lg">
+          <input type="text" id="alert-name" placeholder="${tr('Alert name', 'Nom de l\'alerte')}" class="px-3 py-2 border rounded-lg">
+          <input type="text" id="alert-brand" placeholder="${tr('Brand', 'Marque')}" class="px-3 py-2 border rounded-lg">
+          <input type="text" id="alert-model" placeholder="${tr('Model', 'Modèle')}" class="px-3 py-2 border rounded-lg">
           <select id="alert-buy" class="px-3 py-2 border rounded-lg">
-            <option value="">Buy...</option>
+            <option value="">${tr('Buy...', 'Acheter...')}</option>
             ${Object.entries(COUNTRY_NAMES).map(([c, n]) => `<option value="${c}">${n}</option>`).join('')}
           </select>
           <select id="alert-sell" class="px-3 py-2 border rounded-lg">
-            <option value="">Sell...</option>
+            <option value="">${tr('Sell...', 'Vendre...')}</option>
             ${Object.entries(COUNTRY_NAMES).map(([c, n]) => `<option value="${c}">${n}</option>`).join('')}
           </select>
-          <input type="number" id="alert-margin" placeholder="Min margin (€)" value="2000" class="px-3 py-2 border rounded-lg">
-          <button onclick="window.createArbitrageAlert()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Create alert</button>
+          <input type="number" id="alert-margin" placeholder="${tr('Min margin (€)', 'Marge min (€)')}" value="2000" class="px-3 py-2 border rounded-lg">
+          <button onclick="window.createArbitrageAlert()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">${tr('Create alert', 'Créer une alerte')}</button>
         </div>
         <div id="alert-result" class="text-sm"></div>
       </div>
     </div>
   `;
+
+  attachLanguageToggle(() => {
+    window.location.reload();
+  });
 
   window.loadAutoDetected = async () => {
     const el = document.getElementById('auto-opp-result');

@@ -1,5 +1,5 @@
 import './styles/globals.css'
-import { getLang } from './utils/i18n.js'
+import { getLang, tr } from './utils/i18n.js'
 import { renderLandingPage } from './pages/landing'
 import { renderListingsSearch } from './pages/listings-search'
 import { renderListingDetails } from './pages/listing-details'
@@ -156,9 +156,9 @@ function route() {
       document.body.innerHTML = `
         <div class="min-h-screen bg-gray-50 flex items-center justify-center">
           <div class="text-center">
-            <h1 class="text-2xl font-bold text-red-600 mb-4">Loading error</h1>
+            <h1 class="text-2xl font-bold text-red-600 mb-4">${tr('Loading error', 'Erreur de chargement')}</h1>
             <p class="text-gray-600 mb-4">${error.message}</p>
-            <a href="#/dashboard" class="text-blue-600 hover:underline">Back to dashboard</a>
+            <a href="#/dashboard" class="text-blue-600 hover:underline">${tr('Back to dashboard', 'Retour au dashboard')}</a>
           </div>
         </div>
       `
@@ -180,9 +180,9 @@ function route() {
       document.body.innerHTML = `
         <div class="min-h-screen bg-gray-50 flex items-center justify-center">
           <div class="text-center">
-            <h1 class="text-2xl font-bold text-red-600 mb-4">Loading error</h1>
+            <h1 class="text-2xl font-bold text-red-600 mb-4">${tr('Loading error', 'Erreur de chargement')}</h1>
             <p class="text-gray-600 mb-4">${error.message}</p>
-            <a href="#/dashboard" class="text-blue-600 hover:underline">Back to dashboard</a>
+            <a href="#/dashboard" class="text-blue-600 hover:underline">${tr('Back to dashboard', 'Retour au dashboard')}</a>
           </div>
         </div>
       `
@@ -282,9 +282,9 @@ function showGlobalError(message) {
     app.innerHTML = `
       <div class="min-h-screen bg-gray-50 flex items-center justify-center p-8">
         <div class="max-w-md text-center">
-          <h1 class="text-xl font-bold text-red-600 mb-4">Something went wrong</h1>
+          <h1 class="text-xl font-bold text-red-600 mb-4">${tr('Something went wrong', 'Une erreur est survenue')}</h1>
           <p class="text-gray-600 mb-4">${message}</p>
-          <a href="/" class="text-blue-600 hover:underline">Back to home</a>
+          <a href="/" class="text-blue-600 hover:underline">${tr('Back to home', 'Retour à l\'accueil')}</a>
         </div>
       </div>
     `

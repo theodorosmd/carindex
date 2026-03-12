@@ -75,7 +75,7 @@ export function renderEvaluationsManager() {
         <div id="evaluation-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
           <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div class="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
-              <h2 class="text-2xl font-bold text-gray-900" id="modal-title">Evaluation details</h2>
+              <h2 class="text-2xl font-bold text-gray-900" id="modal-title">${tr('Evaluation details', 'Détails de l\'évaluation')}</h2>
               <button onclick="closeEvaluationModal()" class="text-gray-400 hover:text-gray-600 transition">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
@@ -94,9 +94,9 @@ export function renderEvaluationsManager() {
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
           </svg>
           <h3 class="mt-4 text-lg font-medium text-gray-900">${tr('No evaluations', 'Aucune évaluation')}</h3>
-          <p class="mt-2 text-sm text-gray-500">You haven't saved any evaluation yet.</p>
+          <p class="mt-2 text-sm text-gray-500">${tr('You haven\'t saved any evaluation yet.', 'Vous n\'avez pas encore sauvegardé d\'évaluation.')}</p>
           <a href="#/auction-margin" class="mt-4 inline-block px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition">
-            Create an evaluation
+            ${tr('Create an evaluation', 'Créer une évaluation')}
           </a>
         </div>
       </main>

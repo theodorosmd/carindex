@@ -108,7 +108,7 @@ async function loadListingDetails(listingId) {
     console.error('Error loading listing:', error)
     loadingState.classList.add('hidden')
     errorState.classList.remove('hidden')
-    errorMessage.textContent = error.message || 'An error occurred while loading the listing.'
+    errorMessage.textContent = error.message || tr('An error occurred while loading the listing.', 'Une erreur est survenue lors du chargement de l\'annonce.')
   }
 }
 
