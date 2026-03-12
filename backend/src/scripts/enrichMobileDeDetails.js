@@ -230,8 +230,8 @@ async function fetchAndParseDetail(numericId) {
   let html;
   try {
     // render=false is cheaper and sufficient: __INITIAL_STATE__ is server-side rendered
-    // retries: 0 → fail-fast on 410/404 (permanent "Gone") without 25s retry waits
-    html = await fetchViaScrapeDo(url, { render: false, geoCode: 'de', superProxy: true, retries: 0 });
+    // retries: 1 → single attempt, no retry (avoids 25s wait on 410 Gone)
+    html = await fetchViaScrapeDo(url, { render: false, geoCode: 'de', superProxy: true, retries: 1 });
   } catch (err) {
     if (err.message?.includes('410') || err.message?.includes('404')) {
       return { gone: true };
