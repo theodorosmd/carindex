@@ -89,7 +89,16 @@ export const DEFAULT_SCRAPER_URLS = {
     'https://bilweb.se/sok'
   ],
   bytbil: [
-    'https://www.bytbil.com/'
+    'https://www.bytbil.com/bil/volkswagen',
+    'https://www.bytbil.com/bil/volvo',
+    'https://www.bytbil.com/bil/bmw',
+    'https://www.bytbil.com/bil/audi',
+    'https://www.bytbil.com/bil/toyota',
+    'https://www.bytbil.com/bil/mercedes-benz',
+    'https://www.bytbil.com/bil/ford',
+    'https://www.bytbil.com/bil/kia',
+    'https://www.bytbil.com/bil/skoda',
+    'https://www.bytbil.com/bil/hyundai',
   ],
   finn: [
     'https://www.finn.no/mobility/search/car?registration_class=1'

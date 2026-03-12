@@ -134,30 +134,40 @@ async function scrapeBytbilUrl(browser, url, maxPages = 10) {
       return scrapeBytbilSearchViaScraper(url, maxPages);
     }
 
-    await page.waitForSelector('.car-card, .vehicle-card, .listing-item', { timeout: 10000 }).catch(() => {
+    await page.waitForSelector('.result-thumbs-item', { timeout: 10000 }).catch(() => {
       logger.warn('No listings found on Bytbil page', { url });
     });
 
     const pageListings = await page.evaluate(() => {
       const items = [];
-      const cards = document.querySelectorAll('.car-card, .vehicle-card, .listing-item');
+      const cards = document.querySelectorAll('.result-thumbs-item');
 
       cards.forEach(card => {
         try {
-          const link = card.querySelector('a[href*="/bil/"], a[href*="/car/"]');
-          const title = card.querySelector('.title, .car-title, h2, h3')?.textContent?.trim();
-          const priceText = card.querySelector('.price, .car-price, [data-price]')?.textContent?.trim();
-          const location = card.querySelector('.location, .dealer-location, .city')?.textContent?.trim();
-          const img = card.querySelector('img');
-          const image = img?.src || img?.getAttribute('data-src');
+          const link = card.querySelector('a.js-link-target');
+          const title = card.querySelector('h3')?.textContent?.trim();
+          const priceText = card.querySelector('.car-price-main')?.textContent?.trim();
+          const imageDiv = card.querySelector('.car-image');
+          const image = imageDiv?.getAttribute('data-background') || null;
+          const modelId = card.querySelector('[data-model-id]')?.getAttribute('data-model-id');
+
+          // car-info: "2025 | 45 000 mil | Upplands Väsby"
+          const carInfoText = card.querySelector('.car-info')?.textContent || '';
+          const parts = carInfoText.split('|').map(s => s.trim()).filter(Boolean);
+          const year = parts[0] ? parseInt(parts[0]) : null;
+          const mileageText = parts[1] || '';
+          const location = parts[2] || parts[1] || '';
 
           if (link && title) {
+            const href = link.getAttribute('href');
             items.push({
-              url: link.href.startsWith('http') ? link.href : `https://www.bytbil.com${link.href}`,
+              url: href?.startsWith('http') ? href : `https://www.bytbil.com${href}`,
               title,
               priceText,
               location,
-              image
+              image,
+              source_listing_id: modelId,
+              specifications: { miltal: mileageText, år: year ? String(year) : null }
             });
           }
         } catch (err) {
@@ -168,21 +178,7 @@ async function scrapeBytbilUrl(browser, url, maxPages = 10) {
       return items;
     });
 
-    // Fetch details for each listing
-    for (const item of pageListings) {
-      try {
-        const details = await fetchBytbilListingDetails(browser, item.url);
-        if (details) {
-          listings.push({
-            ...item,
-            ...details
-          });
-        }
-      } catch (error) {
-        logger.warn('Error fetching Bytbil listing details', { url: item.url, error: error.message });
-        listings.push(item);
-      }
-    }
+    listings.push(...pageListings);
 
   } catch (error) {
     logger.error('Error scraping Bytbil URL', { url, error: error.message });
@@ -250,12 +246,8 @@ async function fetchBytbilListingDetails(browser, listingUrl) {
 async function scrapeBytbilSearchViaScraper(url, maxPages) {
   if (!isScrapeDoAvailable()) return [];
   try {
-    let html = await fetchViaScrapeDo(url, { render: false, geoCode: 'se' });
-    const $check = cheerio.load(html);
-    const hasListings = $check('.car-card, .vehicle-card, .listing-item').length > 0;
-    if (!hasListings && html?.length > 500) {
-      html = await fetchViaScrapeDo(url, { render: true, customWait: 4000, geoCode: 'se' });
-    }
+    // Bytbil is an SPA — always requires render:true
+    const html = await fetchViaScrapeDo(url, { render: true, customWait: 3000, geoCode: 'se' });
     const total = parseSiteTotalFromHtml(html);
     if (total != null && total > 0) {
       await supabase
@@ -269,20 +261,36 @@ async function scrapeBytbilSearchViaScraper(url, maxPages) {
     const $ = cheerio.load(html);
     const items = [];
 
-    $('.car-card, .vehicle-card, .listing-item').each((_, card) => {
-      const link = $(card).find('a[href*="/bil/"], a[href*="/car/"]');
-      const title = $(card).find('.title, .car-title, h2, h3').first().text().trim();
-      const priceText = $(card).find('.price, .car-price, [data-price]').first().text().trim();
-      const location = $(card).find('.location, .dealer-location, .city').first().text().trim();
-      const image = $(card).find('img').first().attr('src') || $(card).find('img').first().attr('data-src');
+    $('.result-thumbs-item').each((_, card) => {
+      const $card = $(card);
+      const link = $card.find('a.js-link-target').first();
+      const href = link.attr('href');
+      if (!href) return;
+      const cardUrl = href.startsWith('http') ? href : `https://www.bytbil.com${href}`;
 
-      if (link.length && title) {
-        const href = link.attr('href');
-        items.push({
-          url: href?.startsWith('http') ? href : `https://www.bytbil.com${href}`,
-          title, priceText, location, image,
-        });
-      }
+      const title = $card.find('h3').first().text().trim();
+      if (!title) return;
+
+      const priceText = $card.find('.car-price-main').first().text().trim();
+      const image = $card.find('.car-image').attr('data-background') || null;
+      const modelId = $card.find('[data-model-id]').first().attr('data-model-id');
+
+      // car-info: "2025 | 45 000 mil | Upplands Väsby"
+      const carInfoText = $card.find('.car-info').first().text();
+      const parts = carInfoText.split('|').map(s => s.trim()).filter(Boolean);
+      const year = parts[0] ? parseInt(parts[0]) : null;
+      const mileageText = parts[1] || '';
+      const location = parts[2] || '';
+
+      items.push({
+        url: cardUrl,
+        title,
+        priceText,
+        location,
+        image,
+        source_listing_id: modelId,
+        specifications: { miltal: mileageText, år: year ? String(year) : null }
+      });
     });
     return items;
   } catch (err) {
