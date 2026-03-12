@@ -85,6 +85,7 @@ async function scrapeLaCentraleStreaming(baseUrl, maxPages, onPageDone) {
   let browser = null;
   const pageConcurrency = parseInt(process.env.LACENTRALE_CONCURRENT_PAGES || '5', 10) || 1;
 
+  let sitePosition = 0;
   try {
     for (let start = 1; start <= maxPages; start += pageConcurrency) {
       const pageNums = [];
@@ -125,6 +126,7 @@ async function scrapeLaCentraleStreaming(baseUrl, maxPages, onPageDone) {
         if (listings.length === 0) continue;
         logger.info('La Centrale search page parsed', { page, found: listings.length });
         const enriched = await enrichListingsWithDetails(listings, usePuppeteer ? browser : null);
+        enriched.forEach(l => { l.sitePosition = ++sitePosition; });
         await onPageDone(enriched, page);
       }
       if (batchResults[0]?.listings?.length === 0) break;
@@ -800,7 +802,7 @@ export function mapLaCentraleDataToListing(item) {
     images,
     specifications: item.specifications || {},
     description: item.description || null,
-    posted_date: new Date(),
+    posted_date: null,
     fuel_type: fuelType,
     transmission,
     steering: 'LHD',

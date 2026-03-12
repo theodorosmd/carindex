@@ -381,7 +381,7 @@ export function mapBytbilDataToListing(item) {
     images: (item.images && item.images.length > 0) ? item.images : (item.image ? [item.image] : []),
     specifications: item.specifications || {},
     description: item.description,
-    posted_date: new Date().toISOString()
+    posted_date: null
   };
 }
 

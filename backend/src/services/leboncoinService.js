@@ -77,6 +77,7 @@ async function scrapeLeBonCoinStreaming(baseUrl, maxPages, onPageDone) {
   const delayBetweenPages = parseInt(process.env.LEBONCOIN_DELAY_PAGES_MS || '400', 10) || 300;
   let consecutiveZeroBatches = 0;
   const STOP_AFTER = parseInt(process.env.LEBONCOIN_WATERMARK_STOP || '2', 10);
+  let sitePosition = 0;
 
   for (let start = 1; start <= maxPages; start += pageConcurrency) {
     const pageNums = [];
@@ -116,6 +117,7 @@ async function scrapeLeBonCoinStreaming(baseUrl, maxPages, onPageDone) {
       if (listings.length === 0) continue;
 
       logger.info('LeBonCoin search page parsed', { page, found: listings.length });
+      listings.forEach(l => { l.sitePosition = ++sitePosition; });
       const result = await onPageDone(listings, page);
       batchAdded += result?.added ?? 0;
     }
@@ -335,6 +337,10 @@ export async function fetchListingDetails(listingUrl) {
         if (owner.type === 'pro' || owner.type === 'professional') data.sellerType = 'professional';
         else if (owner.type === 'private') data.sellerType = 'private';
         if (owner.name) data.sellerName = owner.name;
+
+        if (ad.first_publication_date) {
+          data.firstPublicationDate = ad.first_publication_date;
+        }
 
         if (ad.attributes) {
           for (const attr of ad.attributes) {
@@ -580,7 +586,7 @@ export function mapLeBonCoinDataToListing(item) {
     images: Array.isArray(item.images) ? item.images : [],
     specifications: specs,
     description: item.description || null,
-    posted_date: new Date(),
+    posted_date: item.firstPublicationDate ? new Date(item.firstPublicationDate) : null,
     fuel_type: fuelType,
     transmission,
     steering: 'LHD',

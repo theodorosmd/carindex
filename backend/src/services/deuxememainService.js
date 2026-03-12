@@ -73,6 +73,7 @@ export async function run2ememainScraper(searchUrls, options = {}, progressCallb
  * Pagination: ?page=N (before hash) — e.g. .../l/autos/?page=2#f:10882
  */
 async function scrape2ememainStreaming(baseUrl, maxPages, onPageDone) {
+  let sitePosition = 0;
   for (let page = 1; page <= maxPages; page++) {
     const pageUrl = buildPageUrl(baseUrl, page);
     logger.info('2ememain fetching search page', { page, url: pageUrl });
@@ -110,6 +111,7 @@ async function scrape2ememainStreaming(baseUrl, maxPages, onPageDone) {
       await new Promise(r => setTimeout(r, 800 + Math.random() * 700));
     }
 
+    enriched.forEach(l => { l.sitePosition = ++sitePosition; });
     await onPageDone(enriched, page);
     await new Promise(r => setTimeout(r, 2000 + Math.random() * 2000));
   }
@@ -395,7 +397,7 @@ export function map2ememainDataToListing(item) {
     images,
     specifications: {},
     description: item.description || null,
-    posted_date: new Date(),
+    posted_date: null,
     fuel_type: fuelType,
     transmission,
     steering: 'LHD',

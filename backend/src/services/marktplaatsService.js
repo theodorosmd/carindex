@@ -96,6 +96,7 @@ async function scrapeMarktplaatsStreaming(browser, baseUrl, maxPages, preferScra
       });
     }
 
+    let sitePosition = 0;
     for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
       const pageUrl = buildPageUrl(baseUrl, pageNum);
 
@@ -158,6 +159,7 @@ async function scrapeMarktplaatsStreaming(browser, baseUrl, maxPages, preferScra
 
       logger.info('Marktplaats search page parsed', { page: pageNum, found: listings.length, usedFallback });
 
+      listings.forEach(l => { l.sitePosition = ++sitePosition; });
       await onPageDone(listings, pageNum);
       await new Promise(r => setTimeout(r, 2500 + Math.random() * 2000));
     }
@@ -445,7 +447,7 @@ export function mapMarktplaatsDataToListing(item) {
     images: Array.isArray(item.images) ? item.images : [],
     specifications: {},
     description: null,
-    posted_date: new Date(),
+    posted_date: null,
     fuel_type: fuelType,
     transmission,
     steering: 'LHD',

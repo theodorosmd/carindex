@@ -34,6 +34,7 @@ export async function runBlocketScraper(searchUrls, options = {}, progressCallba
       for (const searchUrl of urls) {
         try {
           let shouldStop = false;
+          let sitePosition = 0;
           for (let start = 1; start <= maxPages && !shouldStop; start += pageConcurrency) {
             const pageNums = [];
             for (let i = 0; i < pageConcurrency && start + i <= maxPages; i++) pageNums.push(start + i);
@@ -46,6 +47,7 @@ export async function runBlocketScraper(searchUrls, options = {}, progressCallba
             for (const { pageNum, scraped } of pageResults) {
               if (scraped.length === 0 && pageNum === start) { shouldStop = true; break; }
               if (scraped.length === 0) continue;
+              scraped.forEach(l => { l.sitePosition = ++sitePosition; });
               const enriched = [];
               for (let i = 0; i < scraped.length; i += detailConcurrency) {
                 const chunk = scraped.slice(i, i + detailConcurrency);
@@ -164,6 +166,7 @@ async function scrapeBlocketUrlStreaming(browser, url, maxPages, onPageDone) {
     });
 
     let currentPage = 1;
+    let sitePosition = 0;
 
     while (currentPage <= maxPages) {
       const pageUrl = currentPage === 1
@@ -196,6 +199,7 @@ async function scrapeBlocketUrlStreaming(browser, url, maxPages, onPageDone) {
             enriched.push(details ? { ...item, ...details } : item);
           } catch { enriched.push(item); }
         }
+        enriched.forEach(l => { l.sitePosition = ++sitePosition; });
         await onPageDone(enriched, currentPage);
         currentPage++;
         continue;
@@ -265,6 +269,7 @@ async function scrapeBlocketUrlStreaming(browser, url, maxPages, onPageDone) {
       logger.info('Blocket.se page scraped', { page: currentPage, found: valid.length });
 
       // Save this page's listings to DB immediately
+      enriched.forEach(l => { l.sitePosition = ++sitePosition; });
       await onPageDone(enriched, currentPage);
 
       if (valid.length === 0) break;
@@ -616,7 +621,7 @@ export function mapBlocketDataToListing(item) {
     images: (item.images && item.images.length > 0) ? item.images : (item.image ? [item.image] : []),
     specifications: specs,
     description: item.description || null,
-    posted_date: new Date(),
+    posted_date: null,
     fuel_type: fuelType,
     transmission,
     steering: 'LHD',
