@@ -531,7 +531,7 @@ export function mapMobileDeDataToListing(item, sourcePlatform = 'mobile.de') {
     transmission,
     color: item.color || item.farbe || null,
     doors: parseInt(item.doors || item.tueren, 10) || null,
-    power_hp: parseInt(item.power || item.ps, 10) || null,
+    power_hp: parseInt(item.power || item.ps || item.power_hp, 10) || null,
     displacement: (() => {
       const v = item.displacement ?? item.engine_size ?? item.hubraum;
       if (v == null) return null;
@@ -544,4 +544,218 @@ export function mapMobileDeDataToListing(item, sourcePlatform = 'mobile.de') {
     category: item.category || item.vehicle_type || item.fahrzeugtyp || null,
     drivetrain
   };
+}
+
+// ── Detail page fetching & parsing ───────────────────────────────────────────
+
+/**
+ * Parse vehicle specs from __INITIAL_STATE__ on a mobile.de detail page.
+ * Detail pages have a different state shape than search result pages.
+ * @param {string} html
+ * @returns {Object|null}
+ */
+function parseDetailFromInitialState(html) {
+  const idx = html.indexOf('window.__INITIAL_STATE__');
+  if (idx === -1) return null;
+
+  const start = html.indexOf('=', idx) + 1;
+  const end = html.indexOf('window.__PUBLIC_CONFIG__', start);
+  const jsonStr = (end > start ? html.slice(start, end) : html.slice(start))
+    .trim().replace(/;\s*$/, '');
+  if (!jsonStr || jsonStr.length < 100) return null;
+
+  try {
+    const state = JSON.parse(jsonStr);
+    const vehicle = (
+      state?.vehicleDetails?.vehicle ||
+      state?.ad?.vehicle ||
+      state?.listing?.vehicle ||
+      state?.page?.vehicle ||
+      state?.detail?.vehicle ||
+      state?.carDetail?.car ||
+      state?.search?.srp?.data?.selectedVehicle ||
+      null
+    );
+
+    const attrs = vehicle?.attributes || vehicle?.attrs || vehicle || {};
+    const tech = attrs?.technicalData || attrs?.tech || attrs;
+    const result = {};
+
+    const ps = parseInt(tech?.leistung || tech?.ps || tech?.power || attrs?.ps || attrs?.leistung, 10);
+    const kw = parseInt(tech?.kw || attrs?.kw, 10);
+    if (!isNaN(ps) && ps > 0) result.power_hp = ps;
+    else if (!isNaN(kw) && kw > 0) result.power_hp = Math.round(kw * 1.341);
+
+    const fuelRaw = (tech?.kraftstoff || attrs?.kraftstoff || attrs?.fuel || attrs?.fuelType || '').toLowerCase();
+    if (fuelRaw) {
+      const fuelMap = {
+        diesel: 'DIESEL', benzin: 'PETROL', petrol: 'PETROL', elektro: 'ELECTRIC',
+        electric: 'ELECTRIC', hybrid: 'HYBRID', lpg: 'LPG', 'plug-in-hybrid': 'HYBRID',
+        'mild-hybrid': 'HYBRID', wasserstoff: 'HYDROGEN', erdgas: 'CNG',
+      };
+      result.fuel_type = fuelMap[fuelRaw] || fuelRaw.toUpperCase();
+    }
+
+    const colorRaw = tech?.farbe || attrs?.farbe || attrs?.color || attrs?.colour;
+    if (colorRaw) result.color = String(colorRaw).toLowerCase();
+
+    const doors = parseInt(tech?.tueren || attrs?.tueren || attrs?.doors || attrs?.numberOfDoors, 10);
+    if (!isNaN(doors) && doors > 0 && doors <= 10) result.doors = doors;
+
+    const hubraum = tech?.hubraum || attrs?.hubraum || attrs?.displacement || attrs?.engineSize;
+    if (hubraum) {
+      const val = parseFloat(String(hubraum).replace(/[^\d.]/g, ''));
+      if (!isNaN(val) && val > 0) {
+        result.displacement = val < 20 ? Math.round(val * 1000) : Math.round(val);
+      }
+    }
+
+    const getriebeRaw = (tech?.getriebe || attrs?.getriebe || attrs?.transmission || '').toLowerCase();
+    if (getriebeRaw) {
+      if (getriebeRaw.includes('automatik') || getriebeRaw.includes('automatic') || getriebeRaw.includes('dsg')) {
+        result.transmission = 'AUTOMATIC';
+      } else if (getriebeRaw.includes('schalt') || getriebeRaw.includes('manual')) {
+        result.transmission = 'MANUAL';
+      }
+    }
+
+    const antriebRaw = (tech?.antrieb || attrs?.antrieb || attrs?.drivetrain || '').toLowerCase();
+    if (antriebRaw) {
+      if (antriebRaw.includes('allrad') || antriebRaw.includes('4x4') || antriebRaw.includes('awd')) {
+        result.drivetrain = 'awd';
+      } else if (antriebRaw.includes('front') || antriebRaw.includes('vorder')) {
+        result.drivetrain = 'fwd';
+      } else if (antriebRaw.includes('hinter') || antriebRaw.includes('rear') || antriebRaw.includes('rwd')) {
+        result.drivetrain = 'rwd';
+      }
+    }
+
+    const desc = vehicle?.description || vehicle?.freitext || vehicle?.text || attrs?.freitext;
+    if (desc && typeof desc === 'string' && desc.length > 10) result.description = desc;
+
+    const catRaw = (vehicle?.category || vehicle?.aufbau || attrs?.aufbau || attrs?.category || '').toLowerCase();
+    if (catRaw) {
+      const catMap = {
+        limousine: 'sedan', kombi: 'estate', 'station wagon': 'estate', suv: 'suv',
+        cabrio: 'convertible', cabriolet: 'convertible', coupe: 'coupe', coupé: 'coupe',
+        kleinwagen: 'hatchback', van: 'van', minivan: 'van', pick: 'pickup', transporter: 'van',
+      };
+      for (const [key, val] of Object.entries(catMap)) {
+        if (catRaw.includes(key)) { result.category = val; break; }
+      }
+    }
+
+    return Object.keys(result).length > 0 ? result : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fallback: parse vehicle specs from a mobile.de detail page HTML via cheerio.
+ * @param {string} html
+ * @returns {Object|null}
+ */
+function parseDetailFromHtml(html) {
+  const $ = cheerio.load(html);
+  const result = {};
+
+  $('script[type="application/ld+json"]').each((_, el) => {
+    try {
+      const ld = JSON.parse($(el).html() || '');
+      if (ld?.vehicleEngine?.enginePower?.value) {
+        const hp = parseFloat(ld.vehicleEngine.enginePower.value);
+        if (!isNaN(hp)) result.power_hp = Math.round(hp);
+      }
+      if (ld?.fuelType) result.fuel_type = String(ld.fuelType).toUpperCase();
+      if (ld?.color) result.color = String(ld.color).toLowerCase();
+      if (ld?.numberOfDoors) result.doors = parseInt(ld.numberOfDoors, 10) || null;
+      if (ld?.description) result.description = ld.description;
+    } catch {}
+  });
+
+  $('dl dt, [class*="spec"] [class*="label"], [class*="attribute"] [class*="key"]').each((_, el) => {
+    const label = $(el).text().toLowerCase().trim();
+    const valueEl = $(el).next('dd, [class*="value"]');
+    const value = valueEl.text().trim();
+    if (!value) return;
+
+    if (label.includes('leistung') || label.includes('ps') || label.includes('power')) {
+      const m = value.match(/(\d+)\s*(ps|kw|hp)/i);
+      if (m) {
+        const n = parseInt(m[1], 10);
+        result.power_hp = m[2].toLowerCase() === 'kw' ? Math.round(n * 1.341) : n;
+      }
+    }
+    if (label.includes('kraftstoff') || label.includes('fuel')) {
+      const fuelMap = { diesel: 'DIESEL', benzin: 'PETROL', elektro: 'ELECTRIC', hybrid: 'HYBRID', lpg: 'LPG', erdgas: 'CNG' };
+      const raw = value.toLowerCase();
+      for (const [k, v] of Object.entries(fuelMap)) {
+        if (raw.includes(k)) { result.fuel_type = v; break; }
+      }
+    }
+    if (label.includes('farbe') || label.includes('color')) result.color = value.toLowerCase();
+    if (label.includes('türen') || label.includes('doors')) {
+      const d = parseInt(value, 10);
+      if (!isNaN(d) && d > 0 && d <= 10) result.doors = d;
+    }
+    if (label.includes('hubraum') || label.includes('displacement')) {
+      const m = value.match(/([\d.,]+)\s*(ccm|cc|l|liter)/i);
+      if (m) {
+        const n = parseFloat(m[1].replace(',', '.'));
+        result.displacement = m[2].toLowerCase().startsWith('l') ? Math.round(n * 1000) : Math.round(n);
+      }
+    }
+    if (label.includes('getriebe') || label.includes('transmission')) {
+      if (/automatik|automatic|dsg/i.test(value)) result.transmission = 'AUTOMATIC';
+      else if (/schalt|manual/i.test(value)) result.transmission = 'MANUAL';
+    }
+    if (label.includes('antrieb') || label.includes('drive')) {
+      if (/allrad|4x4|awd/i.test(value)) result.drivetrain = 'awd';
+      else if (/front|vorder/i.test(value)) result.drivetrain = 'fwd';
+      else if (/hinter|rear|rwd/i.test(value)) result.drivetrain = 'rwd';
+    }
+  });
+
+  if (!result.description) {
+    const descEl = $('[class*="description"], [class*="freitext"], [class*="remarks"]').first();
+    const desc = descEl.text().trim();
+    if (desc && desc.length > 20) result.description = desc.slice(0, 2000);
+  }
+
+  return Object.keys(result).length > 0 ? result : null;
+}
+
+/**
+ * Fetch and parse a mobile.de detail page to extract vehicle specs.
+ * Uses scrape.do render=false (faster/cheaper — __INITIAL_STATE__ is SSR).
+ * Falls back to HTML parsing if __INITIAL_STATE__ yields fewer than 2 fields.
+ *
+ * @param {string} url - Full mobile.de detail page URL
+ * @returns {Promise<{gone?: boolean, power_hp?: number, fuel_type?: string, color?: string,
+ *   doors?: number, displacement?: number, transmission?: string, drivetrain?: string,
+ *   description?: string, category?: string}>}
+ */
+export async function fetchAndParseDetailPage(url) {
+  let html;
+  try {
+    html = await fetchViaScrapeDo(url, {
+      render: false,
+      geoCode: 'de',
+      superProxy: true,
+      retries: 1,     // single attempt — 410 Gone should not be retried
+      timeout: 20000, // 20s cap (avoid 90s default hangs)
+    });
+  } catch (err) {
+    if (err.message?.includes('410') || err.message?.includes('404')) {
+      return { gone: true };
+    }
+    throw err;
+  }
+
+  let specs = parseDetailFromInitialState(html);
+  if (!specs || Object.keys(specs).length < 2) {
+    specs = parseDetailFromHtml(html);
+  }
+  return specs || {};
 }

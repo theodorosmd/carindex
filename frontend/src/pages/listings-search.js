@@ -1744,6 +1744,9 @@ function initializeSearch() {
       if (page === 1 && typeof loadFacets === 'function') {
         loadFacets().catch(err => console.warn('Facets refresh failed:', err))
       }
+      // Clear count while loading so stale value isn't shown during skeleton phase
+      if (resultsCount) resultsCount.textContent = tr('Searching...', 'Recherche...')
+
       // Show skeleton loaders
       resultsContainer.innerHTML = Array.from({ length: 8 }, () => `
         <div class="listing-card bg-white rounded-xl border border-zinc-100 overflow-hidden animate-pulse">

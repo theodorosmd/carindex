@@ -270,6 +270,7 @@ function initializeSearch() {
   // Search listings
   async function searchListings(filters, page = 1) {
     try {
+      if (resultsCount) resultsCount.textContent = tr('Searching...', 'Recherche...')
       resultsContainer.innerHTML = '<div class="col-span-full text-center py-12"><div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div><p class="mt-4 text-gray-600">Recherche en cours...</p></div>'
       
       // Build query params

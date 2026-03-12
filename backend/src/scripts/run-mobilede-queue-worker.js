@@ -13,6 +13,7 @@
 import { acquireNext, releaseItem } from '../services/mobileDeQueueService.js';
 import { saveRawListings } from '../services/rawIngestService.js';
 import { processRawListings } from '../services/rawListingsProcessorService.js';
+import { fetchAndParseDetailPage } from '../services/mobiledeService.js';
 import { logger } from '../utils/logger.js';
 
 const SOURCE_PLATFORM = 'mobile_de';
@@ -46,7 +47,25 @@ async function processOne(workerId) {
   if (!item) return null;
 
   try {
-    const rawItem = buildRawItemFromQueue(item);
+    // Fetch detail page specs (power, fuel, color, doors, displacement, transmission, drivetrain, description)
+    // This is the primary mechanism for getting rich specs on new mobile_de listings.
+    // render=false + 20s timeout (set inside fetchAndParseDetailPage) — single attempt, no retry on 410.
+    let specs = {};
+    try {
+      specs = await fetchAndParseDetailPage(item.url);
+    } catch (detailErr) {
+      // Non-fatal: detail page fetch failing shouldn't block the listing from being saved
+      logger.debug('mobilede-queue: detail page fetch failed (non-fatal)', { url: item.url, error: detailErr.message });
+    }
+
+    // 410 Gone — listing no longer exists on mobile.de
+    if (specs?.gone) {
+      await releaseItem(item.id, 'gone');
+      return { processed: 1, saved: 0, gone: true };
+    }
+
+    // Merge detail specs into raw item (power_hp → read by mapper as item.power_hp)
+    const rawItem = { ...buildRawItemFromQueue(item), ...specs };
     const { saved } = await saveRawListings([rawItem], SOURCE_PLATFORM);
     if (saved === 0) {
       logger.warn('mobilede-queue: raw save returned 0', { url: item.url });
@@ -62,7 +81,7 @@ async function processOne(workerId) {
     logger.error('mobilede-queue: process failed', { url: item.url, error: err.message });
 
     // 410 = listing deleted on mobile.de — mark as gone, never retry
-    const is410 = err.message?.includes('scrape.do 410') || err.message?.includes('410:');
+    const is410 = err.message?.includes('410') || err.message?.includes('Gone');
     if (is410) {
       await releaseItem(item.id, 'gone', { lastError: err.message });
       return { processed: 1, saved: 0, gone: true };
