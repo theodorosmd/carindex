@@ -274,7 +274,7 @@ async function main() {
       .select('id, source_listing_id, url')
       .eq('source_platform', 'mobile_de')
       .is('power_hp', null)
-      .order('scraped_at', { ascending: false, nullsLast: true })
+      .order('created_at', { ascending: false, nullsLast: true })
       .range(offset, offset + PAGE_SIZE - 1);
 
     if (error) {
