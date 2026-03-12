@@ -161,7 +161,9 @@ export function attachLanguageToggle(onChange) {
     select.addEventListener('change', (event) => {
       const nextLang = event.target.value
       setLang(nextLang)
-      if (typeof onChange === 'function') onChange(nextLang)
+      // Dispatch hashchange to re-render via the SPA router — more reliable than
+      // window.location.reload() which doesn't fully re-render in Vite dev mode
+      window.dispatchEvent(new Event('hashchange'))
     })
   })
 }
