@@ -256,6 +256,25 @@ function parseSearchPage(html) {
       }
     }
 
+    // Extract images from the card
+    const imgUrls = [];
+    block.find('img').each((_, imgEl) => {
+      const src = $(imgEl).attr('src') || $(imgEl).attr('data-src') || $(imgEl).attr('data-lazy-src');
+      if (src && /^https?:\/\//.test(src) && !src.includes('data:image') && src.length > 20) {
+        // Filter out tracking pixels, icons, logos (typically very small or non-CDN URLs)
+        const notIcon = !src.match(/icon|logo|sprite|pixel|track|avatar|flag|star|badge/i);
+        if (notIcon) imgUrls.push(src);
+      }
+    });
+    // Also check <picture><source srcset="..."> for responsive images
+    block.find('source[srcset]').each((_, srcEl) => {
+      const srcset = $(srcEl).attr('srcset') || '';
+      const first = srcset.split(',')[0].trim().split(/\s+/)[0];
+      if (first && /^https?:\/\//.test(first) && !imgUrls.includes(first)) {
+        imgUrls.push(first);
+      }
+    });
+
     listings.push({
       url: fullUrl,
       id,
@@ -272,7 +291,7 @@ function parseSearchPage(html) {
       doors,
       locationCity,
       dealerName,
-      images: []
+      images: imgUrls
     });
   });
 
