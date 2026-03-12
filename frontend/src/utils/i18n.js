@@ -153,11 +153,15 @@ export function renderLanguageToggle() {
 }
 
 export function attachLanguageToggle(onChange) {
-  const select = document.getElementById('lang-toggle')
-  if (!select) return
-  select.addEventListener('change', (event) => {
-    const nextLang = event.target.value
-    setLang(nextLang)
-    if (typeof onChange === 'function') onChange(nextLang)
+  // querySelectorAll handles multiple #lang-toggle elements (desktop nav + mobile menu)
+  // getElementById only finds the first, leaving mobile menu toggle without a listener
+  const selects = document.querySelectorAll('[id="lang-toggle"]')
+  if (!selects || selects.length === 0) return
+  selects.forEach(select => {
+    select.addEventListener('change', (event) => {
+      const nextLang = event.target.value
+      setLang(nextLang)
+      if (typeof onChange === 'function') onChange(nextLang)
+    })
   })
 }
