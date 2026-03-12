@@ -72,45 +72,57 @@ export async function acquireNext(workerId) {
   const now = new Date().toISOString();
   const lockUntil = new Date(Date.now() + LOCK_DURATION_MINUTES * 60 * 1000).toISOString();
 
-  const { data: rows, error } = await supabase
-    .from('mobile_de_fetch_queue')
-    .select('id, url, title, year, price, mileage, images, status, retry_count')
-  .in('status', ['pending', 'retry'])
-    .or(`next_retry_at.is.null,next_retry_at.lte.${now}`)
-    .or(`locked_until.is.null,locked_until.lt.${now}`)
-    .order('created_at', { ascending: true })
-    .limit(1);
+  // Retry loop: handles race conditions when multiple workers target the same item.
+  // All workers order by created_at ASC — when many items share the same timestamp
+  // (batch imports), all workers SELECT the same row, only 1 UPDATE wins, others
+  // return null and falsely see the queue as "empty".
+  // Fix: SELECT 50 candidates, pick randomly → collisions become rare.
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const { data: rows, error } = await supabase
+      .from('mobile_de_fetch_queue')
+      .select('id, url, title, year, price, mileage, images, status, retry_count')
+      .in('status', ['pending', 'retry'])
+      .or(`next_retry_at.is.null,next_retry_at.lte.${now}`)
+      .or(`locked_until.is.null,locked_until.lt.${now}`)
+      .order('created_at', { ascending: true })
+      .limit(50);
 
-  if (error || !rows || rows.length === 0) return null;
+    if (error || !rows || rows.length === 0) return null; // Truly empty
 
-  const row = rows[0];
+    // Pick randomly from candidates so workers don't all target the same row
+    const row = rows[Math.floor(Math.random() * rows.length)];
 
-  const { data: updated, error: updateError } = await supabase
-    .from('mobile_de_fetch_queue')
-    .update({
-      status: 'processing',
-      last_attempt_at: now,
-      locked_until: lockUntil,
-      locked_by: workerId,
-      updated_at: now
-    })
-    .eq('id', row.id)
-    .eq('status', row.status)
-    .select('id, url, title, year, price, mileage, images, retry_count')
-    .maybeSingle();
+    const { data: updated, error: updateError } = await supabase
+      .from('mobile_de_fetch_queue')
+      .update({
+        status: 'processing',
+        last_attempt_at: now,
+        locked_until: lockUntil,
+        locked_by: workerId,
+        updated_at: now
+      })
+      .eq('id', row.id)
+      .eq('status', row.status)
+      .select('id, url, title, year, price, mileage, images, retry_count')
+      .maybeSingle();
 
-  if (updateError || !updated) return null;
+    if (!updateError && updated) {
+      // Success — return acquired item
+      return {
+        id: updated.id,
+        url: updated.url,
+        title: updated.title,
+        year: updated.year,
+        price: updated.price,
+        mileage: updated.mileage,
+        images: updated.images || [],
+        retry_count: updated.retry_count || 0,
+      };
+    }
+    // Another worker grabbed this item — retry immediately with a different random pick
+  }
 
-  return {
-    id: updated.id,
-    url: updated.url,
-    title: updated.title,
-    year: updated.year,
-    price: updated.price,
-    mileage: updated.mileage,
-    images: updated.images || [],
-    retry_count: updated.retry_count || 0
-  };
+  return null; // Couldn't acquire after 10 attempts (extreme contention)
 }
 
 /**
