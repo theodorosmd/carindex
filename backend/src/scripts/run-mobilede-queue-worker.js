@@ -21,14 +21,22 @@ const DELAY_MS = parseInt(process.env.MOBILEDE_QUEUE_DELAY_MS || '1500', 10);
 const MAX_RETRIES = 3;
 
 function buildRawItemFromQueue(queueItem) {
-  const idMatch = queueItem.url?.match(/\/details\/(\d+)/);
+  // Extract numeric ID from either /details/XXXX or ?id=XXXX (search result URLs)
+  const idMatch = queueItem.url?.match(/[?&]id=(\d+)/) || queueItem.url?.match(/\/details\/(\d+)/);
   const sourceId = idMatch ? idMatch[1] : queueItem.url;
+
+  // Normalize URL to clean detail URL — prevents varchar(255) overflow from search params
+  // e.g. "...details.html?id=447492475&isSearchRequest=true&mak=40&pageNumber=51&..." → "...?id=447492475"
+  const cleanUrl = sourceId && /^\d+$/.test(sourceId)
+    ? `https://suchen.mobile.de/fahrzeuge/details.html?id=${sourceId}`
+    : queueItem.url;
+
   const parts = (queueItem.title || '').trim().split(/\s+/);
   const brand = parts[0] || null;
   const model = parts.slice(1).join(' ') || null;
 
   return {
-    url: queueItem.url,
+    url: cleanUrl,
     id: sourceId,
     ad_id: sourceId,
     brand,
