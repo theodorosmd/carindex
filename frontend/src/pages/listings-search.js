@@ -48,6 +48,7 @@ export function renderListingsSearch() {
                 `
               } else {
                 return `
+                  ${renderLanguageToggle()}
                   <a href="#/login" class="text-sm text-zinc-500 hover:text-zinc-900 transition">${tr('Login', 'Connexion')}</a>
                   <a href="#/signup" class="px-3 py-1.5 bg-zinc-900 text-white text-sm rounded-lg hover:bg-zinc-700 transition">${tr('Sign up', 'Inscription')}</a>
                 `
@@ -90,6 +91,7 @@ export function renderListingsSearch() {
               `
             } else {
               return `
+                <div class="px-3 py-2">${renderLanguageToggle()}</div>
                 <a href="#/login" class="block px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50 rounded-lg transition">${tr('Login', 'Connexion')}</a>
                 <a href="#/signup" class="block px-3 py-2 bg-zinc-900 text-white text-sm rounded-lg text-center">${tr('Sign up', 'Inscription')}</a>
               `
