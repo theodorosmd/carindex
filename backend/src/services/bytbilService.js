@@ -339,28 +339,51 @@ export async function fetchBytbilDetailViaScraper(listingUrl) {
  * Map Bytbil data to listings format and save to database
  */
 export function mapBytbilDataToListing(item) {
+  const specs = item.specifications || {};
+
   // Extract brand and model from title
   const titleParts = (item.title || '').split(' ');
   const brand = titleParts[0] || null;
   const model = titleParts.slice(1, 3).join(' ') || null;
 
-  // Extract year
+  // Extract year — from title first, then specs (Swedish key 'år')
   const yearMatch = (item.title || '').match(/\b(19|20)\d{2}\b/);
-  const year = yearMatch ? parseInt(yearMatch[0]) : (item.specifications?.['år'] || item.specifications?.['year']);
+  const year = yearMatch
+    ? parseInt(yearMatch[0])
+    : parseInt(specs['år'] || specs['year'] || specs['modellår'] || '0', 10) || null;
 
-  // Extract price
+  // Extract price — strip whitespace and non-digit chars (handles "149 900 kr")
   const priceText = (item.priceText || '').replace(/\s/g, '').replace(/[^\d]/g, '');
   const price = priceText ? parseFloat(priceText) : null;
 
-  // Extract mileage
-  const mileageText = item.specifications?.['miltal'] || item.specifications?.['mileage'] || '';
-  const mileage = mileageText ? parseInt(mileageText.replace(/\s/g, '').replace(/[^\d]/g, '')) : null;
+  // Extract mileage — Bytbil uses Swedish "mil" (1 mil = 10 km), convert to km
+  const mileageRaw = specs['miltal'] || specs['mileage'] || specs['körsträcka'] || '';
+  const mileageNum = mileageRaw ? parseInt(String(mileageRaw).replace(/\s/g, '').replace(/[^\d]/g, ''), 10) : null;
+  // If the raw string contains "mil" (Swedish miles), multiply by 10 to get km
+  const isSwedesihMil = mileageRaw && /mil/i.test(String(mileageRaw));
+  const mileage = mileageNum != null && !isNaN(mileageNum)
+    ? (isSwedesihMil ? mileageNum * 10 : mileageNum)
+    : null;
 
-  // Extract fuel type
-  const fuelType = item.specifications?.['bränsle'] || item.specifications?.['fuel'] || null;
+  // Extract fuel type (Swedish: 'bränsle', English fallback: 'fuel')
+  const fuelType = specs['bränsle'] || specs['fuel'] || specs['drivmedel'] || null;
 
-  // Extract transmission
-  const transmission = item.specifications?.['växellåda'] || item.specifications?.['transmission'] || null;
+  // Extract transmission (Swedish: 'växellåda', English fallback)
+  const transmission = specs['växellåda'] || specs['transmission'] || specs['växel'] || null;
+
+  // Extract color (Swedish: 'färg')
+  const color = specs['färg'] || specs['color'] || specs['kulör'] || item.color || null;
+
+  // Extract doors (Swedish: 'dörrar')
+  const doorsRaw = specs['dörrar'] || specs['doors'] || null;
+  const doors = doorsRaw ? parseInt(String(doorsRaw).replace(/[^\d]/g, ''), 10) || null : null;
+
+  // Extract power (Swedish: 'motoreffekt' or 'hästkrafter', in hp/ch)
+  const powerRaw = specs['motoreffekt'] || specs['hästkrafter'] || specs['effekt'] || specs['power_hp'] || null;
+  const powerHp = powerRaw ? parseInt(String(powerRaw).replace(/[^\d]/g, ''), 10) || null : null;
+
+  // Extract category (Swedish: 'karosstyp' or 'karosseri')
+  const categoryRaw = specs['karosstyp'] || specs['karosseri'] || specs['biltyp'] || specs['category'] || null;
 
   return {
     source_platform: 'bytbil',
@@ -377,9 +400,13 @@ export function mapBytbilDataToListing(item) {
     seller_type: item.sellerType || 'dealer',
     fuel_type: normalizeFuelType(fuelType),
     transmission: normalizeTransmission(transmission),
+    color,
+    doors,
+    power_hp: powerHp,
+    category: categoryRaw || null,
     url: item.url,
     images: (item.images && item.images.length > 0) ? item.images : (item.image ? [item.image] : []),
-    specifications: item.specifications || {},
+    specifications: specs,
     description: item.description,
     posted_date: null
   };

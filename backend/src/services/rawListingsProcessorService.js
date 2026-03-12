@@ -42,7 +42,7 @@ const MAPPERS = {
 
 const MAX_SAFE_MILEAGE = 2_147_483_647; // PostgreSQL int4 max
 
-const AI_ENRICHABLE = new Set(['largus', 'leboncoin', 'marktplaats', '2ememain', 'finn', 'otomoto']);
+const AI_ENRICHABLE = new Set(['largus', 'leboncoin', 'marktplaats', '2ememain', 'finn', 'otomoto', 'autoscout24', 'mobile_de', 'mobile.de', 'blocket', 'bilweb', 'bytbil', 'gaspedaal', 'coches.net', 'subito']);
 
 /**
  * Apply post-processing normalizations common to all sources:

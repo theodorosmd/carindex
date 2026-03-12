@@ -456,10 +456,14 @@ async function fetchListingDetails(listingUrl, browser) {
 
   let html;
   if (isScrapeDoAvailable() && !browser) {
-    // Try cheap render=false first; fall back to render=true only if parse yields no useful data
+    // Try cheap render=false first; fall back to render=true if specs (color, doors) are missing.
+    // fragment_tracking_state (which carries color/doors) requires JS rendering — don't skip render=true
+    // just because price/jsonBrand/fullTitle are present from static JSON-LD.
     html = await fetchViaScrapeDo(listingUrl, { render: false, geoCode: 'fr' });
     const quickParse = parseDetailPage(html);
-    if (!quickParse?.price && !quickParse?.jsonBrand && !quickParse?.fullTitle) {
+    const hasBasicData = quickParse?.price || quickParse?.jsonBrand || quickParse?.fullTitle;
+    const hasSpecs = quickParse?.color != null && quickParse?.doors != null;
+    if (!hasBasicData || !hasSpecs) {
       html = await fetchViaScrapeDo(listingUrl, { render: true, customWait: 4000, geoCode: 'fr' });
     } else {
       return quickParse;
@@ -479,7 +483,9 @@ async function fetchListingDetails(listingUrl, browser) {
     // scrape.do not available, not browser — same render=false-first logic
     html = await fetchViaScrapeDo(listingUrl, { render: false, geoCode: 'fr' });
     const quickParse = parseDetailPage(html);
-    if (!quickParse?.price && !quickParse?.jsonBrand && !quickParse?.fullTitle) {
+    const hasBasicData = quickParse?.price || quickParse?.jsonBrand || quickParse?.fullTitle;
+    const hasSpecs = quickParse?.color != null && quickParse?.doors != null;
+    if (!hasBasicData || !hasSpecs) {
       html = await fetchViaScrapeDo(listingUrl, { render: true, customWait: 4000, geoCode: 'fr' });
     } else {
       return quickParse;
