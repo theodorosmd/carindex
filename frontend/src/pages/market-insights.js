@@ -670,11 +670,13 @@ async function loadPriceDrops(period = 'week') {
 
     content.innerHTML = `
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        ${drops.map(d => `
-          <a href="${d.external_url || '#'}" target="_blank" rel="noopener noreferrer"
+        ${drops.map(d => {
+          const imgUrl = Array.isArray(d.images) && d.images.length > 0 ? d.images[0] : null;
+          return `
+          <a href="${d.url || '#'}" target="_blank" rel="noopener noreferrer"
              class="flex flex-col bg-gray-50 rounded-lg overflow-hidden border border-gray-200 hover:shadow-md transition-shadow">
-            ${d.first_image_url
-              ? `<img src="${d.first_image_url}" alt="${d.brand} ${d.model}" class="w-full h-36 object-cover">`
+            ${imgUrl
+              ? `<img src="${imgUrl}" alt="${d.brand} ${d.model}" class="w-full h-36 object-cover">`
               : `<div class="w-full h-36 bg-gray-200 flex items-center justify-center text-gray-400 text-3xl">🚗</div>`
             }
             <div class="p-3 flex flex-col gap-1">
@@ -682,14 +684,14 @@ async function loadPriceDrops(period = 'week') {
                 <span class="font-semibold text-sm text-gray-900">${capitalize(d.brand)} ${d.model}${d.year ? ` (${d.year})` : ''}</span>
                 <span class="text-xs bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded-full">−${Math.round(d.price_drop_pct)}%</span>
               </div>
-              <div class="text-blue-700 font-bold">${d.price_eur ? formatCurrency(d.price_eur) : '—'}</div>
+              <div class="text-blue-700 font-bold">${d.price ? formatCurrency(d.price) : '—'}</div>
               <div class="text-xs text-gray-500">
                 ${d.price_drop_amount ? `−${formatCurrency(d.price_drop_amount)} ` : ''}
                 ${countryFlag[d.location_country] || ''} ${d.location_country || ''}
               </div>
             </div>
-          </a>
-        `).join('')}
+          </a>`;
+        }).join('')}
       </div>
     `;
   } catch (error) {

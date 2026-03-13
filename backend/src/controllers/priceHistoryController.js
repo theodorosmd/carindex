@@ -1785,9 +1785,9 @@ export async function getGlobalStats(req, res, next) {
         .gte('sold_date', weekAgo.toISOString()),
       supabase
         .from('listings')
-        .select('price_eur')
+        .select('price')
         .eq('status', 'active')
-        .gt('price_eur', 0)
+        .gt('price', 0)
         .limit(10000)
     ]);
 
@@ -1795,7 +1795,7 @@ export async function getGlobalStats(req, res, next) {
     const soldCount = soldCountResult.count ?? 0;
     const priceData = priceDataResult.data ?? [];
     const avgPrice = priceData.length
-      ? Math.round(priceData.reduce((sum, r) => sum + r.price_eur, 0) / priceData.length)
+      ? Math.round(priceData.reduce((sum, r) => sum + Number(r.price), 0) / priceData.length)
       : null;
 
     res.json({ newListings, soldCount, avgPrice });
@@ -1818,7 +1818,7 @@ export async function getPriceDropsAggregated(req, res, next) {
 
     const { data, error } = await supabase
       .from('listings')
-      .select('id, brand, model, year, price_eur, price_drop_pct, price_drop_amount, location_country, first_image_url, external_url')
+      .select('id, brand, model, year, price, price_drop_pct, price_drop_amount, location_country, images, url')
       .eq('status', 'active')
       .gt('price_drop_pct', 0)
       .gte('last_price_drop_date', cutoff.toISOString())
