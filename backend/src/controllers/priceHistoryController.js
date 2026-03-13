@@ -607,13 +607,14 @@ export async function getModelTrends(req, res, next) {
 
     let query = supabase
       .from('listings')
-      .select('id, price, dom_days, sold_date, location_country')
+      .select('price, dom_days, sold_date, location_country')
       .eq('status', 'sold')
-      .ilike('brand', brand)
-      .ilike('model', model)
+      .eq('brand', brand.toLowerCase())
+      .eq('model', model.toLowerCase())
       .gte('sold_date', cutoffDate.toISOString())
       .not('dom_days', 'is', null)
-      .gte('dom_days', 0);
+      .gte('dom_days', 0)
+      .limit(5000);
 
     if (year) {
       query = query.eq('year', parseInt(year));
