@@ -28,12 +28,17 @@ export async function getPriceHistory(listingId) {
 }
 
 /**
- * Record a price change for a listing
+ * Record a price change for a listing.
+ * If the price dropped, also updates price_drop_pct / price_drop_amount / last_price_drop_date
+ * on the listings table so that the "Top Baisses de Prix" feature has data to display.
  */
 export async function recordPriceChange(listingId, price) {
   try {
-    // Check if this price is different from the last recorded price
-    const { data: lastPrice, error: lastPriceError } = await supabase
+    const newPrice = parseFloat(price);
+    if (!newPrice || newPrice <= 0) return null;
+
+    // Fetch the last recorded price for this listing
+    const { data: lastRecord, error: lastPriceError } = await supabase
       .from('price_history')
       .select('price')
       .eq('listing_id', listingId)
@@ -45,27 +50,53 @@ export async function recordPriceChange(listingId, price) {
       logger.warn('Error checking last price', { error: lastPriceError.message, listingId });
     }
 
-    // Only record if price changed
-    if (!lastPrice || parseFloat(lastPrice.price) !== parseFloat(price)) {
-      const { data, error } = await supabase
-        .from('price_history')
-        .insert({
-          listing_id: listingId,
-          price: parseFloat(price)
-        })
-        .select()
-        .single();
+    const previousPrice = lastRecord ? parseFloat(lastRecord.price) : null;
 
-      if (error) {
-        logger.error('Error recording price change', { error: error.message, listingId, price });
-        throw error;
-      }
-
-      logger.info('Price change recorded', { listingId, price, previousPrice: lastPrice?.price });
-      return data;
+    // Only record if price actually changed
+    if (previousPrice !== null && previousPrice === newPrice) {
+      return null; // No change
     }
 
-    return null; // No change recorded
+    // Compute drop if price decreased
+    let dropAmount = null;
+    let dropPct = null;
+    if (previousPrice && previousPrice > 0 && newPrice < previousPrice) {
+      dropAmount = previousPrice - newPrice;
+      dropPct = (dropAmount / previousPrice) * 100;
+    }
+
+    // Insert into price_history with full context
+    const { data, error } = await supabase
+      .from('price_history')
+      .insert({
+        listing_id: listingId,
+        price: newPrice,
+        previous_price: previousPrice ?? null,
+        drop_amount: dropAmount,
+        drop_pct: dropPct
+      })
+      .select()
+      .single();
+
+    if (error) {
+      logger.error('Error recording price change', { error: error.message, listingId, price });
+      throw error;
+    }
+
+    // If it's a price drop, propagate to listings table (used by price-drops endpoint)
+    if (dropAmount && dropAmount > 0) {
+      await supabase
+        .from('listings')
+        .update({
+          price_drop_amount: dropAmount,
+          price_drop_pct: dropPct,
+          last_price_drop_date: new Date().toISOString()
+        })
+        .eq('id', listingId);
+    }
+
+    logger.info('Price change recorded', { listingId, newPrice, previousPrice, dropAmount, dropPct });
+    return data;
   } catch (error) {
     logger.error('Error in recordPriceChange', { error: error.message, listingId, price });
     throw error;
