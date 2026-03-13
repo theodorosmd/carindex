@@ -482,14 +482,22 @@ async function loadMarketInsights() {
     await loadPriceDrops('week');
 
     // Load global stats
-    const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    
-    // This would require additional API endpoints for global stats
-    // For now, we'll leave placeholders
-    document.getElementById('new-listings-count').textContent = '-';
-    document.getElementById('sold-listings-count').textContent = '-';
-    document.getElementById('avg-price').textContent = '-';
+    try {
+      const statsRes = await fetch('/api/v1/analytics/global-stats', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (statsRes.ok) {
+        const stats = await statsRes.json();
+        document.getElementById('new-listings-count').textContent =
+          stats.newListings != null ? formatNumber(stats.newListings) : '-';
+        document.getElementById('sold-listings-count').textContent =
+          stats.soldCount != null ? formatNumber(stats.soldCount) : '-';
+        document.getElementById('avg-price').textContent =
+          stats.avgPrice != null ? formatCurrency(stats.avgPrice) : '-';
+      }
+    } catch (e) {
+      // non-bloquant
+    }
 
     loadingState.classList.add('hidden');
     content.classList.remove('hidden');
@@ -641,20 +649,52 @@ async function loadPriceDrops(period = 'week') {
   const token = getAuthToken();
   if (!token) return;
 
-  const days = period === 'day' ? 1 : period === 'week' ? 7 : 30;
-  
+  const content = document.getElementById('price-drops-content');
+  content.innerHTML = `<p class="text-gray-400 text-sm py-4">${tr('Loading...', 'Chargement...')}</p>`;
+
   try {
-    // Get price drops (this would need to be aggregated by model or listing)
-    // For now, we'll show a placeholder
-    const content = document.getElementById('price-drops-content');
+    const res = await fetch(`/api/v1/analytics/price-drops?period=${period}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+
+    if (!res.ok) throw new Error('Erreur serveur');
+
+    const drops = await res.json();
+
+    if (!drops.length) {
+      content.innerHTML = `<p class="text-gray-400 text-sm py-4">${tr('No price drops found for this period', 'Aucune baisse de prix sur cette période')}</p>`;
+      return;
+    }
+
+    const countryFlag = { FR: '🇫🇷', DE: '🇩🇪', SE: '🇸🇪', IT: '🇮🇹', ES: '🇪🇸', NL: '🇳🇱', BE: '🇧🇪', AT: '🇦🇹', CH: '🇨🇭' };
+
     content.innerHTML = `
-      <p class="text-gray-500">Chargement des baisses de prix pour les ${days} derniers jours...</p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        ${drops.map(d => `
+          <a href="${d.external_url || '#'}" target="_blank" rel="noopener noreferrer"
+             class="flex flex-col bg-gray-50 rounded-lg overflow-hidden border border-gray-200 hover:shadow-md transition-shadow">
+            ${d.first_image_url
+              ? `<img src="${d.first_image_url}" alt="${d.brand} ${d.model}" class="w-full h-36 object-cover">`
+              : `<div class="w-full h-36 bg-gray-200 flex items-center justify-center text-gray-400 text-3xl">🚗</div>`
+            }
+            <div class="p-3 flex flex-col gap-1">
+              <div class="flex items-center justify-between">
+                <span class="font-semibold text-sm text-gray-900">${capitalize(d.brand)} ${d.model}${d.year ? ` (${d.year})` : ''}</span>
+                <span class="text-xs bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded-full">−${Math.round(d.price_drop_pct)}%</span>
+              </div>
+              <div class="text-blue-700 font-bold">${d.price_eur ? formatCurrency(d.price_eur) : '—'}</div>
+              <div class="text-xs text-gray-500">
+                ${d.price_drop_amount ? `−${formatCurrency(d.price_drop_amount)} ` : ''}
+                ${countryFlag[d.location_country] || ''} ${d.location_country || ''}
+              </div>
+            </div>
+          </a>
+        `).join('')}
+      </div>
     `;
-    
-    // TODO: Implement API call to get aggregated price drops
-    // This would require a new endpoint or modification of existing one
   } catch (error) {
     console.error('Error loading price drops:', error);
+    content.innerHTML = `<p class="text-red-500 text-sm py-4">${tr('Error loading price drops', 'Erreur lors du chargement')}</p>`;
   }
 }
 

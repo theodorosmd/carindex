@@ -1,8 +1,8 @@
 import express from 'express';
 import { param, query } from 'express-validator';
-import { 
-  getMarketAnalytics, 
-  getFastestSellingModels, 
+import {
+  getMarketAnalytics,
+  getFastestSellingModels,
   getFilterOptions,
   getStatsByCountry,
   exportFastestSellingModels,
@@ -11,7 +11,9 @@ import {
   getProfitabilityAnalysis,
   createFastModelAlert,
   getRecommendations,
-  getCompetitionAnalysis
+  getCompetitionAnalysis,
+  getGlobalStats,
+  getPriceDropsAggregated
 } from '../controllers/priceHistoryController.js';
 import {
   addToWatchlist,
@@ -111,5 +113,11 @@ router.get('/export-pdf', exportAsPDF);
 
 // Get market analytics (top selling models, conversion rates, etc.)
 router.get('/market-analytics', getMarketAnalytics);
+
+// Get global stats for Market Insights dashboard (new listings, sold this week, avg price)
+router.get('/global-stats', getGlobalStats);
+
+// Get top price drops (period = day|week|month)
+router.get('/price-drops', getPriceDropsAggregated);
 
 export const analyticsRoutes = router;

@@ -737,12 +737,12 @@ export function renderLanguageToggle() {
   return `
     <div class="flex items-center">
       <select id="lang-toggle" class="text-xs border border-gray-300 rounded px-2 py-1">
-        <option value="en" ${lang === 'en' ? 'selected' : ''}>English</option>
-        <option value="fr" ${lang === 'fr' ? 'selected' : ''}>Français</option>
-        <option value="sv" ${lang === 'sv' ? 'selected' : ''}>Svenska</option>
-        <option value="de" ${lang === 'de' ? 'selected' : ''}>Deutsch</option>
-        <option value="it" ${lang === 'it' ? 'selected' : ''}>Italiano</option>
-        <option value="es" ${lang === 'es' ? 'selected' : ''}>Español</option>
+        <option value="en" ${lang === 'en' ? 'selected' : ''}>${t('language.english')}</option>
+        <option value="fr" ${lang === 'fr' ? 'selected' : ''}>${t('language.french')}</option>
+        <option value="sv" ${lang === 'sv' ? 'selected' : ''}>${t('language.swedish')}</option>
+        <option value="de" ${lang === 'de' ? 'selected' : ''}>${t('language.german')}</option>
+        <option value="it" ${lang === 'it' ? 'selected' : ''}>${t('language.italian')}</option>
+        <option value="es" ${lang === 'es' ? 'selected' : ''}>${t('language.spanish')}</option>
       </select>
     </div>
   `
