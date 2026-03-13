@@ -85,12 +85,96 @@ export async function getFacetsService(baseFilters = {}) {
       conditions.push(`seller_type IN (${typeValues})`);
     }
     
-    // For now, use the method that loads all listings and aggregates in memory
-    // TODO: Implement RPC functions in Supabase for better performance with SQL aggregation
+    // ── Fast path: no filters → use SQL GROUP BY via RPC (exact counts, one round-trip) ──
+    const hasNoFilters = !baseFilters.brand && !baseFilters.model && !baseFilters.country &&
+      !baseFilters.fuel_type && !baseFilters.transmission && !baseFilters.seller_type &&
+      !baseFilters.steering && !baseFilters.doors && !baseFilters.min_price &&
+      !baseFilters.max_price && !baseFilters.min_year && !baseFilters.max_year &&
+      !baseFilters.min_mileage && !baseFilters.max_mileage && !baseFilters.keyword &&
+      !baseFilters.color && !baseFilters.version && !baseFilters.trim &&
+      !baseFilters.publication_date;
+
+    if (hasNoFilters) {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('get_listing_facets_counts');
+
+      if (!rpcError && rpcData) {
+        const raw = rpcData;
+
+        // Helper: convert a raw {value: count} JSONB object to a sorted [{name, count}] array
+        const toArr = (obj, nameKey = 'name') =>
+          Object.entries(obj || {})
+            .map(([name, count]) => ({ [nameKey]: name, count }))
+            .sort((a, b) => b.count - a.count);
+
+        // Normalize fuel_type and transmission (same logic as the sampling path)
+        const fuelTypes = {};
+        for (const [raw, cnt] of Object.entries(raw.fuel_types || {})) {
+          const canonical = normalizeFuelType(raw);
+          if (canonical) fuelTypes[canonical] = (fuelTypes[canonical] || 0) + cnt;
+        }
+        const transmissions = {};
+        for (const [raw, cnt] of Object.entries(raw.transmissions || {})) {
+          const canonical = normalizeTransmission(raw);
+          if (canonical) transmissions[canonical] = (transmissions[canonical] || 0) + cnt;
+        }
+
+        // Normalize steering values (LHD/RHD)
+        const steeringMap = {};
+        for (const [val, cnt] of Object.entries(raw.steering_values || {})) {
+          const code = String(val).toUpperCase().slice(0, 3);
+          const key = (code === 'LHD' || code === 'LEF') ? 'LHD' : (code === 'RHD' || code === 'RIG') ? 'RHD' : null;
+          if (key) steeringMap[key] = (steeringMap[key] || 0) + cnt;
+        }
+
+        // Doors: keys are strings from SQL, parse back to numbers
+        const doors = {};
+        for (const [val, cnt] of Object.entries(raw.doors_values || {})) {
+          const num = parseInt(val);
+          if (num > 0) doors[num] = (doors[num] || 0) + cnt;
+        }
+
+        const result = {
+          total: raw.total || 0,
+          facets: {
+            brands: toArr(raw.brands),
+            models: toArr(raw.models),
+            countries: toArr(raw.countries).filter(c => c.name && c.name.trim()),
+            fuel_types: Object.entries(fuelTypes).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count),
+            transmissions: Object.entries(transmissions).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count),
+            steering: Object.entries(steeringMap).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count),
+            doors: Object.entries(doors).map(([name, count]) => ({ name: `${name} portes`, count })).sort((a, b) => b.count - a.count),
+            seller_types: toArr(raw.seller_types),
+            colors: toArr(raw.colors),
+            categories: toArr(raw.categories).filter(c => c.name && c.name.trim()),
+            drivetrains: toArr(raw.drivetrains).filter(c => c.name && c.name.trim()),
+            versions: toArr(raw.versions).filter(c => c.name && c.name.trim()),
+            trims: toArr(raw.trims).filter(c => c.name && c.name.trim()),
+            publication_date: [
+              { name: 'recent', count: raw.recent_count || 0 },
+              { name: 'old', count: raw.old_count || 0 }
+            ],
+            keywords: [
+              { name: '', count: raw.total || 0 }
+            ]
+          }
+        };
+
+        facetsCache.set(cacheKey, result);
+        logger.info('Facets: Computed via RPC (exact counts)', {
+          total: result.total,
+          brandsCount: result.facets.brands.length,
+          sampleBrands: result.facets.brands.slice(0, 5).map(b => `${b.name} (${b.count})`)
+        });
+        return result;
+      }
+
+      logger.warn('Facets RPC failed, falling back to sampling', { error: rpcError?.message });
+    }
+
+    // ── Slow path: filters active → use sampling (existing behaviour) ──────────────────
     const selectColumns = 'brand, model, fuel_type, transmission, steering, doors, seller_type, color, category, drivetrain, version, trim, location_country, posted_date';
-    
+
     // Build base query with filters (same as search, but without pagination)
-    // Remove limit to get accurate counts - but this may be slow for very large datasets
     let query = supabase
       .from('listings')
       .select(selectColumns, { count: 'planned' })

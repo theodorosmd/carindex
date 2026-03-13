@@ -1772,7 +1772,7 @@ export async function getGlobalStats(req, res, next) {
     const weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
 
-    const [newListingsResult, soldCountResult, priceDataResult] = await Promise.all([
+    const [newListingsResult, soldCountResult, avgPriceResult] = await Promise.all([
       supabase
         .from('listings')
         .select('id', { count: 'exact', head: true })
@@ -1783,20 +1783,13 @@ export async function getGlobalStats(req, res, next) {
         .select('id', { count: 'exact', head: true })
         .eq('status', 'sold')
         .gte('sold_date', weekAgo.toISOString()),
-      supabase
-        .from('listings')
-        .select('price')
-        .eq('status', 'active')
-        .gt('price', 0)
-        .limit(10000)
+      // Use SQL AVG() via RPC instead of loading 10k rows and computing in JS
+      supabase.rpc('get_avg_active_price')
     ]);
 
     const newListings = newListingsResult.count ?? 0;
     const soldCount = soldCountResult.count ?? 0;
-    const priceData = priceDataResult.data ?? [];
-    const avgPrice = priceData.length
-      ? Math.round(priceData.reduce((sum, r) => sum + Number(r.price), 0) / priceData.length)
-      : null;
+    const avgPrice = avgPriceResult.data ? Math.round(Number(avgPriceResult.data)) : null;
 
     res.json({ newListings, soldCount, avgPrice });
   } catch (error) {
