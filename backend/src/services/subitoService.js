@@ -69,67 +69,47 @@ export async function runSubitoScraper(searchUrls, options = {}, progressCallbac
 }
 
 /**
- * Scrape Subito.it via their public JSON API (hades.subito.it).
- * Tries direct fetch first (no credits needed), falls back to scrape.do proxy.
- * API is far more reliable than HTML scraping on an SPA.
+ * Scrape Subito.it search pages via scrape.do (HTML + __NEXT_DATA__).
+ * Subito uses Next.js SSR — all listing data is embedded in __NEXT_DATA__.
+ * Pagination: ?o=N (1-indexed), 30 listings per page.
  */
-async function scrapeSubitoStreaming(_baseUrl, maxPages, onPageDone) {
-  const PER_PAGE = 25;
-  const totalLimit = maxPages * PER_PAGE;
+async function scrapeSubitoStreaming(baseUrl, maxPages, onPageDone) {
+  const PER_PAGE = 30;
   let sitePosition = 0;
   let consecutiveErrors = 0;
 
-  for (let start = 0; start < totalLimit; start += PER_PAGE) {
-    const pageNum = Math.floor(start / PER_PAGE) + 1;
-    // c=108 = automobili, t=u = usate, sort=datedesc = newest first
-    const apiUrl = `https://hades.subito.it/v1/search/ads?c=108&t=u&lim=${PER_PAGE}&start=${start}&sort=datedesc&qso=false`;
+  for (let page = 1; page <= maxPages; page++) {
+    // Page 1 uses the base URL; subsequent pages append ?o=N
+    const separator = baseUrl.includes('?') ? '&' : '?';
+    const pageUrl = page === 1 ? baseUrl : `${baseUrl}${separator}o=${page}`;
 
-    logger.info('Subito.it fetching via API', { page: pageNum, start });
+    logger.info('Subito.it fetching page HTML', { page, url: pageUrl });
 
-    let ads = [];
+    let html;
     try {
-      // Try direct fetch first (no scrape.do credits)
-      const resp = await fetch(apiUrl, {
-        headers: {
-          'Accept': 'application/json',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        },
-        signal: AbortSignal.timeout(15000),
-      });
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const json = await resp.json();
-      ads = json?.ads || [];
-      logger.info('Subito.it API direct fetch ok', { page: pageNum, count: ads.length });
-    } catch (directErr) {
-      logger.warn('Subito.it direct API failed, trying scrape.do', { page: pageNum, error: directErr.message });
-      try {
-        const html = await fetchViaScrapeDo(apiUrl, { render: false, geoCode: 'it', superProxy: false });
-        const json = JSON.parse(html);
-        ads = json?.ads || [];
-        logger.info('Subito.it API via scrape.do ok', { page: pageNum, count: ads.length });
-      } catch (proxyErr) {
-        logger.error('Subito.it API fetch failed (both direct & scrape.do)', { page: pageNum, error: proxyErr.message });
-        consecutiveErrors++;
-        if (consecutiveErrors >= 3) break;
-        await new Promise(r => setTimeout(r, 10_000));
-        continue;
-      }
+      html = await fetchViaScrapeDo(pageUrl, { render: false, geoCode: 'it' });
+    } catch (err) {
+      logger.error('Subito.it page fetch failed', { page, error: err.message });
+      consecutiveErrors++;
+      if (consecutiveErrors >= 3) break;
+      await new Promise(r => setTimeout(r, 10_000));
+      continue;
     }
 
-    if (ads.length === 0) {
-      logger.info('Subito.it API: no more ads, stopping', { page: pageNum });
+    const listings = parseSearchPage(html, sitePosition);
+    sitePosition += listings.length;
+
+    logger.info('Subito.it page parsed', { page, found: listings.length });
+
+    if (listings.length === 0) {
+      logger.info('Subito.it: no listings on page, stopping', { page });
       break;
     }
+
     consecutiveErrors = 0;
+    await onPageDone(listings, page);
 
-    const listings = ads.map(item => parseSubitoAdItem(item, ++sitePosition)).filter(Boolean);
-    logger.info('Subito.it API page parsed', { page: pageNum, found: listings.length });
-
-    if (listings.length > 0) {
-      await onPageDone(listings, pageNum);
-    }
-
-    if (ads.length < PER_PAGE) break; // last page
+    if (listings.length < PER_PAGE) break; // last page
     await new Promise(r => setTimeout(r, 1500 + Math.random() * 1000));
   }
 }
@@ -221,77 +201,90 @@ function parseSubitoAdItem(item, sitePosition = 0) {
 
 /**
  * Parse Subito.it search results HTML into listing stubs.
- * Tries __NEXT_DATA__ JSON first (most reliable for Next.js), then DOM selectors.
- * Subito listing URLs follow: /auto-usate/{slug}-{id}.htm (or similar)
+ * Primary path: __NEXT_DATA__ → props.pageProps.initialState.items.list
+ * Each entry is { item: { urn, urls, features, geo, advertiser, images } }
+ * Features is an object keyed by URI: /price, /car, /year, /mileage, /fuel, /gearbox
  */
-function parseSearchPage(html) {
+function parseSearchPage(html, startPosition = 0) {
   // ── Primary: extract from __NEXT_DATA__ (Next.js hydration payload) ──────
   const nextDataMatch = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
   if (nextDataMatch) {
     try {
       const nextData = JSON.parse(nextDataMatch[1]);
-      const pageProps = nextData?.props?.pageProps;
-      // Try common prop shapes used by Subito
-      const items = pageProps?.items || pageProps?.ads || pageProps?.listings
-        || pageProps?.searchResult?.items || pageProps?.search?.ads || null;
-      if (Array.isArray(items) && items.length > 0) {
+      // Correct path for Subito's Next.js SSR
+      const itemList = nextData?.props?.pageProps?.initialState?.items?.list;
+      if (Array.isArray(itemList) && itemList.length > 0) {
         const listings = [];
         const seen = new Set();
-        for (const item of items) {
-          // Subito ads have: urn, urls, subject, body, price, geo, advertiser, features
-          const id = String(item.urn || item.id || item.adId || '').replace(/[^0-9]/g, '') || null;
+        let pos = startPosition;
+
+        for (const entry of itemList) {
+          // Each entry is { item: {...} } in Subito's __NEXT_DATA__
+          const item = entry.item || entry;
+
+          // Extract numeric ID from URN like "subito-ads-481234567"
+          const urn = String(item.urn || item.id || '');
+          const id = urn.match(/(\d+)$/)?.[1] || urn.replace(/[^0-9]/g, '') || null;
           if (!id || seen.has(id)) continue;
           seen.add(id);
 
-          const urlObj = item.urls?.default || item.url || null;
-          const fullUrl = typeof urlObj === 'string' ? urlObj
+          // URL
+          const urlObj = item.urls?.default;
+          const url = typeof urlObj === 'string' ? urlObj
             : urlObj?.value ? urlObj.value
-            : `https://www.subito.it/auto-usate/${id}.htm`;
+            : `https://www.subito.it/annunci-italia/vendita/auto/${id}.htm`;
 
-          const title = item.subject || item.title || '';
-          const parts = title.split(/\s+/);
-          const brand = parts[0] || null;
-          const model = parts.slice(1, 4).join(' ') || null;
+          // Features is an OBJECT keyed by URI (not an array) in __NEXT_DATA__
+          const feats = item.features || {};
 
-          const priceObj = item.price || null;
-          const price = priceObj?.value != null ? parseFloat(priceObj.value)
-            : priceObj?.amount != null ? parseFloat(priceObj.amount)
-            : null;
+          // Brand & model from /car feature
+          const carValues = feats['/car']?.values || [];
+          const brand = carValues[0]?.value || null;
+          const model = carValues[1]?.value || null;
 
-          const features = {};
-          if (Array.isArray(item.features)) {
-            for (const feat of item.features) {
-              const key = (feat.label || feat.key || '').toLowerCase();
-              const val = feat.values?.[0]?.value || feat.value || '';
-              if (key && val) features[key] = val;
-            }
-          }
+          // Price from /price feature — key holds the numeric string
+          const priceRaw = feats['/price']?.values?.[0]?.key || null;
+          const price = priceRaw ? parseFloat(String(priceRaw).replace(/[^\d.]/g, '')) || null : null;
 
-          const yearRaw = features['anno'] || features['immatricolazione'] || '';
-          const yearMatch = yearRaw.match(/\b(19|20)\d{2}\b/);
-          const year = yearMatch ? parseInt(yearMatch[0], 10) : null;
+          // Year from /year feature
+          const yearRaw = feats['/year']?.values?.[0]?.key || null;
+          const year = yearRaw ? parseInt(yearRaw, 10) || null : null;
 
-          const kmRaw = features['chilometraggio'] || features['km'] || '';
-          const mileage = parseInt(String(kmRaw).replace(/[\s.km]/gi, ''), 10) || null;
+          // Mileage from /mileage feature — value is a range "130.000 - 139.999", take lower bound
+          const mileageRaw = feats['/mileage']?.values?.[0]?.value || feats['/mileage']?.values?.[0]?.key || null;
+          const mileageMatch = mileageRaw ? String(mileageRaw).match(/([\d.]+)/) : null;
+          const mileage = mileageMatch ? parseInt(mileageMatch[1].replace(/\./g, ''), 10) || null : null;
 
-          const geo = item.geo || item.location || {};
-          const locationCity = geo.city?.value || geo.city || null;
-          const locationProvince = geo.town?.shortName || geo.province || null;
+          // Fuel type from /fuel feature
+          const fuelType = feats['/fuel']?.values?.[0]?.value || null;
 
-          const advertiser = item.advertiser || {};
-          const sellerType = advertiser.type === 'shop' || advertiser.type === 'company'
-            ? 'professional' : 'private';
+          // Transmission from /gearbox feature
+          const transmission = feats['/gearbox']?.values?.[0]?.value || null;
 
+          // Geo
+          const geo = item.geo || {};
+          const locationCity = geo.city?.value || null;
+          const locationProvince = geo.city?.shortName || geo.province?.shortName || null;
+          const locationRegion = geo.region?.value || null;
+
+          // Images — cdnBaseUrl + query param for size
           const images = [];
           if (Array.isArray(item.images)) {
             for (const img of item.images) {
-              const src = img.uri || img.url || img.scale?.uri || '';
-              if (src) images.push(src);
+              const base = img.cdnBaseUrl || img.uri || img.url || '';
+              if (base) images.push(base.includes('?') ? base : `${base}?w=640`);
             }
           }
 
+          // Seller type
+          const advertiser = item.advertiser || {};
+          const sellerType = (advertiser.company === true || advertiser.type === 1 || advertiser.type === 'shop')
+            ? 'professional' : 'private';
+
+          const title = [brand, model].filter(Boolean).join(' ') || item.subject || '';
+
           listings.push({
-            url: fullUrl,
+            url,
             id,
             brand,
             model,
@@ -299,18 +292,26 @@ function parseSearchPage(html) {
             price,
             year,
             mileage,
-            fuelType: features['alimentazione'] || features['carburante'] || null,
-            transmission: features['cambio'] || features['trasmissione'] || null,
+            fuelType,
+            transmission,
             locationCity,
             locationProvince,
+            locationRegion,
             sellerType,
             images,
-            specifications: features,
+            specifications: {},
+            sitePosition: pos++,
           });
         }
-        if (listings.length > 0) return listings;
+
+        if (listings.length > 0) {
+          logger.info('Subito.it __NEXT_DATA__ parsed ok', { count: listings.length });
+          return listings;
+        }
       }
-    } catch { /* fall through to DOM parsing */ }
+    } catch (err) {
+      logger.warn('Subito.it __NEXT_DATA__ parse failed', { error: err.message });
+    }
   }
 
   // ── Fallback: DOM selector parsing ───────────────────────────────────────

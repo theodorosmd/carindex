@@ -77,7 +77,7 @@ export const DEFAULT_SCRAPER_URLS = {
     'https://www.marktplaats.nl/l/auto-s/#f:10882'
   ],
   subito: [
-    'https://www.subito.it/auto-usate/italia'
+    'https://www.subito.it/annunci-italia/vendita/auto/'
   ],
   'coches.net': [
     'https://www.coches.net/segunda-mano/coches'

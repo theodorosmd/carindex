@@ -143,29 +143,32 @@ async function scrapeBytbilUrl(browser, url, maxPages = 10) {
       return await scrapeBytbilSearchViaScraper(url, maxPages);
     }
 
-    await page.waitForSelector('.result-thumbs-item', { timeout: 10000 }).catch(() => {
+    await page.waitForSelector('li.result-list-item', { timeout: 10000 }).catch(() => {
       logger.warn('No listings found on Bytbil page', { url });
     });
 
     const pageListings = await page.evaluate(() => {
       const items = [];
-      const cards = document.querySelectorAll('.result-thumbs-item');
+      const cards = document.querySelectorAll('li.result-list-item');
 
       cards.forEach(card => {
         try {
           const link = card.querySelector('a.js-link-target');
           const title = card.querySelector('h3')?.textContent?.trim();
-          const priceText = card.querySelector('.car-price-main')?.textContent?.trim();
+          const priceText = card.querySelector('.price-container')?.textContent?.trim();
           const imageDiv = card.querySelector('.car-image');
-          const image = imageDiv?.getAttribute('data-background') || null;
+          // Image is in inline style: background-image: url(...)
+          const styleAttr = imageDiv?.getAttribute('style') || '';
+          const imgMatch = styleAttr.match(/url\(['"]?(https?:\/\/[^'")\s]+)['"]?\)/);
+          const image = imgMatch ? imgMatch[1] : null;
           const modelId = card.querySelector('[data-model-id]')?.getAttribute('data-model-id');
 
-          // car-info: "2025 | 45 000 mil | Upplands Väsby"
-          const carInfoText = card.querySelector('.car-info')?.textContent || '';
+          // Info paragraph: "2018 | 12 613 mil | Linköping"
+          const carInfoText = card.querySelector('.description p')?.textContent || '';
           const parts = carInfoText.split('|').map(s => s.trim()).filter(Boolean);
           const year = parts[0] ? parseInt(parts[0]) : null;
           const mileageText = parts[1] || '';
-          const location = parts[2] || parts[1] || '';
+          const location = parts[2] || '';
 
           if (link && title) {
             const href = link.getAttribute('href');
@@ -272,7 +275,7 @@ async function scrapeBytbilSearchViaScraper(url, maxPages) {
     const $ = cheerio.load(html);
     const items = [];
 
-    $('.result-thumbs-item').each((_, card) => {
+    $('li.result-list-item').each((_, card) => {
       const $card = $(card);
       const link = $card.find('a.js-link-target').first();
       const href = link.attr('href');
@@ -282,12 +285,17 @@ async function scrapeBytbilSearchViaScraper(url, maxPages) {
       const title = $card.find('h3').first().text().trim();
       if (!title) return;
 
-      const priceText = $card.find('.car-price-main').first().text().trim();
-      const image = $card.find('.car-image').attr('data-background') || null;
+      const priceText = $card.find('.price-container').first().text().trim();
+
+      // Image URL is in inline style: background-image: url(...)
+      const styleAttr = $card.find('.car-image').first().attr('style') || '';
+      const imgMatch = styleAttr.match(/url\(['"]?(https?:\/\/[^'")\s]+)['"]?\)/);
+      const image = imgMatch ? imgMatch[1] : null;
+
       const modelId = $card.find('[data-model-id]').first().attr('data-model-id');
 
-      // car-info: "2025 | 45 000 mil | Upplands Väsby"
-      const carInfoText = $card.find('.car-info').first().text();
+      // Info paragraph: "2018 | 12 613 mil | Linköping"
+      const carInfoText = $card.find('.description p').first().text();
       const parts = carInfoText.split('|').map(s => s.trim()).filter(Boolean);
       const year = parts[0] ? parseInt(parts[0]) : null;
       const mileageText = parts[1] || '';
@@ -482,8 +490,14 @@ async function saveBytbilListing(item) {
 
 // Helper functions (same as Blocket and Bilweb)
 function extractListingIdFromUrl(url) {
-  const match = url.match(/\/bil\/(\d+)/) || url.match(/\/car\/(\d+)/);
-  return match ? match[1] : url.split('/').pop();
+  if (!url) return url;
+  // New URL format: /location/brand-model-...-dealerId-listingId  → take last number
+  const newMatch = url.replace(/\/$/, '').match(/-(\d+)$/);
+  if (newMatch) return newMatch[1];
+  // Old format: /bil/12345
+  const oldMatch = url.match(/\/bil\/(\d+)/);
+  if (oldMatch) return oldMatch[1];
+  return url.split('/').pop();
 }
 
 function extractCity(location) {
