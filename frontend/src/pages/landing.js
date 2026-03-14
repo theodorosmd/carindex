@@ -18,6 +18,7 @@ export function renderLandingPage() {
 
           <div class="hidden lg:flex items-center gap-8">
             <a href="#/search" class="text-sm text-zinc-600 hover:text-zinc-900 transition-colors">${tr('Search', 'Rechercher')}</a>
+            <a href="#/deal-score" class="text-sm text-zinc-600 hover:text-zinc-900 transition-colors font-medium">${tr('Deal Score', 'Deal Score')}</a>
             <a href="#features" class="text-sm text-zinc-600 hover:text-zinc-900 transition-colors">${tr('Features', 'Fonctionnalités')}</a>
             <a href="#pricing" class="text-sm text-zinc-600 hover:text-zinc-900 transition-colors">${tr('Pricing', 'Tarifs')}</a>
             <a href="#faq" class="text-sm text-zinc-600 hover:text-zinc-900 transition-colors">FAQ</a>
@@ -42,6 +43,7 @@ export function renderLandingPage() {
         <div id="mobile-menu" class="hidden lg:hidden border-t border-zinc-100 bg-white">
           <div class="px-6 py-4 space-y-1">
             <a href="#/search" class="block px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50 rounded-md transition-colors">${tr('Search', 'Rechercher')}</a>
+            <a href="#/deal-score" class="block px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 rounded-md transition-colors">${tr('Deal Score', 'Deal Score')}</a>
             <a href="#features" class="block px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50 rounded-md transition-colors">${tr('Features', 'Fonctionnalités')}</a>
             <a href="#pricing" class="block px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50 rounded-md transition-colors">${tr('Pricing', 'Tarifs')}</a>
             <a href="#faq" class="block px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50 rounded-md transition-colors">FAQ</a>
@@ -68,11 +70,11 @@ export function renderLandingPage() {
             ${tr('Search millions of listings across Europe. Compare prices, track market trends, and make data-driven decisions.', 'Recherchez des millions d\'annonces à travers l\'Europe. Comparez les prix, suivez les tendances marché et prenez des décisions basées sur les données.')}
           </p>
           <div class="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <a href="#/search" class="w-full sm:w-auto inline-flex items-center justify-center rounded-lg bg-white px-6 py-3 text-sm font-semibold text-zinc-900 hover:bg-zinc-100 transition-colors">
-              ${tr('Search vehicles', 'Rechercher des véhicules')}
+            <a href="#/deal-score" class="w-full sm:w-auto inline-flex items-center justify-center rounded-lg bg-white px-6 py-3 text-sm font-semibold text-zinc-900 hover:bg-zinc-100 transition-colors">
+              🔥 ${tr('Check deal score', 'Vérifier le deal score')}
             </a>
-            <a href="#pricing" class="w-full sm:w-auto inline-flex items-center justify-center rounded-lg border border-zinc-700 px-6 py-3 text-sm font-medium text-zinc-300 hover:border-zinc-500 hover:text-white transition-colors">
-              ${tr('View pricing', 'Voir les tarifs')} →
+            <a href="#/search" class="w-full sm:w-auto inline-flex items-center justify-center rounded-lg border border-zinc-700 px-6 py-3 text-sm font-medium text-zinc-300 hover:border-zinc-500 hover:text-white transition-colors">
+              ${tr('Search vehicles', 'Rechercher des véhicules')} →
             </a>
           </div>
         </div>

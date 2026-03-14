@@ -15,6 +15,7 @@ import { renderEvaluationDetails } from './pages/evaluation-details'
 import { renderMarketInsights } from './pages/market-insights'
 import { renderArbitrage } from './pages/arbitrage'
 import { renderBatchEvaluations } from './pages/batch-evaluations'
+import { renderDealScore } from './pages/deal-score'
 
 // Auth utility functions
 export function getAuthToken() {
@@ -56,7 +57,13 @@ function route() {
       cleanupAdminDashboard()
     }
 
-    // Auth routes (public) - use startsWith to match #/login?redirect=...
+    // Deal score page (public)
+  if (hash === '#/deal-score' || effectivePath === '/deal-score') {
+    renderDealScore()
+    return
+  }
+
+  // Auth routes (public) - use startsWith to match #/login?redirect=...
   if (hash === '#/login' || hash?.startsWith('#/login?') || effectivePath === '/login' || (effectivePath && effectivePath.startsWith('/login'))) {
     renderLogin()
     return
@@ -420,6 +427,9 @@ document.addEventListener('click', (e) => {
     // Handle all hash routes
     if (hash === '#/search' || hash === '#/listings') {
       window.history.pushState({}, '', '/search')
+      route()
+    } else if (hash === '#/deal-score') {
+      window.history.pushState({}, '', '/deal-score')
       route()
     } else if (hash === '#/login' || hash === '#/signup' || hash === '#/dashboard' || hash === '#/admin' || hash === '#/dashboard/admin' || hash === '#/stock-analysis' || hash === '#/auction-margin' || hash.startsWith('#/listing/')) {
       // Auth routes, dashboard, admin, stock analysis, and listing details

@@ -19,6 +19,7 @@ import { arbitrageRoutes } from './arbitrage.js';
 import { getAutoDetectedEndpoint } from '../controllers/arbitrageController.js';
 import { webhookRoutes } from './webhooks.js';
 import { ingestRoutes, ingestPublicRoutes } from './ingest.js';
+import { dealScoreRoutes } from './dealScore.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { rateLimiter } from '../middleware/rateLimiter.js';
 
@@ -81,6 +82,7 @@ export function setupRoutes(app) {
   app.use('/api/v1', priceHistoryRoutes); // Price history routes (some public, some protected)
   app.use('/api/v1/webhooks', webhookRoutes); // Webhook routes (HMAC auth)
   app.use('/api/v1/ingest/public', ingestPublicRoutes); // Ingest via API key (X-API-Key)
+  app.use('/api/v1/deal-score', dealScoreRoutes); // Public deal score (no auth)
 
   // Protected API routes
   const apiRouter = express.Router();
