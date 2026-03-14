@@ -1,13 +1,16 @@
-import { calculateMarketPrice } from '../services/marketPriceService.js';
+import { supabase } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
+import { marketPriceCache } from '../utils/cache.js';
+
+// ─── deal tier definitions ────────────────────────────────────────────────────
 
 const DEAL_TIERS = [
   { maxPct: -20, label: 'Exceptional Deal', labelFr: 'Offre exceptionnelle', color: 'green',  badge: 'exceptional' },
   { maxPct: -10, label: 'Excellent Deal',   labelFr: 'Excellente affaire',    color: 'green',  badge: 'excellent'   },
-  { maxPct:  -5, label: 'Good Deal',        labelFr: 'Bonne affaire',          color: 'teal',   badge: 'good'        },
-  { maxPct:   5, label: 'Fair Price',       labelFr: 'Prix correct',           color: 'gray',   badge: 'fair'        },
-  { maxPct:  15, label: 'Slightly High',    labelFr: 'Légèrement cher',        color: 'orange', badge: 'high'        },
-  { maxPct: Infinity, label: 'Overpriced', labelFr: 'Trop cher',              color: 'red',    badge: 'overpriced'  },
+  { maxPct:  -5, label: 'Good Deal',        labelFr: 'Bonne affaire',         color: 'teal',   badge: 'good'        },
+  { maxPct:   5, label: 'Fair Price',       labelFr: 'Prix correct',          color: 'gray',   badge: 'fair'        },
+  { maxPct:  15, label: 'Slightly High',    labelFr: 'Légèrement cher',       color: 'orange', badge: 'high'        },
+  { maxPct: Infinity, label: 'Overpriced', labelFr: 'Trop cher',             color: 'red',    badge: 'overpriced'  },
 ];
 
 function getDealTier(pct) {
@@ -15,65 +18,168 @@ function getDealTier(pct) {
 }
 
 function getConfidenceLabel(index) {
-  if (index >= 70) return { label: 'High', labelFr: 'Élevée', color: 'green' };
+  if (index >= 70) return { label: 'High',   labelFr: 'Élevée',  color: 'green'  };
   if (index >= 40) return { label: 'Medium', labelFr: 'Moyenne', color: 'yellow' };
-  return { label: 'Low', labelFr: 'Faible', color: 'red' };
+  return                 { label: 'Low',    labelFr: 'Faible',  color: 'red'    };
 }
+
+// ─── fast market price calculation ───────────────────────────────────────────
+// Uses eq() with lowercased brand/model so the B-tree composite index is hit.
+// idx_listings_market_price_lookup covers (brand, model, year, location_country, mileage, price).
+
+async function computeMarketPrice({ brand, model, year, mileage, country, fuel_type, transmission }) {
+  // Cache key
+  const cacheKey = marketPriceCache.generateKey('deal_score_v2', {
+    brand, model, year, country: country || 'all', fuel_type, transmission
+  });
+  const cached = marketPriceCache.get(cacheKey);
+  if (cached) {
+    // Mileage adjustment on cached result
+    if (cached.market_price && mileage != null) {
+      const mileageDiff = mileage - (cached.base_mileage || 80000);
+      const priceAdj = (mileageDiff / 1000) * 50; // ~€50 per 1000 km
+      return { ...cached, market_price: Math.max(0, cached.market_price - priceAdj) };
+    }
+    return cached;
+  }
+
+  // Build query — use eq() with lowercase so index is used
+  let q = supabase
+    .from('listings')
+    .select('price, year, mileage')
+    .eq('brand', brand)
+    .eq('model', model)
+    .gte('year', year - 2)
+    .lte('year', year + 2)
+    .eq('status', 'active')
+    .gt('price', 0)
+    .not('price', 'is', null)
+    .limit(300);
+
+  if (country) q = q.eq('location_country', country);
+  if (fuel_type) q = q.eq('fuel_type', fuel_type);
+  if (transmission) q = q.eq('transmission', transmission);
+
+  const { data, error } = await q;
+
+  if (error) throw error;
+
+  const rows = (data || []).filter(r => r.price > 0);
+
+  if (rows.length < 3) {
+    return {
+      market_price: null, confidence_index: 0,
+      comparables_count: rows.length,
+      price_range: null, base_mileage: mileage,
+      last_updated: new Date().toISOString(),
+    };
+  }
+
+  // IQR outlier removal
+  const sorted = rows.map(r => parseFloat(r.price)).sort((a, b) => a - b);
+  const q1 = sorted[Math.floor(sorted.length * 0.25)];
+  const q3 = sorted[Math.floor(sorted.length * 0.75)];
+  const iqr = q3 - q1;
+  const clean = sorted.filter(p => p >= q1 - 1.5 * iqr && p <= q3 + 1.5 * iqr);
+  const prices = clean.length >= 3 ? clean : sorted;
+
+  // Median
+  const median = prices[Math.floor(prices.length / 2)];
+  const p25 = prices[Math.floor(prices.length * 0.25)];
+  const p75 = prices[Math.floor(prices.length * 0.75)];
+
+  // Confidence score
+  const countScore    = Math.min(50, (prices.length / 50) * 50);
+  const variance      = (prices[prices.length - 1] - prices[0]) / median;
+  const varianceScore = Math.max(0, 30 - variance * 30);
+  const confidence    = Math.round(Math.min(100, countScore + varianceScore + 15));
+
+  const result = {
+    market_price:      Math.round(median),
+    confidence_index:  confidence,
+    comparables_count: prices.length,
+    price_range: {
+      min:    Math.round(prices[0]),
+      max:    Math.round(prices[prices.length - 1]),
+      p25:    Math.round(p25),
+      median: Math.round(median),
+      p75:    Math.round(p75),
+    },
+    base_mileage: mileage ?? 80000,
+    last_updated: new Date().toISOString(),
+  };
+
+  marketPriceCache.set(cacheKey, result);
+
+  // Mileage adjustment vs 80k baseline
+  if (mileage != null) {
+    const mileageDiff = mileage - 80000;
+    const adj = (mileageDiff / 1000) * 50;
+    return { ...result, market_price: Math.max(0, result.market_price - adj) };
+  }
+  return result;
+}
+
+// ─── normalize brand/model input ──────────────────────────────────────────────
+// DB stores lowercase; user may send "Volkswagen" or "VOLKSWAGEN"
+
+function normalizeInput(str) {
+  return (str || '').trim().toLowerCase();
+}
+
+// ─── controller ───────────────────────────────────────────────────────────────
 
 export async function getDealScore(req, res, next) {
   try {
     const {
-      brand,
-      model,
+      brand: rawBrand,
+      model: rawModel,
       year,
       mileage,
       country,
       fuel_type,
       transmission,
-      price, // optional — listing price to score
+      price, // listing price to score — optional
     } = req.query;
 
-    if (!brand || !model || !year) {
-      return res.status(400).json({
-        error: 'brand, model, and year are required',
-      });
+    if (!rawBrand || !rawModel || !year) {
+      return res.status(400).json({ error: 'brand, model, and year are required' });
     }
 
+    const brand         = normalizeInput(rawBrand);
+    const model         = normalizeInput(rawModel);
     const parsedYear    = parseInt(year, 10);
-    const parsedMileage = mileage ? parseInt(mileage, 10) : 80000; // default avg mileage
+    const parsedMileage = mileage ? parseInt(mileage, 10) : null;
 
     if (isNaN(parsedYear) || parsedYear < 1990 || parsedYear > new Date().getFullYear() + 1) {
       return res.status(400).json({ error: 'Invalid year' });
     }
-    if (mileage && (isNaN(parsedMileage) || parsedMileage < 0)) {
-      return res.status(400).json({ error: 'Invalid mileage' });
-    }
 
-    const marketData = await calculateMarketPrice({
-      brand,
-      model,
-      year: parsedYear,
-      mileage: parsedMileage,
-      country: country || undefined,
-      fuel_type: fuel_type || undefined,
-      transmission: transmission || undefined,
-    });
-
-    const confidenceLabel = getConfidenceLabel(marketData.confidence_index);
-
-    const response = {
+    const marketData = await computeMarketPrice({
       brand,
       model,
       year: parsedYear,
       mileage: parsedMileage,
       country: country || null,
-      market_price: marketData.market_price,
-      currency: 'EUR',
-      price_range: marketData.price_range,
-      confidence_index: marketData.confidence_index,
-      confidence_label: confidenceLabel,
+      fuel_type: fuel_type || null,
+      transmission: transmission || null,
+    });
+
+    const confidenceLabel = getConfidenceLabel(marketData.confidence_index);
+
+    const response = {
+      brand:             rawBrand.trim(),
+      model:             rawModel.trim(),
+      year:              parsedYear,
+      mileage:           parsedMileage,
+      country:           country || null,
+      market_price:      marketData.market_price,
+      currency:          'EUR',
+      price_range:       marketData.price_range,
+      confidence_index:  marketData.confidence_index,
+      confidence_label:  confidenceLabel,
       comparables_count: marketData.comparables_count,
-      last_updated: marketData.last_updated,
+      last_updated:      marketData.last_updated,
     };
 
     // Compute deal score when listing price provided
