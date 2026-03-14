@@ -69,53 +69,154 @@ export async function runSubitoScraper(searchUrls, options = {}, progressCallbac
 }
 
 /**
- * Scrape Subito.it page-by-page, calling onPageDone(listings, pageNum) after each page.
+ * Scrape Subito.it via their public JSON API (hades.subito.it).
+ * Tries direct fetch first (no credits needed), falls back to scrape.do proxy.
+ * API is far more reliable than HTML scraping on an SPA.
  */
-async function scrapeSubitoStreaming(baseUrl, maxPages, onPageDone) {
+async function scrapeSubitoStreaming(_baseUrl, maxPages, onPageDone) {
+  const PER_PAGE = 25;
+  const totalLimit = maxPages * PER_PAGE;
   let sitePosition = 0;
-  for (let page = 1; page <= maxPages; page++) {
-    const pageUrl = page === 1 ? baseUrl : (baseUrl.includes('?') ? `${baseUrl}&o=${page}` : `${baseUrl}?o=${page}`);
+  let consecutiveErrors = 0;
 
-    logger.info('Subito.it fetching search page', { page, url: pageUrl });
+  for (let start = 0; start < totalLimit; start += PER_PAGE) {
+    const pageNum = Math.floor(start / PER_PAGE) + 1;
+    // c=108 = automobili, t=u = usate, sort=datedesc = newest first
+    const apiUrl = `https://hades.subito.it/v1/search/ads?c=108&t=u&lim=${PER_PAGE}&start=${start}&sort=datedesc&qso=false`;
 
-    let html;
+    logger.info('Subito.it fetching via API', { page: pageNum, start });
+
+    let ads = [];
     try {
-      html = await fetchViaScrapeDo(pageUrl, { render: false, geoCode: 'it' });
-      if (parseSearchPage(html).length === 0 && html?.length > 500) {
-        html = await fetchViaScrapeDo(pageUrl, { render: true, customWait: 5000, geoCode: 'it' });
-      }
-    } catch (err) {
-      logger.error('Subito.it search page fetch failed', { page, error: err.message });
-      break;
-    }
-
-    const listings = parseSearchPage(html);
-    if (listings.length === 0) {
-      logger.info('Subito.it no more listings found, stopping', { page });
-      break;
-    }
-
-    logger.info('Subito.it search page parsed', { page, found: listings.length });
-
-    const enriched = [];
-    for (let i = 0; i < listings.length; i++) {
-      const item = listings[i];
+      // Try direct fetch first (no scrape.do credits)
+      const resp = await fetch(apiUrl, {
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        },
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const json = await resp.json();
+      ads = json?.ads || [];
+      logger.info('Subito.it API direct fetch ok', { page: pageNum, count: ads.length });
+    } catch (directErr) {
+      logger.warn('Subito.it direct API failed, trying scrape.do', { page: pageNum, error: directErr.message });
       try {
-        logger.info('Subito.it fetching detail', { page, listing: `${i + 1}/${listings.length}`, url: item.url });
-        const details = await fetchListingDetails(item.url);
-        enriched.push(details ? { ...item, ...details } : item);
-      } catch (err) {
-        logger.warn('Subito.it detail fetch failed', { url: item.url, error: err.message });
-        enriched.push(item);
+        const html = await fetchViaScrapeDo(apiUrl, { render: false, geoCode: 'it', superProxy: false });
+        const json = JSON.parse(html);
+        ads = json?.ads || [];
+        logger.info('Subito.it API via scrape.do ok', { page: pageNum, count: ads.length });
+      } catch (proxyErr) {
+        logger.error('Subito.it API fetch failed (both direct & scrape.do)', { page: pageNum, error: proxyErr.message });
+        consecutiveErrors++;
+        if (consecutiveErrors >= 3) break;
+        await new Promise(r => setTimeout(r, 10_000));
+        continue;
       }
-      await new Promise(r => setTimeout(r, 800 + Math.random() * 700));
     }
 
-    enriched.forEach(l => { l.sitePosition = ++sitePosition; });
-    await onPageDone(enriched, page);
+    if (ads.length === 0) {
+      logger.info('Subito.it API: no more ads, stopping', { page: pageNum });
+      break;
+    }
+    consecutiveErrors = 0;
 
-    await new Promise(r => setTimeout(r, 2000 + Math.random() * 2000));
+    const listings = ads.map(item => parseSubitoAdItem(item, ++sitePosition)).filter(Boolean);
+    logger.info('Subito.it API page parsed', { page: pageNum, found: listings.length });
+
+    if (listings.length > 0) {
+      await onPageDone(listings, pageNum);
+    }
+
+    if (ads.length < PER_PAGE) break; // last page
+    await new Promise(r => setTimeout(r, 1500 + Math.random() * 1000));
   }
+}
+
+/**
+ * Parse a single Subito ad item from the API response.
+ * Works for both hades.subito.it/v1/search/ads and __NEXT_DATA__ ad arrays.
+ */
+function parseSubitoAdItem(item, sitePosition = 0) {
+  const urn = String(item.urn || item.id || item.adId || '');
+  const id = urn.replace(/[^0-9]/g, '') || null;
+  if (!id) return null;
+
+  const urlObj = item.urls?.default || null;
+  const url = typeof urlObj === 'string' ? urlObj
+    : urlObj?.value ? urlObj.value
+    : `https://www.subito.it/annunci-italia/vendita/usato/auto/${id}.htm`;
+
+  const title = item.subject || item.title || '';
+  const parts = title.split(/\s+/);
+  const brand = parts[0] || null;
+  const model = parts.slice(1, 4).join(' ') || null;
+
+  const priceObj = item.price || null;
+  const price = priceObj?.value != null ? parseFloat(priceObj.value)
+    : priceObj?.amount != null ? parseFloat(priceObj.amount)
+    : null;
+
+  // Parse features array into specs map
+  const features = {};
+  if (Array.isArray(item.features)) {
+    for (const feat of item.features) {
+      // API: { label: "Anno", values: [{ key: "2018" }] }
+      // or: { uri, label, values: [{ key, value }] }
+      const key = (feat.label || feat.key || feat.uri?.split(':').pop() || '').toLowerCase();
+      const val = feat.values?.[0]?.value || feat.values?.[0]?.key || feat.value || '';
+      if (key && val) features[key] = String(val);
+    }
+  }
+
+  // Year
+  const yearRaw = features['anno'] || features['immatricolazione'] || features['anno immatricolazione'] || '';
+  const yearMatch = yearRaw.match(/\b(19|20)\d{2}\b/);
+  const year = yearMatch ? parseInt(yearMatch[0], 10) : null;
+
+  // Mileage (km)
+  const kmRaw = features['chilometraggio'] || features['km'] || features['percorrenza'] || '';
+  const mileage = parseInt(String(kmRaw).replace(/[\s.km]/gi, ''), 10) || null;
+
+  // Location
+  const geo = item.geo || item.location || {};
+  const locationCity = geo.city?.value || geo.city || null;
+  const locationProvince = geo.town?.shortName || geo.province || null;
+
+  // Seller type
+  const advertiser = item.advertiser || {};
+  const sellerType = advertiser.type === 'shop' || advertiser.type === 'company'
+    ? 'professional' : 'private';
+
+  // Images
+  const images = [];
+  if (Array.isArray(item.images)) {
+    for (const img of item.images) {
+      const src = img.uri || img.url || img.scale?.uri || (typeof img === 'string' ? img : '');
+      if (src) images.push(src);
+    }
+  }
+
+  return {
+    url,
+    id,
+    brand,
+    model,
+    title,
+    price,
+    year,
+    mileage,
+    fuelType: features['alimentazione'] || features['carburante'] || null,
+    transmission: features['cambio'] || features['trasmissione'] || null,
+    locationCity,
+    locationProvince,
+    sellerType,
+    images,
+    specifications: features,
+    description: item.body || null,
+    sitePosition,
+  };
 }
 
 /**

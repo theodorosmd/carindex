@@ -113,6 +113,7 @@ export async function runBytbilScraper(searchUrls, options = {}, progressCallbac
 async function scrapeBytbilUrl(browser, url, maxPages = 10) {
   const page = await browser.newPage();
   const listings = [];
+  let pageClosed = false; // guard against double-close in finally
 
   try {
     await page.setViewport({ width: 1920, height: 1080 });
@@ -137,8 +138,9 @@ async function scrapeBytbilUrl(browser, url, maxPages = 10) {
 
     if (await isPageBlocked(page)) {
       logger.warn('Bytbil page blocked, falling back to scrape.do', { url });
+      pageClosed = true;
       await page.close();
-      return scrapeBytbilSearchViaScraper(url, maxPages);
+      return await scrapeBytbilSearchViaScraper(url, maxPages);
     }
 
     await page.waitForSelector('.result-thumbs-item', { timeout: 10000 }).catch(() => {
@@ -190,7 +192,9 @@ async function scrapeBytbilUrl(browser, url, maxPages = 10) {
   } catch (error) {
     logger.error('Error scraping Bytbil URL', { url, error: error.message });
   } finally {
-    await page.close();
+    if (!pageClosed) {
+      await page.close().catch(() => {}); // swallow double-close errors
+    }
   }
 
   return listings;
