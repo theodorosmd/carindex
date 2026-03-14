@@ -273,6 +273,8 @@ async function runAllScrapersFull() {
   }
 }
 
+export { runOneSource, runInBatches };
+
 // Exécution directe : node run-all-scrapers-full.js
 if (process.argv[1]?.includes('run-all-scrapers-full')) {
   runAllScrapersFull();
