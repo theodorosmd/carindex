@@ -36,10 +36,18 @@ function extractSourceListingId(rawPayload, sourcePlatform) {
         item.url?.match(/\/(\d+)(?:\?|$)/);
       return match ? match[1] : item.id || item.url || null;
     }
-    case 'bilweb':
-    case 'bytbil': {
+    case 'bilweb': {
       const match = item.url?.match(/\/bil\/(\d+)/) || item.url?.match(/\/car\/(\d+)/) || item.url?.match(/\/vehicle\/(\d+)/);
       return match ? match[1] : item.id || item.url || null;
+    }
+    case 'bytbil': {
+      // New URL format: /location/brand-model-...-dealerId-listingId → last number
+      const newMatch = item.url?.replace(/\/$/, '').match(/-(\d+)$/);
+      if (newMatch) return newMatch[1];
+      // Old format: /bil/12345
+      const oldMatch = item.url?.match(/\/bil\/(\d+)/);
+      if (oldMatch) return oldMatch[1];
+      return item.id || item.source_listing_id || item.url || null;
     }
     case 'finn': {
       const match = item.url?.match(/finnkode=(\d+)/) || item.url?.match(/\/ad\/(\d+)/);
@@ -121,4 +129,36 @@ export async function saveRawListings(items, sourcePlatform, runId = null) {
   }
 
   return { saved, errors };
+}
+
+/**
+ * Delete processed raw_listings rows older than retentionDays.
+ * Prevents unbounded table growth and reduces Disk IO from large index scans.
+ * Only deletes rows that have already been processed (processed_at IS NOT NULL).
+ *
+ * @param {number} retentionDays - Keep processed rows for this many days (default: 7)
+ * @returns {Promise<number>} Number of rows deleted
+ */
+export async function cleanupOldRawListings(retentionDays = 7) {
+  const cutoffDate = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000).toISOString();
+  try {
+    const { error, count } = await supabase
+      .from('raw_listings')
+      .delete({ count: 'exact' })
+      .not('processed_at', 'is', null)
+      .lt('processed_at', cutoffDate);
+
+    if (error) {
+      logger.error('raw_listings cleanup failed', { error: error.message, retentionDays });
+      return 0;
+    }
+    const deleted = count || 0;
+    if (deleted > 0) {
+      logger.info('raw_listings cleanup completed', { deleted, retentionDays, cutoff: cutoffDate });
+    }
+    return deleted;
+  } catch (err) {
+    logger.error('raw_listings cleanup exception', { error: err.message });
+    return 0;
+  }
 }
