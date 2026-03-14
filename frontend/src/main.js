@@ -17,6 +17,7 @@ import { renderArbitrage } from './pages/arbitrage'
 import { renderBatchEvaluations } from './pages/batch-evaluations'
 import { renderDealScore } from './pages/deal-score'
 import { renderOwnershipCost } from './pages/ownership-cost'
+import { renderImportArbitrage } from './pages/import-arbitrage'
 
 // Auth utility functions
 export function getAuthToken() {
@@ -67,6 +68,12 @@ function route() {
   // Ownership cost estimator (public)
   if (hash === '#/ownership-cost' || effectivePath === '/ownership-cost') {
     renderOwnershipCost()
+    return
+  }
+
+  // Import arbitrage — cross-country comparison (public)
+  if (hash === '#/import-arbitrage' || effectivePath === '/import-arbitrage') {
+    renderImportArbitrage()
     return
   }
 
@@ -440,6 +447,9 @@ document.addEventListener('click', (e) => {
       route()
     } else if (hash === '#/ownership-cost') {
       window.history.pushState({}, '', '/ownership-cost')
+      route()
+    } else if (hash === '#/import-arbitrage') {
+      window.history.pushState({}, '', '/import-arbitrage')
       route()
     } else if (hash === '#/login' || hash === '#/signup' || hash === '#/dashboard' || hash === '#/admin' || hash === '#/dashboard/admin' || hash === '#/stock-analysis' || hash === '#/auction-margin' || hash.startsWith('#/listing/')) {
       // Auth routes, dashboard, admin, stock analysis, and listing details

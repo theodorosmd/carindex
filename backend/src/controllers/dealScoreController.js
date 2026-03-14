@@ -1,6 +1,7 @@
 import { supabase } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import { marketPriceCache } from '../utils/cache.js';
+import { calculateImportCosts } from '../services/importCostCalculator.js';
 
 // ─── deal tier definitions ────────────────────────────────────────────────────
 
@@ -217,6 +218,142 @@ export async function getDealScore(req, res, next) {
     res.json(response);
   } catch (error) {
     logger.error('Error computing deal score', { error: error.message });
+    next(error);
+  }
+}
+
+// ─── cross-country price comparison ───────────────────────────────────────────
+// Public endpoint: returns median price per country + import cost to sell_country
+// Single SQL query (brand+model+status only), all filtering done in-memory
+
+export async function getMarketPriceComparison(req, res, next) {
+  try {
+    const { brand: rawBrand, model: rawModel, year, sell_country } = req.query;
+
+    if (!rawBrand || !rawModel || !year) {
+      return res.status(400).json({ error: 'brand, model, and year are required' });
+    }
+
+    const brand      = normalizeInput(rawBrand);
+    const model      = normalizeInput(rawModel);
+    const parsedYear = parseInt(year, 10);
+
+    if (isNaN(parsedYear) || parsedYear < 1990) {
+      return res.status(400).json({ error: 'Invalid year' });
+    }
+
+    const sellCountry = (sell_country || '').toUpperCase().slice(0, 2) || null;
+
+    // Single query (no country filter — preserves index performance)
+    const { data, error } = await supabase
+      .from('listings')
+      .select('price, year, location_country')
+      .eq('brand', brand)
+      .eq('model', model)
+      .eq('status', 'active')
+      .gt('price', 0)
+      .not('price', 'is', null)
+      .limit(2000);
+
+    if (error) throw error;
+
+    // Filter year ±3 in-memory
+    const rows = (data || []).filter(r => r.price > 0 && Math.abs(r.year - parsedYear) <= 3);
+
+    // Group prices by country
+    const byCountry = {};
+    for (const r of rows) {
+      if (!r.location_country) continue;
+      if (!byCountry[r.location_country]) byCountry[r.location_country] = [];
+      byCountry[r.location_country].push(r.price);
+    }
+
+    // Compute median + IQR cleanup per country
+    function computeMedian(prices) {
+      const sorted = [...prices].sort((a, b) => a - b);
+      const q1 = sorted[Math.floor(sorted.length * 0.25)];
+      const q3 = sorted[Math.floor(sorted.length * 0.75)];
+      const iqr = q3 - q1;
+      const clean = sorted.filter(p => p >= q1 - 1.5 * iqr && p <= q3 + 1.5 * iqr);
+      const ps = clean.length >= 3 ? clean : sorted;
+      return {
+        median: Math.round(ps[Math.floor(ps.length / 2)]),
+        p25:    Math.round(ps[Math.floor(ps.length * 0.25)]),
+        p75:    Math.round(ps[Math.floor(ps.length * 0.75)]),
+        count:  ps.length,
+      };
+    }
+
+    // Build per-country results
+    const countryResults = [];
+    for (const [country, prices] of Object.entries(byCountry)) {
+      if (prices.length < 3) continue;
+      const stats = computeMedian(prices);
+
+      let importCosts = null;
+      let importBreakdown = null;
+      let totalCostInSellCountry = null;
+
+      if (sellCountry && country !== sellCountry) {
+        try {
+          const ic = calculateImportCosts(stats.median, country, sellCountry, { isProfessional: false });
+          importCosts = ic.totalCost;
+          totalCostInSellCountry = ic.costToSellCountry;
+          importBreakdown = ic.breakdown;
+        } catch (_) {
+          // country pair not in distance matrix — skip
+        }
+      } else if (sellCountry && country === sellCountry) {
+        importCosts = 0;
+        totalCostInSellCountry = stats.median;
+      }
+
+      countryResults.push({
+        country,
+        median_price: stats.median,
+        p25: stats.p25,
+        p75: stats.p75,
+        count: stats.count,
+        confidence: Math.min(100, Math.round(Math.min(50, (stats.count / 50) * 50) + 15)),
+        import_costs: importCosts,
+        import_breakdown: importBreakdown,
+        total_cost_in_sell_country: totalCostInSellCountry,
+        net_margin: null,
+        net_margin_pct: null,
+      });
+    }
+
+    // Get sell country median to compute net margins
+    const sellEntry = sellCountry ? countryResults.find(r => r.country === sellCountry) : null;
+    const sellMedian = sellEntry?.median_price ?? null;
+
+    for (const r of countryResults) {
+      if (sellMedian && r.total_cost_in_sell_country != null && r.country !== sellCountry) {
+        r.net_margin = Math.round(sellMedian - r.total_cost_in_sell_country);
+        r.net_margin_pct = r.total_cost_in_sell_country > 0
+          ? Math.round((r.net_margin / r.total_cost_in_sell_country) * 100 * 10) / 10
+          : 0;
+      }
+    }
+
+    // Sort: profitable first, then by net_margin desc
+    countryResults.sort((a, b) => {
+      const aM = a.net_margin ?? -Infinity;
+      const bM = b.net_margin ?? -Infinity;
+      return bM - aM;
+    });
+
+    res.json({
+      brand:             rawBrand.trim(),
+      model:             rawModel.trim(),
+      year:              parsedYear,
+      sell_country:      sellCountry,
+      sell_median_price: sellMedian,
+      total_listings:    rows.length,
+      countries:         countryResults,
+    });
+  } catch (error) {
+    logger.error('Error in market price comparison', { error: error.message });
     next(error);
   }
 }

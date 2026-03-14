@@ -1,7 +1,7 @@
 import express from 'express';
 import { query } from 'express-validator';
 import rateLimit from 'express-rate-limit';
-import { getDealScore } from '../controllers/dealScoreController.js';
+import { getDealScore, getMarketPriceComparison } from '../controllers/dealScoreController.js';
 import { validateRequest } from '../middleware/validateRequest.js';
 
 const router = express.Router();
@@ -38,7 +38,20 @@ const dealScoreValidation = [
   validateRequest,
 ];
 
+const compareValidation = [
+  query('brand').notEmpty().withMessage('brand is required'),
+  query('model').notEmpty().withMessage('model is required'),
+  query('year')
+    .isInt({ min: 1990, max: new Date().getFullYear() + 1 })
+    .withMessage('Valid year required (1990–present)'),
+  query('sell_country').optional().isLength({ min: 2, max: 2 }).withMessage('sell_country must be 2-letter ISO code'),
+  validateRequest,
+];
+
 // Public endpoint — no auth required, IP rate-limited
 router.get('/', dealScoreLimiter, dealScoreValidation, getDealScore);
+
+// Public cross-country comparison — same rate limit
+router.get('/compare', dealScoreLimiter, compareValidation, getMarketPriceComparison);
 
 export const dealScoreRoutes = router;
