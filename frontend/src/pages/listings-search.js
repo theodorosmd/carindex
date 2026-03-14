@@ -54,8 +54,9 @@ export function renderListingsSearch() {
               }
             })()}
           </div>
-          <!-- Mobile auth button -->
-          <div class="lg:hidden">
+          <!-- Mobile right: language toggle + auth -->
+          <div class="lg:hidden flex items-center gap-2">
+            ${renderLanguageToggle()}
             ${(() => {
               const token = localStorage.getItem('carindex_token')
               const user = token ? JSON.parse(localStorage.getItem('carindex_user') || '{}') : null

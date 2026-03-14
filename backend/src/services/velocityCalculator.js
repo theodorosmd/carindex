@@ -115,20 +115,24 @@ async function getTopSellingModelsInternal(limit = 20, days = 30, country = null
       return [];
     }
 
-    // Group by brand + model + year + version/trim (version exacte)
+    // Grouping strategy:
+    // - With a year filter: group by brand+model+year (user wants a specific year)
+    // - Without year filter: group by brand+model only to aggregate across years AND countries.
+    //   Grouping by year would fragment data (BMW 118 2020 vs 2021 vs 2022 = 3 small groups)
+    //   causing single-country bias when one country dominates a specific year.
+    const groupByYear = !!year;
     const modelGroups = new Map();
 
     for (const listing of soldListings) {
-      const versionKey = [listing.version, listing.trim].filter(Boolean).join('|') || '';
-      const key = `${listing.brand}|${listing.model}|${listing.year || 'all'}|${versionKey}`;
-      
+      const key = groupByYear
+        ? `${listing.brand}|${listing.model}|${listing.year || 'all'}`
+        : `${listing.brand}|${listing.model}`;
+
       if (!modelGroups.has(key)) {
         modelGroups.set(key, {
           brand: listing.brand,
           model: listing.model,
-          year: listing.year,
-          version: listing.version,
-          trim: listing.trim,
+          year: groupByYear ? listing.year : null,
           sales: [],
           domDays: [],
           prices: []
@@ -165,16 +169,10 @@ async function getTopSellingModelsInternal(limit = 20, days = 30, country = null
       // Get unique countries for this model group
       const countries = [...new Set(group.sales.map(s => s.location_country).filter(c => c))];
 
-      // Version exacte: version ou trim, le plus informatif
-      const variant = [group.version, group.trim].filter(Boolean).join(' ').trim() || null;
-
       return {
         brand: group.brand,
         model: group.model,
         year: group.year === 2000 ? null : group.year, // 2000 = erroneous default, treat as unknown
-        version: group.version || null,
-        trim: group.trim || null,
-        variant, // version + trim combinés pour affichage
         salesCount: group.sales.length,
         averageDOM,
         medianDOM,
@@ -195,9 +193,9 @@ async function getTopSellingModelsInternal(limit = 20, days = 30, country = null
       if (domDiff !== 0) return domDiff;
       const salesDiff = (b.salesCount ?? 0) - (a.salesCount ?? 0); // more sales first
       if (salesDiff !== 0) return salesDiff;
-      // Quaternary: alphabetical by brand+model+year+variant for full determinism
-      const keyA = `${(a.brand || '').toLowerCase()}|${(a.model || '').toLowerCase()}|${a.year ?? ''}|${(a.variant || '').toLowerCase()}`;
-      const keyB = `${(b.brand || '').toLowerCase()}|${(b.model || '').toLowerCase()}|${b.year ?? ''}|${(b.variant || '').toLowerCase()}`;
+      // Quaternary: alphabetical by brand+model+(year) for full determinism
+      const keyA = `${(a.brand || '').toLowerCase()}|${(a.model || '').toLowerCase()}|${a.year ?? ''}`;
+      const keyB = `${(b.brand || '').toLowerCase()}|${(b.model || '').toLowerCase()}|${b.year ?? ''}`;
       return keyA.localeCompare(keyB);
     });
 
