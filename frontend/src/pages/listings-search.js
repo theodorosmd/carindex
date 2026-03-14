@@ -2,6 +2,96 @@ import { apiCache } from '../utils/cache.js'
 import { logout, isAuthenticated } from '../main.js'
 import { tr, getLang, renderLanguageToggle, attachLanguageToggle, formatCurrency as formatCurrencyLocale, formatNumber, formatDate as formatDateLocale, capitalize } from '../utils/i18n.js'
 import { getListingImage, getPlaceholderImageUrl, getFilteredImages } from '../utils/listingUtils.js'
+import { isFree, getUserPlan } from '../utils/subscription.js'
+
+// ─── search counter (free plan gate) ─────────────────────────────────────────
+
+const FREE_DAILY_LIMIT = 5
+
+function getSearchCount() {
+  const today = new Date().toDateString()
+  const stored = localStorage.getItem('carindex_searches_date')
+  if (stored !== today) {
+    localStorage.setItem('carindex_searches_date', today)
+    localStorage.setItem('carindex_searches_today', '0')
+    return 0
+  }
+  return parseInt(localStorage.getItem('carindex_searches_today') || '0', 10)
+}
+
+function incrementSearchCount() {
+  const count = getSearchCount() + 1
+  localStorage.setItem('carindex_searches_today', count.toString())
+  return count
+}
+
+function showUpgradeModal() {
+  if (document.getElementById('upgrade-modal')) return
+  const modal = document.createElement('div')
+  modal.id = 'upgrade-modal'
+  modal.className = 'fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4'
+  modal.innerHTML = `
+    <div class="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative">
+      <button onclick="document.getElementById('upgrade-modal').remove()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+      <div class="text-center mb-6">
+        <div class="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <svg class="w-7 h-7 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        </div>
+        <h2 class="text-2xl font-bold text-gray-900 mb-2">${tr("You've reached your daily limit", "Vous avez atteint votre limite quotidienne")}</h2>
+        <p class="text-gray-500 text-sm">${tr('Free accounts get 5 searches per day. Upgrade to Pro for unlimited searches.', 'Les comptes gratuits ont 5 recherches par jour. Passez à Pro pour des recherches illimitées.')}</p>
+      </div>
+      <div class="grid grid-cols-2 gap-4 mb-6">
+        <div class="border border-blue-200 rounded-xl p-4 bg-blue-50">
+          <div class="text-lg font-bold text-gray-900 mb-1">Pro</div>
+          <div class="text-2xl font-bold text-blue-600 mb-2">€19<span class="text-sm font-normal text-gray-500">/mo</span></div>
+          <ul class="text-xs text-gray-600 space-y-1">
+            <li>✓ ${tr('Unlimited searches', 'Recherches illimitées')}</li>
+            <li>✓ ${tr('Full deal score', 'Score deal complet')}</li>
+            <li>✓ ${tr('Price history', 'Historique des prix')}</li>
+            <li>✓ ${tr('Depreciation data', 'Données de dépréciation')}</li>
+          </ul>
+        </div>
+        <div class="border border-gray-200 rounded-xl p-4">
+          <div class="text-lg font-bold text-gray-900 mb-1">Dealer</div>
+          <div class="text-2xl font-bold text-gray-900 mb-2">€129<span class="text-sm font-normal text-gray-500">/mo</span></div>
+          <ul class="text-xs text-gray-600 space-y-1">
+            <li>✓ ${tr('Everything in Pro', 'Tout le plan Pro')}</li>
+            <li>✓ ${tr('Import arbitrage', "Arbitrage d'import")}</li>
+            <li>✓ ${tr('Market dashboard', 'Tableau de bord')}</li>
+            <li>✓ ${tr('Batch analysis', 'Analyse en lot')}</li>
+          </ul>
+        </div>
+      </div>
+      <div class="space-y-3">
+        <button onclick="window.location.href='/pricing'" class="w-full py-3 px-4 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors">
+          ${tr('View all plans →', 'Voir tous les plans →')}
+        </button>
+        <button onclick="document.getElementById('upgrade-modal').remove()" class="w-full py-2 text-sm text-gray-400 hover:text-gray-600">
+          ${tr('Maybe later', 'Peut-être plus tard')}
+        </button>
+      </div>
+    </div>
+  `
+  document.body.appendChild(modal)
+}
+
+function showSoftUpgradeBanner() {
+  if (document.getElementById('upgrade-banner')) return
+  const banner = document.createElement('div')
+  banner.id = 'upgrade-banner'
+  banner.className = 'fixed bottom-4 left-1/2 -translate-x-1/2 z-40 bg-white border border-blue-200 shadow-lg rounded-xl px-4 py-3 flex items-center gap-4 max-w-sm w-full mx-4'
+  banner.innerHTML = `
+    <span class="text-sm text-gray-700 flex-1">${tr('1 search left today on your free plan.', 'Plus qu\'1 recherche aujourd\'hui sur votre plan gratuit.')}</span>
+    <a href="/pricing" class="text-sm font-semibold text-blue-600 hover:text-blue-700 whitespace-nowrap">${tr('Upgrade', 'Passer Pro')}</a>
+    <button onclick="document.getElementById('upgrade-banner')?.remove()" class="text-gray-400 hover:text-gray-600 flex-shrink-0">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+    </button>
+  `
+  document.body.appendChild(banner)
+  setTimeout(() => banner.remove(), 8000)
+}
 
 // Make logout available globally
 window.logout = logout
@@ -1743,6 +1833,20 @@ function initializeSearch() {
   // Search listings (make it available globally)
   async function searchListings(filters, page = 1, forceRefresh = false) {
     try {
+      // ── Free plan daily search gate ──────────────────────────────────────
+      if (page === 1 && isAuthenticated() && isFree()) {
+        const count = getSearchCount()
+        if (count >= FREE_DAILY_LIMIT) {
+          showUpgradeModal()
+          return
+        }
+        const newCount = incrementSearchCount()
+        if (newCount === FREE_DAILY_LIMIT - 1) {
+          showSoftUpgradeBanner()
+        }
+      }
+      // ─────────────────────────────────────────────────────────────────────
+
       // Refresh facet counts when filters change (page 1 = new search)
       if (page === 1 && typeof loadFacets === 'function') {
         loadFacets().catch(err => console.warn('Facets refresh failed:', err))

@@ -18,6 +18,7 @@ import { renderBatchEvaluations } from './pages/batch-evaluations'
 import { renderDealScore } from './pages/deal-score'
 import { renderOwnershipCost } from './pages/ownership-cost'
 import { renderImportArbitrage } from './pages/import-arbitrage'
+import { renderPricingPage } from './pages/pricing'
 
 // Auth utility functions
 export function getAuthToken() {
@@ -74,6 +75,12 @@ function route() {
   // Import arbitrage — cross-country comparison (public)
   if (hash === '#/import-arbitrage' || effectivePath === '/import-arbitrage') {
     renderImportArbitrage()
+    return
+  }
+
+  // Pricing page (public)
+  if (hash === '#/pricing' || effectivePath === '/pricing') {
+    renderPricingPage()
     return
   }
 

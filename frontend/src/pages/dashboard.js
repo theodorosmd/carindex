@@ -404,9 +404,30 @@ async function loadDashboardData() {
     const planNames = {
       starter: 'Starter',
       pro: 'Pro',
-      plus: 'Plus'
+      dealer: 'Dealer',
+      plus: 'Dealer', // legacy alias
     }
-    document.getElementById('plan-name').textContent = planNames[stats.plan] || stats.plan
+    const planEl = document.getElementById('plan-name')
+    if (planEl) {
+      const planLabel = planNames[stats.plan] || stats.plan
+      const planColor = stats.plan === 'pro' ? 'text-blue-600' : stats.plan === 'dealer' || stats.plan === 'plus' ? 'text-purple-600' : 'text-gray-900'
+      planEl.innerHTML = `<span class="${planColor}">${planLabel}</span>`
+    }
+
+    // Add upgrade CTA inside plan card for starter users
+    if (stats.plan === 'starter') {
+      const planCard = document.getElementById('plan-name')?.closest('.bg-white')
+      if (planCard && !planCard.querySelector('#plan-upgrade-cta')) {
+        planCard.insertAdjacentHTML('beforeend', `
+          <div id="plan-upgrade-cta" class="mt-4 pt-4 border-t border-gray-100">
+            <p class="text-xs text-gray-500 mb-3">${tr('Unlock unlimited searches, full price history & depreciation data.', 'Débloquez les recherches illimitées, l\'historique des prix et les données de dépréciation.')}</p>
+            <a href="/pricing" class="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition">
+              🚀 ${tr('Upgrade to Pro', 'Passer à Pro')}
+            </a>
+          </div>
+        `)
+      }
+    }
 
     // Show upgrade banner if any limit is reached (starter plan only)
     const searchesAtLimit = stats.searches.limit !== -1 && stats.searches.remaining === 0

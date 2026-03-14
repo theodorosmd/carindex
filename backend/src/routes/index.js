@@ -21,6 +21,8 @@ import { webhookRoutes } from './webhooks.js';
 import { ingestRoutes, ingestPublicRoutes } from './ingest.js';
 import { dealScoreRoutes } from './dealScore.js';
 import { savedSearchesRoutes } from './savedSearches.js';
+import { subscriptionRoutes } from './subscription.js';
+import { stripeWebhookRoutes } from './stripeWebhook.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { rateLimiter } from '../middleware/rateLimiter.js';
 
@@ -75,8 +77,12 @@ export function setupRoutes(app) {
     }
   });
 
+  // Stripe webhook — must use raw body, mounted BEFORE express.json()
+  app.use('/api/v1/stripe/webhook', stripeWebhookRoutes);
+
   // Public routes (no auth required)
   app.use('/api/v1/auth', authRoutes); // Authentication routes are public
+  app.use('/api/v1/subscription', subscriptionRoutes); // Subscription routes (some public, some auth)
   app.use('/api/v1/facets', facetsRoutes);
   app.use('/api/v1/listings', listingsRoutes); // Listings search is public
   app.use('/api/v1/france', franceRoutes); // France-specific routes (malus calculation) - public

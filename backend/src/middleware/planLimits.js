@@ -4,16 +4,21 @@ import { logger } from '../utils/logger.js';
 export const PLAN_LIMITS = {
   starter: {
     searches_per_month: 200,
-    alerts_active: 10
+    alerts_active: 10,
   },
   pro: {
     searches_per_month: -1,
-    alerts_active: 50
+    alerts_active: 50,
+  },
+  dealer: {
+    searches_per_month: -1,
+    alerts_active: -1,
   },
   plus: {
+    // Legacy plan — treated as dealer
     searches_per_month: -1,
-    alerts_active: -1
-  }
+    alerts_active: -1,
+  },
 };
 
 export function getPlanLimits(plan) {
