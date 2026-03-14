@@ -1953,6 +1953,8 @@ function initializeSearch() {
     attachCardHandlers()
     initializeLazyLoading()
     updatePagination(total, page)
+    // Enrich cards with deal score badges (async, non-blocking)
+    enrichCardsWithDealScores(listings, currentFilters).catch(() => {})
   }
   
   // Render with virtual scrolling (for large lists)
@@ -2298,6 +2300,109 @@ function initializeSearch() {
     return cardHTML
   }
   
+  // ─── Deal score badge enrichment ──────────────────────────────────────────
+  // After cards render, if the user is filtering by a single brand+model, fetch
+  // one market price call and overlay a deal score badge on each card.
+  // Completely non-blocking — cards render without badges first, badges appear
+  // ~1-2 seconds later.
+
+  const _dsCache = {}  // brand:model:country → { market_price, last }
+
+  async function enrichCardsWithDealScores(listings, filters) {
+    if (!listings || listings.length === 0) return
+
+    // Only enrich when filtering by exactly 1 brand (deal score makes sense)
+    const brands  = Array.isArray(filters.brand)  ? filters.brand  : (filters.brand  ? [filters.brand]  : [])
+    const models  = Array.isArray(filters.model)  ? filters.model  : (filters.model  ? [filters.model]  : [])
+    if (brands.length !== 1) return   // multiple brands → skip
+    // model can be empty — we'll use listing model per-card for the fetch
+
+    const brand   = brands[0].toLowerCase()
+    const country = filters.country || null
+
+    // Determine which model(s) to fetch — if 1 model selected, use it; otherwise
+    // group listings by model and fetch the most common one (to avoid N calls)
+    let modelsToFetch = models.length === 1 ? models : []
+
+    if (modelsToFetch.length === 0) {
+      // find most common model in results
+      const freq = {}
+      listings.forEach(l => { if (l.model) freq[l.model.toLowerCase()] = (freq[l.model.toLowerCase()] || 0) + 1 })
+      const top = Object.entries(freq).sort((a, b) => b[1] - a[1])[0]
+      if (top) modelsToFetch = [top[0]]
+    }
+
+    for (const model of modelsToFetch.slice(0, 2)) {  // max 2 API calls
+      const cacheKey = `${brand}:${model}:${country || 'all'}`
+      let marketData = _dsCache[cacheKey]
+
+      if (!marketData) {
+        // Use median year from matching listings as the reference year
+        const matchingListings = listings.filter(l => l.model?.toLowerCase() === model && l.year)
+        if (matchingListings.length === 0) continue
+        const years = matchingListings.map(l => l.year).sort((a, b) => a - b)
+        const medianYear = years[Math.floor(years.length / 2)]
+        if (!medianYear) continue
+
+        try {
+          const params = new URLSearchParams({ brand, model, year: medianYear })
+          if (country) params.set('country', country)
+          const res = await fetch(`/api/v1/deal-score?${params}`)
+          if (!res.ok) continue
+          const data = await res.json()
+          if (!data.market_price) continue
+          marketData = data
+          _dsCache[cacheKey] = data
+        } catch {
+          continue
+        }
+      }
+
+      const mp = marketData.market_price
+      if (!mp) continue
+
+      // Inject badges into matching cards
+      listings.forEach(listing => {
+        if (listing.model?.toLowerCase() !== model) return
+        if (!listing.price || listing.price <= 0) return
+
+        const pct = ((listing.price - mp) / mp) * 100
+        const badge = getDealBadgeHTML(pct)
+        if (!badge) return
+
+        const card = resultsContainer.querySelector(`.listing-card[data-id="${listing.id}"]`)
+        if (!card) return
+        // Remove any existing deal badge
+        card.querySelector('.ds-badge')?.remove()
+        // Insert into image area (first child = relative aspect-[4/3] div)
+        const imgDiv = card.querySelector('.relative.aspect-\\[4\\/3\\]') || card.querySelector('.relative')
+        if (imgDiv) {
+          imgDiv.insertAdjacentHTML('beforeend', badge)
+        }
+      })
+    }
+  }
+
+  function getDealBadgeHTML(pct) {
+    let label, cls
+    if (pct < -15) {
+      label = tr('Excellent Deal', 'Excellente affaire'); cls = 'bg-emerald-600 text-white'
+    } else if (pct < -7) {
+      label = tr('Good Deal', 'Bonne affaire'); cls = 'bg-teal-600 text-white'
+    } else if (pct < 5) {
+      return null  // fair — no badge needed, keeps UI clean
+    } else if (pct < 15) {
+      label = tr('Slightly High', 'Légèrement cher'); cls = 'bg-amber-500 text-white'
+    } else {
+      label = tr('Overpriced', 'Trop cher'); cls = 'bg-red-600 text-white'
+    }
+
+    const pctStr = (pct > 0 ? '+' : '') + Math.round(pct) + '%'
+    return `<div class="ds-badge absolute top-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold ${cls} shadow-sm">
+      <span>${label}</span><span class="opacity-80">${pctStr}</span>
+    </div>`
+  }
+
   // Show listing details modal
   function showListingDetails(listingId, listing) {
     const modalContent = document.getElementById('modal-content')

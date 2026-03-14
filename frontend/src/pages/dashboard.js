@@ -196,6 +196,51 @@ export async function renderDashboard() {
             </div>
           </div>
 
+          <!-- Saved Searches -->
+          <div class="bg-white rounded-lg sm:rounded-xl shadow-lg p-4 sm:p-6 mb-6 sm:mb-8">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6 gap-2">
+              <h2 class="text-lg sm:text-xl font-bold text-gray-900">🔖 ${tr('Saved Searches', 'Recherches sauvegardées')}</h2>
+              <button id="create-saved-search-btn" class="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium">
+                ${tr('+ Save a search', '+ Sauvegarder une recherche')}
+              </button>
+            </div>
+
+            <!-- Inline create form (hidden by default) -->
+            <div id="saved-search-form" class="hidden mb-5 p-4 border border-blue-200 bg-blue-50 rounded-xl">
+              <h3 class="text-sm font-semibold text-blue-900 mb-3">${tr('New saved search', 'Nouvelle recherche sauvegardée')}</h3>
+              <div class="flex flex-col sm:flex-row gap-3 mb-3">
+                <input id="ss-name" type="text" placeholder="${tr('Name (e.g. VW Golf FR under 15k)', 'Nom (ex. VW Golf FR sous 15k)')}"
+                  class="flex-1 px-3 py-2 border border-blue-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" maxlength="200" />
+              </div>
+              <div class="flex items-center gap-3 mb-4">
+                <label class="flex items-center gap-2 cursor-pointer text-sm text-blue-800">
+                  <input id="ss-alert-email" type="checkbox" class="w-4 h-4 accent-blue-600" />
+                  ${tr('Notify me by email when new listings match', 'Me notifier par email pour les nouvelles annonces')}
+                </label>
+              </div>
+              <div id="ss-filters-preview" class="text-xs text-blue-700 mb-3 italic"></div>
+              <div class="flex gap-2">
+                <button id="ss-save-btn" class="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition">
+                  ${tr('Save', 'Enregistrer')}
+                </button>
+                <button id="ss-cancel-btn" class="px-4 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50 transition">
+                  ${tr('Cancel', 'Annuler')}
+                </button>
+              </div>
+              <p id="ss-error" class="text-xs text-red-600 mt-2 hidden"></p>
+            </div>
+
+            <div id="saved-searches-list" class="space-y-3">
+              <div class="text-center py-8 text-gray-500">
+                <svg class="mx-auto h-10 w-10 text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path>
+                </svg>
+                <p class="text-sm">${tr('No saved searches yet', 'Aucune recherche sauvegardée')}</p>
+                <p class="text-xs text-gray-400 mt-1">${tr('Save searches to re-run them anytime and get email alerts.', 'Sauvegardez des recherches pour les relancer et recevoir des alertes.')}</p>
+              </div>
+            </div>
+          </div>
+
           <!-- Fastest Selling Models Widget -->
           <div class="bg-white rounded-lg sm:rounded-xl shadow-lg p-4 sm:p-6 mb-6 sm:mb-8">
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6 gap-2">
@@ -263,6 +308,32 @@ export async function renderDashboard() {
   // Load dashboard data
   attachLanguageToggle(() => window.location.reload())
   loadDashboardData()
+
+  // Saved search form toggle
+  document.getElementById('create-saved-search-btn')?.addEventListener('click', () => {
+    const form = document.getElementById('saved-search-form')
+    if (form) {
+      form.classList.toggle('hidden')
+      if (!form.classList.contains('hidden')) {
+        // Show a preview of any active filters if available
+        const preview = document.getElementById('ss-filters-preview')
+        if (preview) {
+          const filterDesc = buildFilterDesc(null)
+          preview.textContent = filterDesc
+            ? `${tr('Filters:', 'Filtres:')} ${filterDesc}`
+            : tr('No active filters. Enter a name for this saved search.', 'Aucun filtre actif. Entrez un nom pour cette recherche.')
+        }
+        document.getElementById('ss-name')?.focus()
+      }
+    }
+  })
+
+  document.getElementById('ss-cancel-btn')?.addEventListener('click', () => {
+    document.getElementById('saved-search-form')?.classList.add('hidden')
+    document.getElementById('ss-error')?.classList.add('hidden')
+  })
+
+  document.getElementById('ss-save-btn')?.addEventListener('click', createSavedSearch)
 
   // Mobile menu toggle
   const mobileMenuBtn = document.getElementById('dashboard-mobile-menu-btn')
@@ -406,6 +477,9 @@ async function loadDashboardData() {
       const alertsData = await alertsResponse.json()
       renderAlerts(alertsData.alerts || [])
     }
+
+    // Load saved searches
+    loadSavedSearches().catch(() => {})
 
     // Load fastest selling models widget
     await loadFastestModelsWidget()
@@ -559,7 +633,7 @@ function renderFastestModelsWidget(models) {
 
 function renderAlerts(alerts) {
   const container = document.getElementById('alerts-list')
-  
+
   if (alerts.length === 0) {
     return // Keep default empty state
   }
@@ -567,7 +641,7 @@ function renderAlerts(alerts) {
   container.innerHTML = alerts.map(alert => {
     const criteria = alert.criteria || {}
     const brand = criteria.brand ? (Array.isArray(criteria.brand) ? criteria.brand.join(', ') : criteria.brand) : tr('All brands', 'Toutes marques')
-    const statusBadge = alert.status === 'active' 
+    const statusBadge = alert.status === 'active'
       ? `<span class="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">${tr('Active', 'Active')}</span>`
       : `<span class="px-2 py-1 bg-gray-100 text-gray-800 rounded-full text-xs font-medium">${tr('Inactive', 'Inactive')}</span>`
     const locale = getLang() === 'fr' ? 'fr-FR' : 'en-US'
@@ -594,5 +668,205 @@ function renderAlerts(alerts) {
       </div>
     `
   }).join('')
+}
+
+// ─── Saved Searches ────────────────────────────────────────────────────────────
+
+async function loadSavedSearches() {
+  const token = getAuthToken()
+  if (!token) return
+
+  try {
+    const res = await fetch('/api/v1/saved-searches', {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    if (!res.ok) return
+    const data = await res.json()
+    renderSavedSearches(data || [])
+  } catch (e) {
+    console.warn('Could not load saved searches:', e)
+  }
+}
+
+function buildFilterDesc(filters) {
+  if (!filters || Object.keys(filters).length === 0) return ''
+  const parts = []
+  if (filters.brand?.length) parts.push(Array.isArray(filters.brand) ? filters.brand.join(', ') : filters.brand)
+  if (filters.model?.length) parts.push(Array.isArray(filters.model) ? filters.model.join(', ') : filters.model)
+  if (filters.min_year || filters.max_year) {
+    const y = [filters.min_year, filters.max_year].filter(Boolean).join('–')
+    parts.push(y)
+  }
+  if (filters.min_price || filters.max_price) {
+    const p = [filters.min_price ? `€${Number(filters.min_price).toLocaleString()}` : null, filters.max_price ? `€${Number(filters.max_price).toLocaleString()}` : null].filter(Boolean).join('–')
+    parts.push(p)
+  }
+  if (filters.country) parts.push(filters.country)
+  if (filters.fuel?.length) parts.push(Array.isArray(filters.fuel) ? filters.fuel.join('/') : filters.fuel)
+  return parts.join(' · ')
+}
+
+function renderSavedSearches(searches) {
+  const container = document.getElementById('saved-searches-list')
+  if (!container) return
+
+  if (searches.length === 0) {
+    return // Keep default empty state
+  }
+
+  const locale = getLang() === 'fr' ? 'fr-FR' : 'en-US'
+
+  container.innerHTML = searches.map(ss => {
+    const filterDesc = buildFilterDesc(ss.filters)
+    const date = new Date(ss.created_at).toLocaleDateString(locale, { day: 'numeric', month: 'short' })
+    const newBadge = ss.new_count > 0
+      ? `<span class="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold">${ss.new_count} ${tr('new', 'nouvelles')}</span>`
+      : ''
+    const alertBadge = ss.alert_email
+      ? `<span class="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">📧 ${tr('Email alert', 'Alerte email')}</span>`
+      : ''
+
+    // Build the search URL from filters
+    const params = new URLSearchParams()
+    const f = ss.filters || {}
+    if (f.brand) (Array.isArray(f.brand) ? f.brand : [f.brand]).forEach(b => params.append('brand', b))
+    if (f.model) (Array.isArray(f.model) ? f.model : [f.model]).forEach(m => params.append('model', m))
+    if (f.min_price) params.set('min_price', f.min_price)
+    if (f.max_price) params.set('max_price', f.max_price)
+    if (f.min_year)  params.set('min_year', f.min_year)
+    if (f.max_year)  params.set('max_year', f.max_year)
+    if (f.country)   params.set('country', f.country)
+    if (f.fuel)      (Array.isArray(f.fuel) ? f.fuel : [f.fuel]).forEach(v => params.append('fuel', v))
+    const searchHref = `/search?${params.toString()}`
+
+    return `
+      <div class="border border-gray-200 rounded-xl p-3 sm:p-4 hover:bg-gray-50 transition" data-ss-id="${ss.id}">
+        <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="font-semibold text-gray-900 text-sm">${ss.name}</span>
+              ${newBadge}
+              ${alertBadge}
+            </div>
+            ${filterDesc ? `<p class="text-xs text-gray-500 mt-1">${filterDesc}</p>` : ''}
+            <p class="text-xs text-gray-400 mt-1">${tr('Saved on', 'Sauvegardée le')} ${date}</p>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            <a href="${searchHref}" class="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium">
+              ${tr('Open', 'Ouvrir')} →
+            </a>
+            <button class="ss-toggle-alert text-xs px-2.5 py-1.5 border rounded-lg transition ${ss.alert_email ? 'border-green-300 text-green-700 hover:bg-red-50 hover:border-red-300 hover:text-red-600' : 'border-gray-300 text-gray-500 hover:bg-green-50 hover:border-green-300 hover:text-green-700'}"
+              data-id="${ss.id}" data-alert="${ss.alert_email ? '1' : '0'}" title="${ss.alert_email ? tr('Disable email alert', 'Désactiver l\'alerte email') : tr('Enable email alert', 'Activer l\'alerte email')}">
+              ${ss.alert_email ? '🔔' : '🔕'}
+            </button>
+            <button class="ss-delete text-xs px-2.5 py-1.5 border border-gray-200 text-gray-400 rounded-lg hover:bg-red-50 hover:border-red-300 hover:text-red-600 transition"
+              data-id="${ss.id}" title="${tr('Delete', 'Supprimer')}">
+              ✕
+            </button>
+          </div>
+        </div>
+      </div>
+    `
+  }).join('')
+
+  // Bind delete buttons
+  container.querySelectorAll('.ss-delete').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id
+      if (!confirm(tr('Delete this saved search?', 'Supprimer cette recherche sauvegardée\u00a0?'))) return
+      const token = getAuthToken()
+      try {
+        const res = await fetch(`/api/v1/saved-searches/${id}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        if (res.ok || res.status === 204) {
+          btn.closest('[data-ss-id]')?.remove()
+          // If list is now empty, restore placeholder
+          if (!container.querySelector('[data-ss-id]')) {
+            container.innerHTML = `
+              <div class="text-center py-8 text-gray-500">
+                <svg class="mx-auto h-10 w-10 text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path>
+                </svg>
+                <p class="text-sm">${tr('No saved searches yet', 'Aucune recherche sauvegardée')}</p>
+              </div>`
+          }
+        }
+      } catch (e) { console.warn('Delete error', e) }
+    })
+  })
+
+  // Bind alert toggle buttons
+  container.querySelectorAll('.ss-toggle-alert').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id
+      const currentAlert = btn.dataset.alert === '1'
+      const newAlert = !currentAlert
+      const token = getAuthToken()
+      try {
+        const res = await fetch(`/api/v1/saved-searches/${id}`, {
+          method: 'PATCH',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ alert_email: newAlert })
+        })
+        if (res.ok) {
+          // Update the button appearance in-place
+          btn.dataset.alert = newAlert ? '1' : '0'
+          btn.textContent = newAlert ? '🔔' : '🔕'
+          btn.className = `ss-toggle-alert text-xs px-2.5 py-1.5 border rounded-lg transition ${newAlert ? 'border-green-300 text-green-700 hover:bg-red-50 hover:border-red-300 hover:text-red-600' : 'border-gray-300 text-gray-500 hover:bg-green-50 hover:border-green-300 hover:text-green-700'}`
+          // Update the badge
+          const card = btn.closest('[data-ss-id]')
+          const badgeEl = card?.querySelector('.ss-alert-badge')
+          if (card) {
+            // Re-render just the name/badge area would be complex; reload the section
+            loadSavedSearches()
+          }
+        }
+      } catch (e) { console.warn('Toggle alert error', e) }
+    })
+  })
+}
+
+async function createSavedSearch() {
+  const name = document.getElementById('ss-name')?.value?.trim()
+  const alertEmail = document.getElementById('ss-alert-email')?.checked || false
+  const errorEl = document.getElementById('ss-error')
+
+  if (!name) {
+    if (errorEl) { errorEl.textContent = tr('Please enter a name.', 'Veuillez entrer un nom.'); errorEl.classList.remove('hidden') }
+    return
+  }
+
+  const token = getAuthToken()
+  const btn = document.getElementById('ss-save-btn')
+  if (btn) { btn.disabled = true; btn.textContent = tr('Saving…', 'Enregistrement…') }
+
+  try {
+    const res = await fetch('/api/v1/saved-searches', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, filters: {}, alert_email: alertEmail })
+    })
+
+    if (res.status === 429) {
+      const data = await res.json()
+      if (errorEl) { errorEl.textContent = data.error || tr('Limit reached.', 'Limite atteinte.'); errorEl.classList.remove('hidden') }
+      return
+    }
+
+    if (!res.ok) throw new Error(await res.text())
+
+    // Reset form and reload
+    document.getElementById('saved-search-form')?.classList.add('hidden')
+    if (document.getElementById('ss-name')) document.getElementById('ss-name').value = ''
+    if (document.getElementById('ss-alert-email')) document.getElementById('ss-alert-email').checked = false
+    errorEl?.classList.add('hidden')
+    await loadSavedSearches()
+  } catch (e) {
+    if (errorEl) { errorEl.textContent = e.message || tr('Error saving search.', 'Erreur lors de la sauvegarde.'); errorEl.classList.remove('hidden') }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = tr('Save', 'Enregistrer') }
+  }
 }
 

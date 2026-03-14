@@ -20,6 +20,7 @@ import { getAutoDetectedEndpoint } from '../controllers/arbitrageController.js';
 import { webhookRoutes } from './webhooks.js';
 import { ingestRoutes, ingestPublicRoutes } from './ingest.js';
 import { dealScoreRoutes } from './dealScore.js';
+import { savedSearchesRoutes } from './savedSearches.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { rateLimiter } from '../middleware/rateLimiter.js';
 
@@ -109,6 +110,7 @@ export function setupRoutes(app) {
   apiRouter.use('/margin', marginRoutes);
   apiRouter.use('/evaluations', evaluationsRoutes);
   apiRouter.use('/analytics', analyticsRoutes); // Market analytics routes
+  apiRouter.use('/saved-searches', savedSearchesRoutes); // Saved searches + alerts
   apiRouter.use('/admin', adminRoutes); // Admin routes (require admin role)
   apiRouter.use('/ingest', ingestRoutes); // Ingestion routes (protected)
 
