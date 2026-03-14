@@ -1772,27 +1772,44 @@ export async function getGlobalStats(req, res, next) {
   try {
     const weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
+    const weekAgoISO = weekAgo.toISOString();
 
-    const [newListingsResult, soldCountResult, avgPriceResult] = await Promise.all([
+    const [newListingsResult, soldCountResult, avgPriceResult, totalCacheResult] = await Promise.all([
+      // Use first_seen (immutable "scraper first encountered this listing") rather than
+      // posted_date (refreshed on every scrape). count='estimated' avoids full-scan timeout.
       supabase
         .from('listings')
-        .select('id', { count: 'exact', head: true })
+        .select('id', { count: 'estimated', head: true })
         .eq('status', 'active')
-        .gte('posted_date', weekAgo.toISOString()),
+        .gte('first_seen', weekAgoISO),
       supabase
         .from('listings')
-        .select('id', { count: 'exact', head: true })
+        .select('id', { count: 'estimated', head: true })
         .eq('status', 'sold')
-        .gte('sold_date', weekAgo.toISOString()),
-      // Use SQL AVG() via RPC instead of loading 10k rows and computing in JS
-      supabase.rpc('get_avg_active_price')
+        .gte('sold_date', weekAgoISO),
+      // Avg price via updated RPC that samples 5000 EUR-converted rows (no full scan)
+      supabase.rpc('get_avg_active_price'),
+      // Accurate total active count from pre-computed cache (updated by triggers)
+      supabase
+        .from('listing_totals_cache')
+        .select('active_count')
+        .eq('id', 1)
+        .single(),
     ]);
 
-    const newListings = newListingsResult.count ?? 0;
     const soldCount = soldCountResult.count ?? 0;
+
+    // new_listings estimate is reliable once the partial index exists (migration 038).
+    // Guard against inflated planner estimates (> 30% of total active is implausible).
+    const estimatedNew = newListingsResult.count ?? 0;
+    const totalActive = totalCacheResult.data?.active_count ?? 0;
+    const newListings = totalActive > 0 && estimatedNew > totalActive * 0.3
+      ? null
+      : estimatedNew;
+
     const avgPrice = avgPriceResult.data ? Math.round(Number(avgPriceResult.data)) : null;
 
-    res.json({ newListings, soldCount, avgPrice });
+    res.json({ newListings, soldCount, avgPrice, totalActive });
   } catch (error) {
     logger.error('Error getting global stats', { error: error.message });
     next(error);
