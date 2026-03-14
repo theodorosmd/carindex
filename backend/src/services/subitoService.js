@@ -120,9 +120,99 @@ async function scrapeSubitoStreaming(baseUrl, maxPages, onPageDone) {
 
 /**
  * Parse Subito.it search results HTML into listing stubs.
- * Subito listing URLs follow: /auto-usate/{slug}-{id}.htm
+ * Tries __NEXT_DATA__ JSON first (most reliable for Next.js), then DOM selectors.
+ * Subito listing URLs follow: /auto-usate/{slug}-{id}.htm (or similar)
  */
 function parseSearchPage(html) {
+  // ── Primary: extract from __NEXT_DATA__ (Next.js hydration payload) ──────
+  const nextDataMatch = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+  if (nextDataMatch) {
+    try {
+      const nextData = JSON.parse(nextDataMatch[1]);
+      const pageProps = nextData?.props?.pageProps;
+      // Try common prop shapes used by Subito
+      const items = pageProps?.items || pageProps?.ads || pageProps?.listings
+        || pageProps?.searchResult?.items || pageProps?.search?.ads || null;
+      if (Array.isArray(items) && items.length > 0) {
+        const listings = [];
+        const seen = new Set();
+        for (const item of items) {
+          // Subito ads have: urn, urls, subject, body, price, geo, advertiser, features
+          const id = String(item.urn || item.id || item.adId || '').replace(/[^0-9]/g, '') || null;
+          if (!id || seen.has(id)) continue;
+          seen.add(id);
+
+          const urlObj = item.urls?.default || item.url || null;
+          const fullUrl = typeof urlObj === 'string' ? urlObj
+            : urlObj?.value ? urlObj.value
+            : `https://www.subito.it/auto-usate/${id}.htm`;
+
+          const title = item.subject || item.title || '';
+          const parts = title.split(/\s+/);
+          const brand = parts[0] || null;
+          const model = parts.slice(1, 4).join(' ') || null;
+
+          const priceObj = item.price || null;
+          const price = priceObj?.value != null ? parseFloat(priceObj.value)
+            : priceObj?.amount != null ? parseFloat(priceObj.amount)
+            : null;
+
+          const features = {};
+          if (Array.isArray(item.features)) {
+            for (const feat of item.features) {
+              const key = (feat.label || feat.key || '').toLowerCase();
+              const val = feat.values?.[0]?.value || feat.value || '';
+              if (key && val) features[key] = val;
+            }
+          }
+
+          const yearRaw = features['anno'] || features['immatricolazione'] || '';
+          const yearMatch = yearRaw.match(/\b(19|20)\d{2}\b/);
+          const year = yearMatch ? parseInt(yearMatch[0], 10) : null;
+
+          const kmRaw = features['chilometraggio'] || features['km'] || '';
+          const mileage = parseInt(String(kmRaw).replace(/[\s.km]/gi, ''), 10) || null;
+
+          const geo = item.geo || item.location || {};
+          const locationCity = geo.city?.value || geo.city || null;
+          const locationProvince = geo.town?.shortName || geo.province || null;
+
+          const advertiser = item.advertiser || {};
+          const sellerType = advertiser.type === 'shop' || advertiser.type === 'company'
+            ? 'professional' : 'private';
+
+          const images = [];
+          if (Array.isArray(item.images)) {
+            for (const img of item.images) {
+              const src = img.uri || img.url || img.scale?.uri || '';
+              if (src) images.push(src);
+            }
+          }
+
+          listings.push({
+            url: fullUrl,
+            id,
+            brand,
+            model,
+            title,
+            price,
+            year,
+            mileage,
+            fuelType: features['alimentazione'] || features['carburante'] || null,
+            transmission: features['cambio'] || features['trasmissione'] || null,
+            locationCity,
+            locationProvince,
+            sellerType,
+            images,
+            specifications: features,
+          });
+        }
+        if (listings.length > 0) return listings;
+      }
+    } catch { /* fall through to DOM parsing */ }
+  }
+
+  // ── Fallback: DOM selector parsing ───────────────────────────────────────
   const $ = cheerio.load(html);
   const listings = [];
   const seen = new Set();
@@ -130,11 +220,11 @@ function parseSearchPage(html) {
   $('a[href*="/auto-usate/"], a[href*="/vendita/auto/"]').each((_, el) => {
     const href = $(el).attr('href');
     if (!href) return;
-    if (!href.includes('.htm')) return;
 
     const fullUrl = href.startsWith('http') ? href : `https://www.subito.it${href}`;
 
-    const idMatch = fullUrl.match(/-(\d{6,})\.htm/);
+    // Accept both old .htm URLs and new SPA-style paths (/-{id} or /{id})
+    const idMatch = fullUrl.match(/-(\d{6,})(?:\.htm|\/|$)/) || fullUrl.match(/\/(\d{6,})(?:\.htm|\/|$)/);
     if (!idMatch) return;
     const id = idMatch[1];
     if (seen.has(id)) return;

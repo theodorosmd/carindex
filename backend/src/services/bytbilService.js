@@ -41,7 +41,14 @@ export async function runBytbilScraper(searchUrls, options = {}, progressCallbac
       try {
         logger.info('Scraping Bytbil.com URL', { url: searchUrl });
 
-        const listings = await scrapeBytbilUrl(browser, searchUrl, options.maxPages || 10);
+        let listings = await scrapeBytbilUrl(browser, searchUrl, options.maxPages || 10);
+
+        // Puppeteer on datacenter IPs often gets soft-blocked (no captcha, just 0 results).
+        // If nothing was found via Puppeteer, fall back to scrape.do before giving up.
+        if (listings.length === 0 && isScrapeDoAvailable()) {
+          logger.info('Bytbil: Puppeteer returned 0 listings, trying scrape.do fallback', { url: searchUrl });
+          listings = await scrapeBytbilSearchViaScraper(searchUrl, options.maxPages || 10);
+        }
 
         logger.info('Bytbil.com scraping completed', {
           url: searchUrl,
