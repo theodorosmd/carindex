@@ -81,15 +81,18 @@ async function runSourceScraper(source, searchUrls) {
     }
     case 'finn': {
       const { runFinnScraper } = await import('../services/finnService.js');
-      return runFinnScraper(urls, { maxPages: opts.maxPages });
+      // Cap à 15p : site a ~10-15 pages réelles, 9999 = Puppeteer qui tourne des heures
+      return runFinnScraper(urls, { ...opts, maxPages: parseInt(process.env.FINN_MAX_PAGES || '15', 10) });
     }
     case 'otomoto': {
       const { runOtomotoScraper } = await import('../services/otomotoService.js');
-      return runOtomotoScraper(urls, { maxPages: opts.maxPages });
+      // Cap à 30p : 800-1500ms/annonce × ~20 annonces/page × 9999 pages = 6h+
+      return runOtomotoScraper(urls, { ...opts, maxPages: parseInt(process.env.OTOMOTO_MAX_PAGES || '30', 10) });
     }
     case '2ememain': {
       const { run2ememainScraper } = await import('../services/deuxememainService.js');
-      return run2ememainScraper(urls, { maxPages: opts.maxPages });
+      // Cap à 20p : mêmes délais qu'otomoto, 0 saves → limite la boucle inutile
+      return run2ememainScraper(urls, { ...opts, maxPages: parseInt(process.env.DEUXEMEMAIN_MAX_PAGES || '20', 10) });
     }
     default:
       throw new Error(`Source non supportée: ${source}`);

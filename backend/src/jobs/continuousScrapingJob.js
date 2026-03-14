@@ -1,23 +1,23 @@
 /**
- * Scraping continu H24 avec boucles indépendantes par source.
+ * Scraping continu H24 — une boucle infinie indépendante par source.
  *
- * Les sources "prioritaires" (mobile.de, leboncoin, autoscout24 par défaut)
- * tournent chacune dans leur propre boucle infinie : dès qu'un cycle est
- * terminé, la source repart immédiatement sans attendre les autres.
- *
- * Les sources secondaires tournent en batches séquentiels (comportement
- * d'origine) mais ne bloquent plus jamais les sources prioritaires.
+ * Chaque scraper tourne dans sa propre boucle : dès qu'un cycle est terminé
+ * (ou qu'il dépasse son timeout de sécurité), il repart immédiatement.
+ * Plus aucune source lente ne peut bloquer les autres.
  *
  * Env:
  *   ENABLE_CONTINUOUS_SCRAPING=true
- *   PRIORITY_SOURCES=mobile.de,leboncoin,autoscout24   (sources à boucle indépendante)
- *   SECONDARY_SOURCES=all|source1,source2,...           (défaut: tout le reste)
- *   LOOP_PAUSE_MS=5000                                  (pause entre deux cycles d'une même source)
- *   SCRAPE_CONCURRENCY=3                                (parallélisme batch sources secondaires)
- *   CONTINUOUS_SCRAPE_INTERVAL_HOURS=0                  (pause entre deux cycles batch secondaires)
+ *   ACTIVE_SOURCES=all|source1,source2,...    défaut: toutes les sources connues
+ *   LOOP_PAUSE_MS=5000                        pause (ms) entre deux cycles d'une même source
+ *
+ * Timeouts de sécurité par source (annule le cycle si dépassé) :
+ *   FINN_TIMEOUT_MS=900000        défaut  15 min
+ *   OTOMOTO_TIMEOUT_MS=3600000    défaut  60 min
+ *   DEUXEMEMAIN_TIMEOUT_MS=1800000 défaut 30 min
+ *   SOURCE_TIMEOUT_MS=0           timeout global (0 = désactivé)
  */
 
-import { runOneSource, runInBatches } from '../scripts/run-all-scrapers-full.js';
+import { runOneSource } from '../scripts/run-all-scrapers-full.js';
 import { DEFAULT_SCRAPER_URLS } from '../config/defaultScraperUrls.js';
 import { logger } from '../utils/logger.js';
 
@@ -26,33 +26,52 @@ let activeLoopCount = 0;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// ─── Configuration ────────────────────────────────────────────────────────────
+// ─── Timeouts de sécurité (évite qu'un scraper bloqué tourne indéfiniment) ───
 
-const PRIORITY_SOURCES = (process.env.PRIORITY_SOURCES || 'mobile.de,leboncoin,autoscout24')
-  .split(',')
-  .map((s) => s.trim())
-  .filter(Boolean);
+const DEFAULT_SOURCE_TIMEOUTS_MS = {
+  finn:       parseInt(process.env.FINN_TIMEOUT_MS        || String(15 * 60 * 1000), 10),
+  otomoto:    parseInt(process.env.OTOMOTO_TIMEOUT_MS     || String(60 * 60 * 1000), 10),
+  '2ememain': parseInt(process.env.DEUXEMEMAIN_TIMEOUT_MS || String(30 * 60 * 1000), 10),
+};
 
-const LOOP_PAUSE_MS = parseInt(process.env.LOOP_PAUSE_MS || '5000', 10);
+const GLOBAL_TIMEOUT_MS = parseInt(process.env.SOURCE_TIMEOUT_MS || '0', 10);
+const LOOP_PAUSE_MS     = parseInt(process.env.LOOP_PAUSE_MS || '5000', 10);
 
-// ─── Boucle indépendante pour une source prioritaire ─────────────────────────
+function getTimeoutMs(source) {
+  if (DEFAULT_SOURCE_TIMEOUTS_MS[source]) return DEFAULT_SOURCE_TIMEOUTS_MS[source];
+  return GLOBAL_TIMEOUT_MS > 0 ? GLOBAL_TIMEOUT_MS : 0;
+}
+
+// ─── Boucle indépendante pour une source ─────────────────────────────────────
 
 async function runSourceLoop(source) {
   const urls = DEFAULT_SCRAPER_URLS[source];
   if (!urls) {
-    logger.warn(`[continuous] Source prioritaire inconnue: ${source}`);
+    logger.warn(`[continuous] Source inconnue ignorée: ${source}`);
     return;
   }
 
   activeLoopCount++;
-  logger.info(`[continuous] Démarrage boucle indépendante: ${source}`);
+  logger.info(`[continuous] ▶ Démarrage boucle: ${source}`);
 
   while (!stopRequested) {
+    const timeoutMs = getTimeoutMs(source);
+
     try {
-      await runOneSource([source, urls], 0, 1);
+      if (timeoutMs > 0) {
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error(`timeout (${Math.round(timeoutMs / 60000)}min)`)),
+            timeoutMs
+          )
+        );
+        await Promise.race([runOneSource([source, urls], 0, 1), timeoutPromise]);
+      } else {
+        await runOneSource([source, urls], 0, 1);
+      }
     } catch (err) {
-      logger.error(`[continuous] Erreur boucle ${source}`, { error: err.message });
-      // Pause de sécurité sur erreur inattendue
+      logger.error(`[continuous] ✗ Erreur boucle ${source}: ${err.message}`);
+      // Pause de récupération après erreur (évite les boucles d'erreur rapides)
       await sleep(30_000);
     }
 
@@ -62,46 +81,7 @@ async function runSourceLoop(source) {
   }
 
   activeLoopCount--;
-  logger.info(`[continuous] Boucle arrêtée: ${source}`);
-}
-
-// ─── Boucle batch pour les sources secondaires ───────────────────────────────
-
-async function runBatchLoop(secondarySources) {
-  if (secondarySources.length === 0) return;
-
-  const concurrency = Math.max(1, parseInt(process.env.SCRAPE_CONCURRENCY || '3', 10));
-  const intervalHours = parseInt(process.env.CONTINUOUS_SCRAPE_INTERVAL_HOURS || '0', 10);
-  const items = secondarySources
-    .map((source) => [source, DEFAULT_SCRAPER_URLS[source]])
-    .filter(([, urls]) => !!urls);
-
-  if (items.length === 0) return;
-
-  activeLoopCount++;
-  logger.info(`[continuous] Démarrage boucle batch (${concurrency} en parallèle): ${secondarySources.join(', ')}`);
-
-  while (!stopRequested) {
-    try {
-      logger.info('[continuous] Batch secondaire: début du cycle');
-      await runInBatches(items, concurrency, runOneSource);
-      logger.info('[continuous] Batch secondaire: cycle terminé');
-    } catch (err) {
-      logger.error('[continuous] Erreur boucle batch', { error: err.message });
-    }
-
-    if (!stopRequested) {
-      if (intervalHours > 0) {
-        logger.info(`[continuous] Batch secondaire: pause ${intervalHours}h`);
-        await sleep(intervalHours * 60 * 60 * 1000);
-      } else {
-        await sleep(LOOP_PAUSE_MS);
-      }
-    }
-  }
-
-  activeLoopCount--;
-  logger.info('[continuous] Boucle batch secondaire arrêtée');
+  logger.info(`[continuous] ■ Boucle arrêtée: ${source}`);
 }
 
 // ─── API publique ─────────────────────────────────────────────────────────────
@@ -114,36 +94,35 @@ export function startContinuousScrapingJob() {
 
   stopRequested = false;
 
-  // Sources secondaires = tout ce qui n'est pas prioritaire
-  const secondaryEnv = process.env.SECONDARY_SOURCES;
-  let secondarySources;
+  // Déterminer les sources actives
+  const activeEnv = process.env.ACTIVE_SOURCES;
+  let sources;
 
-  if (secondaryEnv && secondaryEnv.toLowerCase() !== 'all') {
-    secondarySources = secondaryEnv.split(',').map((s) => s.trim()).filter(Boolean);
+  if (!activeEnv || activeEnv.toLowerCase() === 'all') {
+    sources = Object.keys(DEFAULT_SCRAPER_URLS);
   } else {
-    secondarySources = Object.keys(DEFAULT_SCRAPER_URLS).filter(
-      (s) => !PRIORITY_SOURCES.includes(s)
-    );
+    sources = activeEnv.split(',').map((s) => s.trim()).filter(Boolean);
   }
 
-  logger.info('[continuous] Démarrage H24', {
-    prioritySources: PRIORITY_SOURCES,
-    secondarySources,
+  logger.info('[continuous] Démarrage H24 — boucle indépendante par source', {
+    sources,
     loopPauseMs: LOOP_PAUSE_MS,
+    timeouts: Object.fromEntries(
+      sources
+        .map((s) => [s, getTimeoutMs(s)])
+        .filter(([, t]) => t > 0)
+    ),
   });
 
-  // Lancer une boucle indépendante pour chaque source prioritaire
-  for (const source of PRIORITY_SOURCES) {
+  // Une boucle indépendante par source, toutes démarrent immédiatement
+  for (const source of sources) {
     setImmediate(() => runSourceLoop(source));
   }
-
-  // Lancer la boucle batch pour les sources secondaires
-  setImmediate(() => runBatchLoop(secondarySources));
 }
 
 export function stopContinuousScrapingJob() {
   stopRequested = true;
-  logger.info('[continuous] Arrêt demandé (en cours de cycle)');
+  logger.info('[continuous] Arrêt demandé (les cycles en cours se terminent)');
 }
 
 export { activeLoopCount as isContinuousScrapingRunning };
