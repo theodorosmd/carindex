@@ -13,11 +13,11 @@ export function renderMarketInsights() {
             <a href="#/" class="flex items-center space-x-2">
               <span class="text-xl sm:text-2xl font-bold text-blue-600">Carindex</span>
             </a>
-            <h1 class="text-lg sm:text-xl font-semibold text-gray-900">Market Insights</h1>
+            <h1 class="text-lg sm:text-xl font-semibold text-gray-900">${tr('Market Insights', 'Market Insights')}</h1>
           </div>
           <nav class="flex items-center space-x-4">
             ${renderLanguageToggle()}
-            <a href="#/dashboard" class="text-gray-600 hover:text-blue-600 transition">Dashboard</a>
+            <a href="#/dashboard" class="text-gray-600 hover:text-blue-600 transition">${tr('Dashboard', 'Dashboard')}</a>
             <a href="#/search" class="text-gray-600 hover:text-blue-600 transition">${tr('Search', 'Recherche')}</a>
           </nav>
         </div>
@@ -160,20 +160,20 @@ export function renderMarketInsights() {
         <!-- Statistics by Country -->
         <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
           <div class="flex items-center justify-between mb-4">
-            <h2 class="text-2xl font-bold text-gray-900">Statistics by Country</h2>
+            <h2 class="text-2xl font-bold text-gray-900">${tr('Statistics by Country', 'Statistiques par Pays')}</h2>
             <select id="country-stats-period" onchange="loadStatsByCountry()" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
-              <option value="7">7 days</option>
-              <option value="30" selected>30 days</option>
-              <option value="90">90 days</option>
+              <option value="7">${tr('7 days', '7 jours')}</option>
+              <option value="30" selected>${tr('30 days', '30 jours')}</option>
+              <option value="90">${tr('90 days', '90 jours')}</option>
             </select>
           </div>
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
             <div>
-              <h3 class="text-lg font-semibold text-gray-900 mb-4">Sales by Country</h3>
+              <h3 class="text-lg font-semibold text-gray-900 mb-4">${tr('Sales by Country', 'Ventes par Pays')}</h3>
               <canvas id="sales-by-country-chart"></canvas>
             </div>
             <div>
-              <h3 class="text-lg font-semibold text-gray-900 mb-4">Average DOM by Country</h3>
+              <h3 class="text-lg font-semibold text-gray-900 mb-4">${tr('Average DOM by Country', 'DOM Moyen par Pays')}</h3>
               <canvas id="dom-by-country-chart"></canvas>
             </div>
           </div>
@@ -181,12 +181,12 @@ export function renderMarketInsights() {
             <table class="min-w-full divide-y divide-gray-200">
               <thead class="bg-gray-50">
                 <tr>
-                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Country</th>
-                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sales</th>
-                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unique Models</th>
-                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Avg DOM</th>
-                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Median Price</th>
-                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Velocity/month</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">${tr('Country', 'Pays')}</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">${tr('Sales', 'Ventes')}</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">${tr('Unique Models', 'Modèles Uniques')}</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">${tr('Avg DOM', 'DOM Moyen')}</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">${tr('Median Price', 'Prix Médian')}</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">${tr('Velocity/month', 'Vélocité/mois')}</th>
                 </tr>
               </thead>
               <tbody id="country-stats-body" class="bg-white divide-y divide-gray-200">
@@ -199,51 +199,51 @@ export function renderMarketInsights() {
         <!-- Model Comparison -->
         <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
           <div class="flex items-center justify-between mb-4">
-            <h2 class="text-2xl font-bold text-gray-900">Model Comparison</h2>
+            <h2 class="text-2xl font-bold text-gray-900">${tr('Model Comparison', 'Comparaison de Modèles')}</h2>
             <button onclick="showCompareModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
-              + Compare models
+              + ${tr('Compare models', 'Comparer des modèles')}
             </button>
           </div>
           <div id="compare-models-content">
-            <p class="text-gray-500 text-center py-8">Select 2 to 5 models to compare</p>
+            <p class="text-gray-500 text-center py-8">${tr('Select 2 to 5 models to compare', 'Sélectionnez 2 à 5 modèles à comparer')}</p>
           </div>
         </div>
 
         <!-- Model Trends -->
         <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
           <div class="flex items-center justify-between mb-4">
-            <h2 class="text-2xl font-bold text-gray-900">Time Trends</h2>
+            <h2 class="text-2xl font-bold text-gray-900">${tr('Time Trends', 'Tendances Temporelles')}</h2>
             <div class="flex items-center space-x-2">
-              <input type="text" id="trends-brand" placeholder="Brand" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
-              <input type="text" id="trends-model" placeholder="Model" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
-              <input type="number" id="trends-year" placeholder="Year (optional)" class="px-3 py-2 border border-gray-300 rounded-lg text-sm w-24">
+              <input type="text" id="trends-brand" placeholder="${tr('Brand', 'Marque')}" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+              <input type="text" id="trends-model" placeholder="${tr('Model', 'Modèle')}" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+              <input type="number" id="trends-year" placeholder="${tr('Year (optional)', 'Année (optionnel)')}" class="px-3 py-2 border border-gray-300 rounded-lg text-sm w-24">
               <select id="trends-months" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                <option value="6">6 months</option>
-                <option value="12" selected>12 months</option>
+                <option value="6">${tr('6 months', '6 mois')}</option>
+                <option value="12" selected>${tr('12 months', '12 mois')}</option>
               </select>
               <button onclick="loadModelTrends()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
-                Analyze
+                ${tr('Analyze', 'Analyser')}
               </button>
             </div>
           </div>
           <div id="trends-content">
-            <p class="text-gray-500 text-center py-8">Enter a brand and model to see trends</p>
+            <p class="text-gray-500 text-center py-8">${tr('Enter a brand and model to see trends', 'Entrez une marque et un modèle pour voir les tendances')}</p>
           </div>
         </div>
 
         <!-- Profitability Analysis -->
         <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
           <div class="flex items-center justify-between mb-4">
-            <h2 class="text-2xl font-bold text-gray-900">Profitability Analysis</h2>
+            <h2 class="text-2xl font-bold text-gray-900">${tr('Profitability Analysis', 'Analyse de Rentabilité')}</h2>
             <div class="flex items-center space-x-2">
               <select id="profitability-country" onchange="loadProfitability()" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                <option value="">All countries</option>
+                <option value="">${tr('All countries', 'Tous pays')}</option>
                 <!-- Will be populated by JS -->
               </select>
               <select id="profitability-days" onchange="loadProfitability()" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                <option value="30">30 days</option>
-                <option value="90" selected>90 days</option>
-                <option value="180">180 days</option>
+                <option value="30">${tr('30 days', '30 jours')}</option>
+                <option value="90" selected>${tr('90 days', '90 jours')}</option>
+                <option value="180">${tr('180 days', '180 jours')}</option>
               </select>
             </div>
           </div>
@@ -251,18 +251,18 @@ export function renderMarketInsights() {
             <table class="min-w-full divide-y divide-gray-200">
               <thead class="bg-gray-50">
                 <tr>
-                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Modèle</th>
-                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ventes</th>
-                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Profit Moyen</th>
-                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ROI Moyen</th>
-                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Marge Moyenne</th>
-                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Profit/Jour</th>
-                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">DOM Moyen</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">${tr('Model', 'Modèle')}</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">${tr('Sales', 'Ventes')}</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">${tr('Avg Profit', 'Profit Moyen')}</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">${tr('Avg ROI', 'ROI Moyen')}</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">${tr('Avg Margin', 'Marge Moyenne')}</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">${tr('Profit/Day', 'Profit/Jour')}</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">${tr('Avg DOM', 'DOM Moyen')}</th>
                 </tr>
               </thead>
               <tbody id="profitability-body" class="bg-white divide-y divide-gray-200">
                 <tr>
-                  <td colspan="7" class="px-4 py-8 text-center text-gray-500">Chargement...</td>
+                  <td colspan="7" class="px-4 py-8 text-center text-gray-500">${tr('Loading...', 'Chargement...')}</td>
                 </tr>
               </tbody>
             </table>
@@ -272,31 +272,31 @@ export function renderMarketInsights() {
         <!-- Predictions -->
         <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
           <div class="flex items-center justify-between mb-4">
-            <h2 class="text-2xl font-bold text-gray-900">🔮 Prédictions & Score d'Affaire</h2>
+            <h2 class="text-2xl font-bold text-gray-900">🔮 ${tr('Predictions & Deal Score', 'Prédictions & Score d\'Affaire')}</h2>
           </div>
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <input type="text" id="predict-brand" placeholder="Marque" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
-            <input type="text" id="predict-model" placeholder="Modèle" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
-            <input type="number" id="predict-year" placeholder="Année (optionnel)" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+            <input type="text" id="predict-brand" placeholder="${tr('Brand', 'Marque')}" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+            <input type="text" id="predict-model" placeholder="${tr('Model', 'Modèle')}" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+            <input type="number" id="predict-year" placeholder="${tr('Year (optional)', 'Année (optionnel)')}" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
           </div>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <input type="number" id="predict-price" placeholder="Prix actuel (EUR)" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
-            <input type="number" id="predict-dom" placeholder="DOM actuel (jours)" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+            <input type="number" id="predict-price" placeholder="${tr('Current price (EUR)', 'Prix actuel (EUR)')}" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+            <input type="number" id="predict-dom" placeholder="${tr('Current DOM (days)', 'DOM actuel (jours)')}" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
           </div>
           <button onclick="loadPredictions()" class="w-full md:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
-            Calculer les prédictions
+            ${tr('Calculate predictions', 'Calculer les prédictions')}
           </button>
           <div id="predictions-content" class="mt-6">
-            <p class="text-gray-500 text-center py-8">Remplissez les champs ci-dessus pour obtenir des prédictions</p>
+            <p class="text-gray-500 text-center py-8">${tr('Fill in the fields above to get predictions', 'Remplissez les champs ci-dessus pour obtenir des prédictions')}</p>
           </div>
         </div>
 
         <!-- Hot Deals -->
         <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
           <div class="flex items-center justify-between mb-4">
-            <h2 class="text-2xl font-bold text-gray-900">Hot Deals (Sous-évalués)</h2>
+            <h2 class="text-2xl font-bold text-gray-900">${tr('Hot Deals (Undervalued)', 'Hot Deals (Sous-évalués)')}</h2>
             <button onclick="exportData('csv')" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium">
-              📥 Exporter CSV
+              📥 ${tr('Export CSV', 'Exporter CSV')}
             </button>
           </div>
           <div id="hot-deals-content">
@@ -307,15 +307,15 @@ export function renderMarketInsights() {
         <!-- Global Statistics -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div class="bg-white rounded-xl shadow-lg p-6">
-            <h3 class="text-lg font-semibold text-gray-900 mb-2">Annonces cette semaine</h3>
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">${tr('Listings this week', 'Annonces cette semaine')}</h3>
             <p class="text-3xl font-bold text-blue-600" id="new-listings-count">-</p>
           </div>
           <div class="bg-white rounded-xl shadow-lg p-6">
-            <h3 class="text-lg font-semibold text-gray-900 mb-2">Vendues</h3>
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">${tr('Sold', 'Vendues')}</h3>
             <p class="text-3xl font-bold text-green-600" id="sold-listings-count">-</p>
           </div>
           <div class="bg-white rounded-xl shadow-lg p-6">
-            <h3 class="text-lg font-semibold text-gray-900 mb-2">Prix moyen</h3>
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">${tr('Average price', 'Prix moyen')}</h3>
             <p class="text-3xl font-bold text-purple-600" id="avg-price">-</p>
           </div>
         </div>
@@ -482,14 +482,22 @@ async function loadMarketInsights() {
     await loadPriceDrops('week');
 
     // Load global stats
-    const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    
-    // This would require additional API endpoints for global stats
-    // For now, we'll leave placeholders
-    document.getElementById('new-listings-count').textContent = '-';
-    document.getElementById('sold-listings-count').textContent = '-';
-    document.getElementById('avg-price').textContent = '-';
+    try {
+      const statsRes = await fetch('/api/v1/analytics/global-stats', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (statsRes.ok) {
+        const stats = await statsRes.json();
+        document.getElementById('new-listings-count').textContent =
+          stats.newListings != null ? formatNumber(stats.newListings) : '-';
+        document.getElementById('sold-listings-count').textContent =
+          stats.soldCount != null ? formatNumber(stats.soldCount) : '-';
+        document.getElementById('avg-price').textContent =
+          stats.avgPrice != null ? formatCurrency(stats.avgPrice) : '-';
+      }
+    } catch (e) {
+      // non-bloquant
+    }
 
     loadingState.classList.add('hidden');
     content.classList.remove('hidden');
@@ -641,20 +649,54 @@ async function loadPriceDrops(period = 'week') {
   const token = getAuthToken();
   if (!token) return;
 
-  const days = period === 'day' ? 1 : period === 'week' ? 7 : 30;
-  
+  const content = document.getElementById('price-drops-content');
+  content.innerHTML = `<p class="text-gray-400 text-sm py-4">${tr('Loading...', 'Chargement...')}</p>`;
+
   try {
-    // Get price drops (this would need to be aggregated by model or listing)
-    // For now, we'll show a placeholder
-    const content = document.getElementById('price-drops-content');
+    const res = await fetch(`/api/v1/analytics/price-drops?period=${period}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+
+    if (!res.ok) throw new Error('Erreur serveur');
+
+    const drops = await res.json();
+
+    if (!drops.length) {
+      content.innerHTML = `<p class="text-gray-400 text-sm py-4">${tr('No price drops found for this period', 'Aucune baisse de prix sur cette période')}</p>`;
+      return;
+    }
+
+    const countryFlag = { FR: '🇫🇷', DE: '🇩🇪', SE: '🇸🇪', IT: '🇮🇹', ES: '🇪🇸', NL: '🇳🇱', BE: '🇧🇪', AT: '🇦🇹', CH: '🇨🇭' };
+
     content.innerHTML = `
-      <p class="text-gray-500">Chargement des baisses de prix pour les ${days} derniers jours...</p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        ${drops.map(d => {
+          const imgUrl = Array.isArray(d.images) && d.images.length > 0 ? d.images[0] : null;
+          return `
+          <a href="${d.url || '#'}" target="_blank" rel="noopener noreferrer"
+             class="flex flex-col bg-gray-50 rounded-lg overflow-hidden border border-gray-200 hover:shadow-md transition-shadow">
+            ${imgUrl
+              ? `<img src="${imgUrl}" alt="${d.brand} ${d.model}" class="w-full h-36 object-cover">`
+              : `<div class="w-full h-36 bg-gray-200 flex items-center justify-center text-gray-400 text-3xl">🚗</div>`
+            }
+            <div class="p-3 flex flex-col gap-1">
+              <div class="flex items-center justify-between">
+                <span class="font-semibold text-sm text-gray-900">${capitalize(d.brand)} ${d.model}${d.year ? ` (${d.year})` : ''}</span>
+                <span class="text-xs bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded-full">−${Math.round(d.price_drop_pct)}%</span>
+              </div>
+              <div class="text-blue-700 font-bold">${d.price ? formatCurrency(d.price) : '—'}</div>
+              <div class="text-xs text-gray-500">
+                ${d.price_drop_amount ? `−${formatCurrency(d.price_drop_amount)} ` : ''}
+                ${countryFlag[d.location_country] || ''} ${d.location_country || ''}
+              </div>
+            </div>
+          </a>`;
+        }).join('')}
+      </div>
     `;
-    
-    // TODO: Implement API call to get aggregated price drops
-    // This would require a new endpoint or modification of existing one
   } catch (error) {
     console.error('Error loading price drops:', error);
+    content.innerHTML = `<p class="text-red-500 text-sm py-4">${tr('Error loading price drops', 'Erreur lors du chargement')}</p>`;
   }
 }
 

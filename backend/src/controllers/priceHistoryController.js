@@ -607,13 +607,14 @@ export async function getModelTrends(req, res, next) {
 
     let query = supabase
       .from('listings')
-      .select('id, price, dom_days, sold_date, location_country')
+      .select('price, dom_days, sold_date, location_country')
       .eq('status', 'sold')
-      .ilike('brand', brand)
-      .ilike('model', model)
+      .eq('brand', brand.toLowerCase())
+      .eq('model', model.toLowerCase())
       .gte('sold_date', cutoffDate.toISOString())
       .not('dom_days', 'is', null)
-      .gte('dom_days', 0);
+      .gte('dom_days', 0)
+      .limit(5000);
 
     if (year) {
       query = query.eq('year', parseInt(year));
@@ -1759,6 +1760,73 @@ export async function getRecentSalesMonitoring(req, res, next) {
     });
   } catch (error) {
     logger.error('Error getting recent sales monitoring', { error: error.message });
+    next(error);
+  }
+}
+
+/**
+ * Get global stats for Market Insights dashboard
+ * Returns: new active listings this week, sold listings this week, average price of active listings
+ */
+export async function getGlobalStats(req, res, next) {
+  try {
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+
+    const [newListingsResult, soldCountResult, avgPriceResult] = await Promise.all([
+      supabase
+        .from('listings')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'active')
+        .gte('posted_date', weekAgo.toISOString()),
+      supabase
+        .from('listings')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'sold')
+        .gte('sold_date', weekAgo.toISOString()),
+      // Use SQL AVG() via RPC instead of loading 10k rows and computing in JS
+      supabase.rpc('get_avg_active_price')
+    ]);
+
+    const newListings = newListingsResult.count ?? 0;
+    const soldCount = soldCountResult.count ?? 0;
+    const avgPrice = avgPriceResult.data ? Math.round(Number(avgPriceResult.data)) : null;
+
+    res.json({ newListings, soldCount, avgPrice });
+  } catch (error) {
+    logger.error('Error getting global stats', { error: error.message });
+    next(error);
+  }
+}
+
+/**
+ * Get top price drops for Market Insights
+ * Query param: period = 'day' | 'week' | 'month'
+ */
+export async function getPriceDropsAggregated(req, res, next) {
+  try {
+    const { period = 'week' } = req.query;
+    const days = period === 'day' ? 1 : period === 'month' ? 30 : 7;
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+
+    const { data, error } = await supabase
+      .from('listings')
+      .select('id, brand, model, year, price, price_drop_pct, price_drop_amount, location_country, images, url')
+      .eq('status', 'active')
+      .gt('price_drop_pct', 0)
+      .gte('last_price_drop_date', cutoff.toISOString())
+      .order('price_drop_pct', { ascending: false })
+      .limit(20);
+
+    if (error) {
+      logger.error('Error getting price drops aggregated', { error: error.message });
+      return res.status(500).json({ error: error.message });
+    }
+
+    res.json(data ?? []);
+  } catch (error) {
+    logger.error('Error getting price drops aggregated', { error: error.message });
     next(error);
   }
 }
