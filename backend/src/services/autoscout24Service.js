@@ -261,7 +261,7 @@ function parseSearchPage(html) {
   const seen = new Set();
   const listings = [];
 
-  const allLinks = $('a[href*="/offers/"], a[href*="/angebote/"], a[href*="/voiture/"], a[href*="/auto/"], a[href*="/listing/"], a[href*="/fahrzeuge/details/"], a[href*="/annonce/"]');
+  const allLinks = $('a[href*="/offers/"], a[href*="/angebote/"], a[href*="/voiture/"], a[href*="/auto/"], a[href*="/listing/"], a[href*="/fahrzeuge/details/"], a[href*="/annonce/"], a[href*="/aanbod/"]');
 
   allLinks.each((_, el) => {
     const href = $(el).attr('href');
@@ -350,10 +350,21 @@ async function fetchListingDetails(listingUrl, browser) {
 
   let html;
   if (isScrapeDoAvailable() && !browser) {
+    const detailGeo = (() => {
+      if (listingUrl.includes('.be')) return 'be';
+      if (listingUrl.includes('.de')) return 'de';
+      if (listingUrl.includes('.fr')) return 'fr';
+      if (listingUrl.includes('.it')) return 'it';
+      if (listingUrl.includes('.at')) return 'at';
+      if (listingUrl.includes('.nl')) return 'nl';
+      if (listingUrl.includes('.es')) return 'es';
+      if (listingUrl.includes('.lu')) return 'lu';
+      return 'de';
+    })();
     html = await fetchViaScrapeDo(listingUrl, {
       render: true,
       customWait: 4000,
-      geoCode: listingUrl.includes('.de') ? 'de' : listingUrl.includes('.fr') ? 'fr' : 'de'
+      geoCode: detailGeo
     });
   } else if (browser) {
     const page = await browser.newPage();

@@ -54,9 +54,13 @@ export async function fetchViaScrapeDo(targetUrl, {
 
         if (!resp.ok) {
         const body = await resp.text().catch(() => '');
-        const retryableStatuses = [410, 429, 502, 503, 504];
+        // 410 Gone = permanent, never retry (would waste credits and time)
+        if (resp.status === 410) {
+          throw new Error(`scrape.do 410: ${body.substring(0, 200)}`);
+        }
+        const retryableStatuses = [429, 502, 503, 504];
         if (attempt < retries && retryableStatuses.includes(resp.status)) {
-          const waitMs = resp.status === 429 || resp.status === 410
+          const waitMs = resp.status === 429
             ? 25000 * attempt
             : 8000 * attempt;
           logger.warn('scrape.do transient error, retrying', { status: resp.status, attempt, waitMs, url: targetUrl });
@@ -68,7 +72,7 @@ export async function fetchViaScrapeDo(targetUrl, {
 
       return await resp.text();
     } catch (err) {
-      const isRetryable = err.message.includes('410') || err.message.includes('502') ||
+      const isRetryable = err.message.includes('502') ||
         err.message.includes('ECONNRESET') || err.message.includes('fetch failed') ||
         err.message.includes('ECONNREFUSED') || err.message.includes('ETIMEDOUT') ||
         err.message.includes('ENOTFOUND');

@@ -83,7 +83,7 @@ export async function runLaCentraleScraper(searchUrls, options = {}, progressCal
 async function scrapeLaCentraleStreaming(baseUrl, maxPages, onPageDone) {
   let usePuppeteer = !isScrapeDoAvailable();
   let browser = null;
-  const pageConcurrency = parseInt(process.env.LACENTRALE_CONCURRENT_PAGES || '5', 10) || 1;
+  const pageConcurrency = parseInt(process.env.LACENTRALE_CONCURRENT_PAGES || '2', 10) || 1;
 
   let sitePosition = 0;
   try {
@@ -97,10 +97,10 @@ async function scrapeLaCentraleStreaming(baseUrl, maxPages, onPageDone) {
           const pageUrl = buildPageUrl(baseUrl, page);
           try {
             // Try render:false first (cheaper), then render:true with longer wait for JS-heavy pages
-            let html = await fetchViaScrapeDo(pageUrl, { render: false, geoCode: 'fr' });
+            let html = await fetchViaScrapeDo(pageUrl, { render: false, geoCode: 'fr', superProxy: true });
             let listings = parseSearchPage(html);
             if (listings.length === 0 && html?.length > 500) {
-              html = await fetchViaScrapeDo(pageUrl, { render: true, customWait: 8000, geoCode: 'fr' });
+              html = await fetchViaScrapeDo(pageUrl, { render: true, customWait: 5000, geoCode: 'fr', superProxy: true });
               listings = parseSearchPage(html);
             }
             return { page, listings };
@@ -459,12 +459,12 @@ async function fetchListingDetails(listingUrl, browser) {
     // Try cheap render=false first; fall back to render=true if specs (color, doors) are missing.
     // fragment_tracking_state (which carries color/doors) requires JS rendering — don't skip render=true
     // just because price/jsonBrand/fullTitle are present from static JSON-LD.
-    html = await fetchViaScrapeDo(listingUrl, { render: false, geoCode: 'fr' });
+    html = await fetchViaScrapeDo(listingUrl, { render: false, geoCode: 'fr', superProxy: true });
     const quickParse = parseDetailPage(html);
     const hasBasicData = quickParse?.price || quickParse?.jsonBrand || quickParse?.fullTitle;
     const hasSpecs = quickParse?.color != null && quickParse?.doors != null;
     if (!hasBasicData || !hasSpecs) {
-      html = await fetchViaScrapeDo(listingUrl, { render: true, customWait: 4000, geoCode: 'fr' });
+      html = await fetchViaScrapeDo(listingUrl, { render: true, customWait: 4000, geoCode: 'fr', superProxy: true });
     } else {
       return quickParse;
     }
@@ -481,12 +481,12 @@ async function fetchListingDetails(listingUrl, browser) {
     }
   } else {
     // scrape.do not available, not browser — same render=false-first logic
-    html = await fetchViaScrapeDo(listingUrl, { render: false, geoCode: 'fr' });
+    html = await fetchViaScrapeDo(listingUrl, { render: false, geoCode: 'fr', superProxy: true });
     const quickParse = parseDetailPage(html);
     const hasBasicData = quickParse?.price || quickParse?.jsonBrand || quickParse?.fullTitle;
     const hasSpecs = quickParse?.color != null && quickParse?.doors != null;
     if (!hasBasicData || !hasSpecs) {
-      html = await fetchViaScrapeDo(listingUrl, { render: true, customWait: 4000, geoCode: 'fr' });
+      html = await fetchViaScrapeDo(listingUrl, { render: true, customWait: 4000, geoCode: 'fr', superProxy: true });
     } else {
       return quickParse;
     }
