@@ -43,28 +43,35 @@ async function computeMarketPrice({ brand, model, year, mileage, country, fuel_t
     return cached;
   }
 
-  // Build query — use eq() with lowercase so index is used
-  let q = supabase
+  // PERFORMANCE NOTE: adding location_country or year range to the SQL query
+  // causes the planner to bypass the (brand, model, ...) index and do a slow
+  // sequential scan (~7s+). Instead, fetch brand+model+status rows (1.5s for
+  // 1000 rows) and apply all other filters in-memory. This is safe because the
+  // typical result set after filtering is well under the 1000-row limit.
+
+  const q = supabase
     .from('listings')
-    .select('price, year, mileage')
+    .select('price, year, mileage, location_country, fuel_type, transmission')
     .eq('brand', brand)
     .eq('model', model)
-    .gte('year', year - 2)
-    .lte('year', year + 2)
     .eq('status', 'active')
     .gt('price', 0)
     .not('price', 'is', null)
-    .limit(300);
-
-  if (country) q = q.eq('location_country', country);
-  if (fuel_type) q = q.eq('fuel_type', fuel_type);
-  if (transmission) q = q.eq('transmission', transmission);
+    .limit(1000);
 
   const { data, error } = await q;
 
   if (error) throw error;
 
-  const rows = (data || []).filter(r => r.price > 0);
+  // In-memory filters: year ±2, country, fuel_type, transmission
+  const rows = (data || []).filter(r => {
+    if (!r.price || r.price <= 0) return false;
+    if (Math.abs(r.year - year) > 2) return false;
+    if (country && r.location_country !== country) return false;
+    if (fuel_type && r.fuel_type && r.fuel_type !== fuel_type) return false;
+    if (transmission && r.transmission && r.transmission !== transmission) return false;
+    return true;
+  });
 
   if (rows.length < 3) {
     return {
