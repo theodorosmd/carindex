@@ -174,8 +174,8 @@ export function renderLogin() {
       localStorage.setItem('carindex_token', data.token)
       localStorage.setItem('carindex_user', JSON.stringify(data.user))
       const redirectTo = new URLSearchParams(window.location.search).get('redirect') || '#/dashboard'
-      window.location.hash = redirectTo
-      window.location.reload()
+      // Navigate to SPA root with the correct hash — avoids /login#/admin/blog which breaks routing
+      window.location.href = '/' + (redirectTo.startsWith('#') ? redirectTo : '#/' + redirectTo.replace(/^\//, ''))
     } catch (error) {
       errorText.textContent = error.message
       errorDiv.classList.remove('hidden')
