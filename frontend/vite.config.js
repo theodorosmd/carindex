@@ -24,6 +24,21 @@ export default defineConfig({
             console.error('[Vite proxy error]', err.message)
           })
         },
+      },
+      '/blog': {
+        target: apiTarget,
+        changeOrigin: true,
+        secure: false,
+      },
+      '/prix-marche': {
+        target: apiTarget,
+        changeOrigin: true,
+        secure: false,
+      },
+      '/sitemap.xml': {
+        target: apiTarget,
+        changeOrigin: true,
+        secure: false,
       }
     }
   },
