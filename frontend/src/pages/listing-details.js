@@ -52,12 +52,12 @@ export function renderListingDetails() {
     '<header class="bg-white shadow-sm sticky top-0 z-50">' +
     '<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">' +
     '<div class="flex items-center justify-between h-14 sm:h-16">' +
-    '<a href="/" class="flex items-center space-x-2"><span class="text-xl sm:text-2xl font-bold text-blue-600">Carindex</span></a>' +
+    '<a href="/#/" class="flex items-center space-x-2"><span class="text-xl sm:text-2xl font-bold text-zinc-900">Carindex</span></a>' +
     '<nav class="flex items-center space-x-2 sm:space-x-4">' +
-    '<a href="/search" class="hidden sm:inline text-gray-700 hover:text-blue-600 transition text-sm sm:text-base">' + searchLabel + '</a>' +
+    '<a href="/#/search" class="hidden sm:inline text-gray-700 hover:text-zinc-900 transition text-sm sm:text-base">' + searchLabel + '</a>' +
     langToggle +
-    '<a href="/search" class="px-3 sm:px-4 py-2 text-gray-700 hover:text-blue-600 transition text-sm sm:text-base inline-flex items-center">' +
-    '<span class="hidden sm:inline">← ' + backLabel + '</span><span class="sm:hidden">←</span></a>' +
+    '<button onclick="history.length > 1 ? history.back() : (window.location.href=\'/#/search\')" class="px-3 sm:px-4 py-2 text-gray-700 hover:text-zinc-900 transition text-sm sm:text-base inline-flex items-center cursor-pointer">' +
+    '<span class="hidden sm:inline">← ' + backLabel + '</span><span class="sm:hidden">←</span></button>' +
     '</nav></div></div></header>' +
     '<div id="loading-state" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">' +
     '<div class="text-center">' +
@@ -337,10 +337,30 @@ function renderListingContent(listing) {
   
   // Build description HTML
   let descriptionHtml = ''
-  if (listing.description) {
+  if (listing.description && listing.description.trim().length > 10) {
     descriptionHtml = '<div class="bg-white rounded-lg sm:rounded-xl shadow-lg p-4 sm:p-6 mb-4 sm:mb-6">' +
       '<h3 class="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">' + tr('Description', 'Description') + '</h3>' +
-      '<div class="prose max-w-none text-gray-700" id="description-content">' + listing.description + '</div></div>'
+      '<div class="prose max-w-none text-gray-700 text-sm leading-relaxed" id="description-content">' + listing.description + '</div></div>'
+  } else {
+    // Fallback: build a description from available data
+    const parts = []
+    if (listing.year) parts.push(listing.year)
+    if (listing.brand) parts.push(capitalize(listing.brand))
+    if (listing.model) parts.push(capitalize(listing.model))
+    if (enrichedListing.fuel_type) parts.push(enrichedListing.fuel_type)
+    if (enrichedListing.transmission) parts.push(enrichedListing.transmission)
+    if (enrichedListing.power_hp) parts.push(enrichedListing.power_hp + ' hp')
+    if (enrichedListing.mileage > 0) parts.push(formatNumber(enrichedListing.mileage) + ' km')
+    const locationCity = listing.location_city || listing.location_region
+    const locationCountry = listing.location_country || ''
+    if (locationCity) parts.push(locationCity + (locationCountry ? ', ' + locationCountry : ''))
+    if (parts.length > 0) {
+      descriptionHtml = '<div class="bg-white rounded-lg sm:rounded-xl shadow-lg p-4 sm:p-6 mb-4 sm:mb-6">' +
+        '<h3 class="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">' + tr('Description', 'Description') + '</h3>' +
+        '<p class="text-gray-700 text-sm leading-relaxed" id="description-content">' + parts.join(' · ') + '</p>' +
+        '<p class="text-xs text-gray-400 mt-3">' + tr('No description provided by seller. View original listing for full details.', 'Aucune description fournie par le vendeur. Consultez l\'annonce originale pour plus de détails.') + '</p>' +
+        '</div>'
+    }
   }
   
   // Build specifications HTML
@@ -400,8 +420,8 @@ function renderListingContent(listing) {
   const html = '<div class="grid lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">' +
     '<div class="lg:col-span-2">' +
     '<div class="bg-white rounded-lg sm:rounded-xl shadow-lg overflow-hidden mb-4 sm:mb-6">' +
-    '<div class="relative aspect-video bg-gray-100 overflow-hidden" id="main-image-container">' +
-    '<img id="main-image" src="' + mainImage + '" alt="' + listing.brand + ' ' + listing.model + '" class="absolute inset-0 w-full h-full object-cover object-center block" referrerpolicy="no-referrer">' +
+    '<div class="relative bg-gray-100 overflow-hidden" id="main-image-container" style="height:480px">' +
+    '<img id="main-image" src="' + mainImage + '" alt="' + listing.brand + ' ' + listing.model + '" class="absolute inset-0 w-full h-full object-cover object-center block" referrerpolicy="no-referrer" loading="eager" fetchpriority="high" style="image-rendering:high-quality">' +
     carouselHtml +
     '</div>' + thumbnailsHtml + '</div>' +
     descriptionHtml +
