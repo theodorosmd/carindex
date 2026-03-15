@@ -312,20 +312,32 @@ function renderComparisonTable() {
 function renderFAQ() {
   const items = [
     {
-      q: () => tr('Can I cancel anytime?', 'Puis-je annuler à tout moment ?'),
-      a: () => tr('Yes. Cancel anytime from your billing page. You keep access until the end of the billing period.', 'Oui. Annulez à tout moment depuis votre page facturation. Vous gardez l\'accès jusqu\'à la fin de la période.'),
+      q: () => tr('Which countries are covered?', 'Quels pays sont couverts ?'),
+      a: () => tr(
+        'Carindex covers 13 European countries: France, Germany, Belgium, Netherlands, Spain, Italy, Sweden, Norway, Finland, Denmark, Switzerland, Luxembourg and Poland. We add new markets based on demand.',
+        'Carindex couvre 13 pays européens : France, Allemagne, Belgique, Pays-Bas, Espagne, Italie, Suède, Norvège, Finlande, Danemark, Suisse, Luxembourg et Pologne. Nous ajoutons de nouveaux marchés selon la demande.'
+      ),
     },
     {
-      q: () => tr('Is there a free trial?', 'Y a-t-il un essai gratuit ?'),
-      a: () => tr('Pro includes a 7-day free trial. Dealer includes a 14-day free trial. No credit card required to start.', 'Pro inclut 7 jours d\'essai gratuit. Dealer inclut 14 jours. Aucune carte bancaire requise pour commencer.'),
+      q: () => tr('How accurate are the market prices?', 'Quelle est la précision des prix de marché ?'),
+      a: () => tr(
+        'Each market price is calculated from real comparable listings and comes with a confidence index (0–100%). The more listings available for a model, the higher the confidence. Rare or very recent models may have a lower confidence score.',
+        'Chaque prix de marché est calculé à partir d\'annonces réelles comparables et accompagné d\'un indice de confiance (0–100 %). Plus il y a d\'annonces pour un modèle, plus la confiance est élevée. Les modèles rares ou très récents peuvent avoir un score plus faible.'
+      ),
     },
     {
-      q: () => tr('What happens when I hit the search limit?', 'Que se passe-t-il quand j\'atteins la limite de recherches ?'),
-      a: () => tr('On the Starter plan, searches reset at the start of each month. Upgrade to Pro for unlimited searches.', 'Sur le plan Starter, les recherches se réinitialisent au début de chaque mois. Passez à Pro pour des recherches illimitées.'),
+      q: () => tr('How often is data updated?', 'À quelle fréquence les données sont-elles mises à jour ?'),
+      a: () => tr(
+        'Listings are refreshed daily from all covered markets. Price alerts are checked every hour. Historical trend data covers up to 30 months.',
+        'Les annonces sont actualisées quotidiennement depuis tous les marchés couverts. Les alertes de prix sont vérifiées toutes les heures. Les données historiques de tendance couvrent jusqu\'à 30 mois.'
+      ),
     },
     {
-      q: () => tr('Can I switch plans?', 'Puis-je changer de plan ?'),
-      a: () => tr('Yes. Upgrades take effect immediately and are prorated. Downgrades take effect at the end of the billing period.', 'Oui. Les mises à niveau prennent effet immédiatement au prorata. Les rétrogradations prennent effet en fin de période.'),
+      q: () => tr('Is there a commitment period?', 'Y a-t-il un engagement ?'),
+      a: () => tr(
+        'No commitment. Cancel anytime from your billing page. Pro includes a 7-day free trial, Dealer a 14-day free trial. You keep access until the end of the current billing period.',
+        'Aucun engagement. Annulez à tout moment depuis votre page facturation. Pro inclut 7 jours d\'essai gratuit, Dealer 14 jours. Vous gardez l\'accès jusqu\'à la fin de la période en cours.'
+      ),
     },
   ];
 
