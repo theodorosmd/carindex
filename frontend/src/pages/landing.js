@@ -275,79 +275,94 @@ export function renderLandingPage() {
           </div>
           <div class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
 
-            <!-- Start -->
+            <!-- Starter (free) -->
             <div class="bg-white rounded-2xl p-8 border border-zinc-200">
               <div class="mb-8">
-                <h3 class="text-sm font-semibold text-zinc-900 uppercase tracking-wide mb-4">Start</h3>
+                <h3 class="text-sm font-semibold text-zinc-900 uppercase tracking-wide mb-4">Starter</h3>
                 <div class="flex items-baseline gap-1.5">
-                  <span class="text-4xl font-bold text-zinc-900 tracking-tight">199€</span>
-                  <span class="text-sm text-zinc-500">${tr('/mo excl. VAT', '/mois HT')}</span>
+                  <span class="text-4xl font-bold text-zinc-900 tracking-tight">${tr('Free', 'Gratuit')}</span>
                 </div>
-                <p class="mt-3 text-sm text-zinc-500">${tr('For small dealerships and independent dealers.', 'Pour petits concessionnaires et marchands indépendants.')}</p>
+                <p class="mt-3 text-sm text-zinc-500">${tr('Get started at no cost.', 'Commencez gratuitement.')}</p>
               </div>
               <ul class="space-y-3 mb-8">
-                ${['Ad-free navigation', 'Market price + confidence index', 'Daily updates', 'Professional alerts', 'Results export', 'Up to 3 users'].map((f, i) => {
-                  const fr = ['Navigation sans publicité', 'Prix marché + indice confiance', 'Mise à jour quotidienne', 'Alertes professionnelles', 'Export de résultats', "Jusqu'à 3 utilisateurs"][i]
-                  return `<li class="flex items-start gap-3 text-sm text-zinc-600">
-                    <svg class="w-4 h-4 text-zinc-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                    ${tr(f, fr)}
-                  </li>`
-                }).join('')}
+                ${[
+                  [tr('200 searches / month', '200 recherches / mois'), true],
+                  [tr('Basic deal score', 'Score deal basique'), true],
+                  [tr('Estimated market price', 'Prix marché estimé'), true],
+                  [tr('10 saved searches', '10 recherches sauvegardées'), true],
+                  [tr('10 price alerts', '10 alertes de prix'), true],
+                  [tr('Price history & depreciation', 'Historique & dépréciation'), false],
+                  [tr('Import arbitrage', "Arbitrage d'import"), false],
+                ].map(([label, included]) => `
+                  <li class="flex items-start gap-3 text-sm ${included ? 'text-zinc-600' : 'text-zinc-400 line-through'}">
+                    <svg class="w-4 h-4 ${included ? 'text-zinc-400' : 'text-zinc-300'} mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                    ${label}
+                  </li>`).join('')}
               </ul>
-              <a href="/trial?plan=start" class="block w-full text-center rounded-lg border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-900 hover:bg-zinc-50 transition-colors">
-                ${tr('Start free trial', 'Démarrer l\'essai gratuit')}
+              <a href="#/search" class="block w-full text-center rounded-lg border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-900 hover:bg-zinc-50 transition-colors">
+                ${tr('Get started free', 'Commencer gratuitement')}
               </a>
             </div>
 
-            <!-- Confort (highlighted) -->
+            <!-- Pro (highlighted) -->
             <div class="bg-zinc-900 rounded-2xl p-8 border border-zinc-800 relative">
               <div class="absolute -top-3 left-1/2 -translate-x-1/2">
                 <span class="inline-block rounded-full bg-blue-600 px-3 py-1 text-xs font-semibold text-white">${tr('Most popular', 'Le plus populaire')}</span>
               </div>
               <div class="mb-8">
-                <h3 class="text-sm font-semibold text-zinc-100 uppercase tracking-wide mb-4">${tr('Comfort', 'Confort')}</h3>
+                <h3 class="text-sm font-semibold text-zinc-100 uppercase tracking-wide mb-4">Pro</h3>
                 <div class="flex items-baseline gap-1.5">
-                  <span class="text-4xl font-bold text-white tracking-tight">${formatCurrency(499)}</span>
-                  <span class="text-sm text-zinc-400">${tr('/mo excl. VAT', '/mois HT')}</span>
+                  <span class="text-4xl font-bold text-white tracking-tight">€19</span>
+                  <span class="text-sm text-zinc-400">${tr('/mo', '/mois')}</span>
                 </div>
-                <p class="mt-3 text-sm text-zinc-400">${tr('For medium dealerships and regional auto groups.', 'Pour concessionnaires moyens et groupes régionaux.')}</p>
+                <p class="mt-3 text-sm text-zinc-400">${tr('7-day free trial. No credit card required.', 'Essai 7 jours. Sans carte bancaire.')}</p>
               </div>
               <ul class="space-y-3 mb-8">
-                ${['Everything in Start', 'Full Used Car Market module', 'Advanced market pricing', 'Trend analysis', 'Custom reports', 'Priority support', 'Up to 10 users'].map((f, i) => {
-                  const fr = ['Tout Start', 'Module Marché VO complet', 'Prix marché avancé', 'Analyses de tendances', 'Rapports personnalisables', 'Support prioritaire', "Jusqu'à 10 utilisateurs"][i]
-                  return `<li class="flex items-start gap-3 text-sm text-zinc-300">
+                ${[
+                  tr('Unlimited searches', 'Recherches illimitées'),
+                  tr('Exact market price', 'Prix marché exact'),
+                  tr('Full price history (12 months)', 'Historique des prix (12 mois)'),
+                  tr('Depreciation curves', 'Courbes de dépréciation'),
+                  tr('Unlimited saved searches & alerts', 'Recherches & alertes illimitées'),
+                  tr('Ownership cost calculator', 'Calculateur de TCO'),
+                ].map(f => `
+                  <li class="flex items-start gap-3 text-sm text-zinc-300">
                     <svg class="w-4 h-4 text-blue-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                    ${tr(f, fr)}
-                  </li>`
-                }).join('')}
+                    ${f}
+                  </li>`).join('')}
               </ul>
-              <a href="/trial?plan=confort" class="block w-full text-center rounded-lg bg-white px-4 py-2.5 text-sm font-semibold text-zinc-900 hover:bg-zinc-100 transition-colors">
-                ${tr('Start free trial', 'Démarrer l\'essai gratuit')}
-              </a>
+              <button onclick="window.__landingCheckout('pro')" class="block w-full text-center rounded-lg bg-white px-4 py-2.5 text-sm font-semibold text-zinc-900 hover:bg-zinc-100 transition-colors cursor-pointer">
+                ${tr('Start 7-day free trial', 'Essayer 7 jours gratuit')}
+              </button>
             </div>
 
-            <!-- Performance -->
+            <!-- Dealer -->
             <div class="bg-white rounded-2xl p-8 border border-zinc-200">
               <div class="mb-8">
-                <h3 class="text-sm font-semibold text-zinc-900 uppercase tracking-wide mb-4">Performance</h3>
+                <h3 class="text-sm font-semibold text-zinc-900 uppercase tracking-wide mb-4">Dealer</h3>
                 <div class="flex items-baseline gap-1.5">
-                  <span class="text-4xl font-bold text-zinc-900 tracking-tight">1 299€</span>
-                  <span class="text-sm text-zinc-500">${tr('/mo excl. VAT', '/mois HT')}</span>
+                  <span class="text-4xl font-bold text-zinc-900 tracking-tight">€129</span>
+                  <span class="text-sm text-zinc-500">${tr('/mo', '/mois')}</span>
                 </div>
-                <p class="mt-3 text-sm text-zinc-500">${tr('For large dealer groups and automotive groups.', 'Pour grands groupes de distribution et groupes automobiles.')}</p>
+                <p class="mt-3 text-sm text-zinc-500">${tr('14-day free trial. No credit card required.', 'Essai 14 jours. Sans carte bancaire.')}</p>
               </div>
               <ul class="space-y-3 mb-8">
-                ${['Everything in Comfort', 'Full stock analysis', 'Auto stock tracking', 'Dedicated account manager', 'Unlimited users'].map((f, i) => {
-                  const fr = ['Tout Confort', 'Analyse de stock complète', 'Suivi automatique stock', 'Account manager dédié', 'Utilisateurs illimités'][i]
-                  return `<li class="flex items-start gap-3 text-sm text-zinc-600">
+                ${[
+                  tr('Everything in Pro', 'Tout le plan Pro'),
+                  tr('Import arbitrage tool', "Outil d'arbitrage import"),
+                  tr('Market dashboard & price drops', 'Dashboard marché & baisses de prix'),
+                  tr('Batch CSV analysis & export', 'Analyse lot CSV & export'),
+                  tr('3 team seats', '3 comptes équipe'),
+                  tr('Priority support', 'Support prioritaire'),
+                ].map(f => `
+                  <li class="flex items-start gap-3 text-sm text-zinc-600">
                     <svg class="w-4 h-4 text-zinc-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                    ${tr(f, fr)}
-                  </li>`
-                }).join('')}
+                    ${f}
+                  </li>`).join('')}
               </ul>
-              <a href="/trial?plan=performance" class="block w-full text-center rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-zinc-800 transition-colors">
-                ${tr('Start free trial', 'Démarrer l\'essai gratuit')}
-              </a>
+              <button onclick="window.__landingCheckout('dealer')" class="block w-full text-center rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-zinc-800 transition-colors cursor-pointer">
+                ${tr('Start 14-day free trial', 'Essayer 14 jours gratuit')}
+              </button>
             </div>
           </div>
         </div>
@@ -362,10 +377,10 @@ export function renderLandingPage() {
           </div>
           <div class="space-y-px">
             ${[
-              { q: tr('Which countries are covered?', 'Quels pays sont couverts ?'), a: tr('Carindex covers 20+ countries in Europe, North America and South America. We regularly add new countries based on client demand.', 'Carindex couvre 20+ pays en Europe, Amérique du Nord et Amérique du Sud. Nous ajoutons régulièrement de nouveaux pays selon la demande.') },
-              { q: tr('How accurate are the market prices?', 'Quelle est la précision des prix marché ?'), a: tr('For popular models with 50+ comparable listings, accuracy exceeds 95%. Each price comes with a confidence index (0–100%).', 'Pour les modèles populaires avec 50+ annonces similaires, la précision dépasse 95%. Chaque prix est accompagné d\'un indice de confiance (0–100%).') },
-              { q: tr('How often is data updated?', 'À quelle fréquence les données sont-elles mises à jour ?'), a: tr('Price and inventory data is updated several times daily. Trend analyses are recalculated monthly with a 30-month history.', 'Les données sont mises à jour plusieurs fois par jour. Les analyses de tendances sont recalculées mensuellement avec 30 mois d\'historique.') },
-              { q: tr('Is there a commitment period?', 'Y a-t-il un engagement de durée ?'), a: tr('No. All plans are commitment-free. Cancel anytime. The 14-day free trial lets you test all features before committing.', 'Non. Tous les plans sont sans engagement. Résiliez à tout moment. L\'essai gratuit de 14 jours vous permet de tout tester.') },
+              { q: tr('Which countries are covered?', 'Quels pays sont couverts ?'), a: tr('Carindex covers 13 European countries: France, Germany, Belgium, Netherlands, Spain, Italy, Sweden, Norway, Finland, Denmark, Switzerland, Luxembourg and Poland. We add new markets based on demand.', 'Carindex couvre 13 pays européens : France, Allemagne, Belgique, Pays-Bas, Espagne, Italie, Suède, Norvège, Finlande, Danemark, Suisse, Luxembourg et Pologne. Nous ajoutons de nouveaux marchés selon la demande.') },
+              { q: tr('How accurate are the market prices?', 'Quelle est la précision des prix marché ?'), a: tr('Each market price is calculated from real comparable listings and comes with a confidence index (0–100%). The more listings available for a model, the higher the confidence.', 'Chaque prix de marché est calculé à partir d\'annonces réelles comparables et accompagné d\'un indice de confiance (0–100 %). Plus il y a d\'annonces pour un modèle, plus la confiance est élevée.') },
+              { q: tr('How often is data updated?', 'À quelle fréquence les données sont-elles mises à jour ?'), a: tr('Listings are refreshed daily from all covered markets. Price alerts are checked every hour. Historical trend data covers up to 30 months.', 'Les annonces sont actualisées quotidiennement depuis tous les marchés couverts. Les alertes de prix sont vérifiées toutes les heures. Les données historiques couvrent jusqu\'à 30 mois.') },
+              { q: tr('Is there a commitment period?', 'Y a-t-il un engagement de durée ?'), a: tr('No commitment. Cancel anytime. Pro includes a 7-day free trial, Dealer a 14-day free trial. You keep access until the end of the current billing period.', 'Aucun engagement. Annulez à tout moment. Pro inclut 7 jours d\'essai gratuit, Dealer 14 jours. Vous gardez l\'accès jusqu\'à la fin de la période en cours.') },
             ].map(({ q, a }) => `
               <div class="bg-white border border-zinc-100 first:rounded-t-xl last:rounded-b-xl p-6">
                 <h3 class="text-sm font-semibold text-zinc-900 mb-2">${q}</h3>
@@ -454,4 +469,10 @@ export function renderLandingPage() {
   attachLanguageToggle(() => {
     window.location.reload()
   })
+
+  // Pricing CTA buttons — redirect to Stripe Checkout or /pricing if not logged in
+  window.__landingCheckout = async (plan) => {
+    const { redirectToCheckout } = await import('../utils/subscription.js')
+    redirectToCheckout(plan)
+  }
 }
