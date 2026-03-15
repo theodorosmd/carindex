@@ -19,6 +19,7 @@ import { renderDealScore } from './pages/deal-score'
 import { renderOwnershipCost } from './pages/ownership-cost'
 import { renderImportArbitrage } from './pages/import-arbitrage'
 import { renderPricingPage } from './pages/pricing'
+import { renderBillingPage } from './pages/billing'
 
 // Auth utility functions
 export function getAuthToken() {
@@ -81,6 +82,18 @@ function route() {
   // Pricing page (public)
   if (hash === '#/pricing' || effectivePath === '/pricing') {
     renderPricingPage()
+    return
+  }
+
+  // Billing page (protected)
+  if (hash === '#/billing' || effectivePath === '/billing') {
+    if (!isAuthenticated()) {
+      const redirectPath = hash || path
+      window.history.pushState({}, '', '/login?redirect=' + encodeURIComponent(redirectPath))
+      renderLogin()
+      return
+    }
+    renderBillingPage()
     return
   }
 
@@ -458,8 +471,8 @@ document.addEventListener('click', (e) => {
     } else if (hash === '#/import-arbitrage') {
       window.history.pushState({}, '', '/import-arbitrage')
       route()
-    } else if (hash === '#/login' || hash === '#/signup' || hash === '#/dashboard' || hash === '#/admin' || hash === '#/dashboard/admin' || hash === '#/stock-analysis' || hash === '#/auction-margin' || hash.startsWith('#/listing/')) {
-      // Auth routes, dashboard, admin, stock analysis, and listing details
+    } else if (hash === '#/login' || hash === '#/signup' || hash === '#/dashboard' || hash === '#/admin' || hash === '#/dashboard/admin' || hash === '#/stock-analysis' || hash === '#/auction-margin' || hash === '#/billing' || hash.startsWith('#/listing/')) {
+      // Auth routes, dashboard, admin, stock analysis, billing, and listing details
       const nextPath = hash.replace('#', '')
       window.history.pushState({}, '', nextPath)
       route()
