@@ -438,7 +438,7 @@ export function renderLandingPage() {
             <div>
               <h4 class="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-4">${tr('Contact', 'Contact')}</h4>
               <ul class="space-y-2.5">
-                <li><span class="text-sm text-zinc-500">contact@carindex.com</span></li>
+                <li><span class="text-sm text-zinc-500">contact@getcarindex.com</span></li>
               </ul>
             </div>
           </div>

@@ -14,7 +14,7 @@ import { logger } from '../utils/logger.js';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
-const SITE_URL = process.env.SITE_URL || 'https://carindex.com';
+const SITE_URL = process.env.SITE_URL || 'https://getcarindex.com';
 
 function slugify(str) {
   return String(str || '')
