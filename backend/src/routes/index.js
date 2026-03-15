@@ -24,6 +24,7 @@ import { savedSearchesRoutes } from './savedSearches.js';
 import { subscriptionRoutes } from './subscription.js';
 import { stripeWebhookRoutes } from './stripeWebhook.js';
 import { seoRoutes } from './seo.js';
+import { blogRoutes, blogAdminRoutes } from './blog.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { rateLimiter } from '../middleware/rateLimiter.js';
 
@@ -84,6 +85,9 @@ export function setupRoutes(app) {
   // SEO pages — server-rendered HTML for Google indexing (public, no auth)
   app.use('/', seoRoutes);
 
+  // Blog — server-rendered SSR pages (public, no auth)
+  app.use('/blog', blogRoutes);
+
   // Public routes (no auth required)
   app.use('/api/v1/auth', authRoutes); // Authentication routes are public
   app.use('/api/v1/subscription', subscriptionRoutes); // Subscription routes (some public, some auth)
@@ -123,6 +127,7 @@ export function setupRoutes(app) {
   apiRouter.use('/saved-searches', savedSearchesRoutes); // Saved searches + alerts
   apiRouter.use('/admin', adminRoutes); // Admin routes (require admin role)
   apiRouter.use('/ingest', ingestRoutes); // Ingestion routes (protected)
+  apiRouter.use('/blog', blogAdminRoutes); // Blog admin CRUD (admin only)
 
   app.use('/api/v1', apiRouter);
 }

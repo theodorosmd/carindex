@@ -103,6 +103,7 @@ export async function renderAdminDashboard() {
             <a href="#/arbitrage" class="text-gray-600 hover:text-blue-600 transition text-sm lg:text-base whitespace-nowrap py-2">Arbitrage</a>
             <a href="#/evaluations" class="text-gray-600 hover:text-blue-600 transition text-sm lg:text-base whitespace-nowrap py-2">${tr('Evaluations', 'Évaluations')}</a>
             <a href="#/auction-margin" class="text-gray-600 hover:text-blue-600 transition text-sm lg:text-base whitespace-nowrap py-2">${tr('Calculator', 'Calculateur')}</a>
+            <a href="/#/admin/blog" class="text-gray-600 hover:text-blue-600 transition text-sm lg:text-base whitespace-nowrap py-2">Blog</a>
             <span class="px-2.5 py-1 bg-red-100 text-red-700 rounded text-xs font-semibold whitespace-nowrap">ADMIN</span>
             <span class="w-px h-5 bg-gray-200" aria-hidden="true"></span>
             ${renderLanguageToggle()}
@@ -132,6 +133,7 @@ export async function renderAdminDashboard() {
             <a href="#/arbitrage" class="text-gray-600 hover:text-blue-600 transition text-base py-2">Arbitrage</a>
             <a href="#/evaluations" class="text-gray-600 hover:text-blue-600 transition text-base py-2">${tr('Evaluations', 'Évaluations')}</a>
             <a href="#/auction-margin" class="text-gray-600 hover:text-blue-600 transition text-base py-2">${tr('Calculator', 'Calculateur')}</a>
+            <a href="/#/admin/blog" class="text-gray-600 hover:text-blue-600 transition text-base py-2">Blog</a>
             <div class="pt-2 border-t border-gray-200">
               <button onclick="window.logout()" class="w-full text-left px-0 py-2 text-gray-600 hover:text-blue-600 transition text-base">${tr('Logout', 'Déconnexion')}</button>
             </div>

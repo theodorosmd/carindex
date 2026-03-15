@@ -20,6 +20,7 @@ import { renderOwnershipCost } from './pages/ownership-cost'
 import { renderImportArbitrage } from './pages/import-arbitrage'
 import { renderPricingPage } from './pages/pricing'
 import { renderBillingPage } from './pages/billing'
+import { renderBlogAdmin } from './pages/admin-blog'
 
 // Auth utility functions
 export function getAuthToken() {
@@ -108,6 +109,18 @@ function route() {
     return
   }
   
+  // Admin blog route (protected, admin only)
+  if (hash === '#/admin/blog' || effectivePath === '/admin/blog') {
+    if (!isAuthenticated()) {
+      const redirectPath = hash || path
+      window.history.pushState({}, '', '/login?redirect=' + encodeURIComponent(redirectPath))
+      renderLogin()
+      return
+    }
+    renderBlogAdmin()
+    return
+  }
+
   // Admin dashboard route (protected, admin only)
   if (hash === '#/admin' || hash === '#/dashboard/admin' || effectivePath === '/admin' || effectivePath === '/dashboard/admin') {
     if (!isAuthenticated()) {

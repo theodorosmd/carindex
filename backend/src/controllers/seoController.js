@@ -722,7 +722,20 @@ export async function getSitemap(req, res) {
       `  <url>\n    <loc>${SITE_URL}/prix-marche</loc>\n    <changefreq>daily</changefreq>\n    <priority>0.9</priority>\n  </url>`,
     ];
 
-    const sitemap = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${[...staticUrls, ...brandUrls, ...modelUrls].join('\n')}\n</urlset>`;
+    // Fetch published blog posts for sitemap
+    const { data: blogPosts } = await supabase
+      .from('blog_posts')
+      .select('slug, published_at, updated_at')
+      .eq('status', 'published')
+      .order('published_at', { ascending: false });
+
+    const blogListingUrl = `  <url>\n    <loc>${SITE_URL}/blog</loc>\n    <changefreq>daily</changefreq>\n    <priority>0.8</priority>\n  </url>`;
+    const blogPostUrls = (blogPosts || []).map(p => {
+      const lastmod = (p.updated_at || p.published_at)?.split('T')[0];
+      return `  <url>\n    <loc>${SITE_URL}/blog/${p.slug}</loc>\n    <changefreq>weekly</changefreq>\n    <priority>0.7</priority>${lastmod ? `\n    <lastmod>${lastmod}</lastmod>` : ''}\n  </url>`;
+    });
+
+    const sitemap = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${[...staticUrls, blogListingUrl, ...blogPostUrls, ...brandUrls, ...modelUrls].join('\n')}\n</urlset>`;
 
     res.setHeader('Content-Type', 'application/xml');
     res.setHeader('Cache-Control', 'public, max-age=3600');
