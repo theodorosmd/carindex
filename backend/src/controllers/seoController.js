@@ -133,12 +133,16 @@ export async function getBrandModelPage(req, res) {
       .from('listings')
       .select('id, brand, model, year, price, location_country, currency, mileage, price_drop_pct, images, url, deal_score, fuel_type')
       .eq('status', 'active')
-      .ilike('brand', brandSearch)
+      .ilike('brand', `%${brandSearch}%`)
       .ilike('model', `%${modelSearch}%`)
-      .order('deal_score', { ascending: false, nullsLast: true })
+      .order('deal_score', { ascending: false, nullsFirst: false })
       .limit(500);
 
-    if (error || !listings?.length) {
+    if (error) {
+      logger.error('seoController getBrandModelPage error', { error: error.message, brandSearch, modelSearch });
+      return res.status(404).send(render404(brandSearch, modelSearch));
+    }
+    if (!listings?.length) {
       return res.status(404).send(render404(brandSearch, modelSearch));
     }
 
@@ -373,10 +377,14 @@ export async function getBrandPage(req, res) {
       .from('listings')
       .select('brand, model, price, location_country, currency')
       .eq('status', 'active')
-      .ilike('brand', brandSearch)
+      .ilike('brand', `%${brandSearch}%`)
       .limit(5000);
 
-    if (error || !data?.length) {
+    if (error) {
+      logger.error('seoController getBrandPage error', { error: error.message, brandSearch });
+      return res.status(404).send(render404(brandSearch, ''));
+    }
+    if (!data?.length) {
       return res.status(404).send(render404(brandSearch, ''));
     }
 
