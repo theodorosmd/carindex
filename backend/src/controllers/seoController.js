@@ -113,7 +113,10 @@ function htmlShell({ title, description, canonical, jsonLd = null }, body) {
   <meta property="og:site_name" content="Carindex">
   <meta name="robots" content="index, follow">
   <script src="https://cdn.tailwindcss.com"></script>
-  ${jsonLd ? `<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>` : ''}
+  ${jsonLd
+    ? (Array.isArray(jsonLd) ? jsonLd : [jsonLd])
+        .map(s => `<script type="application/ld+json">${JSON.stringify(s)}</script>`).join('\n  ')
+    : ''}
 </head>
 <body class="bg-white text-zinc-900 antialiased" style="font-family:Inter,system-ui,sans-serif">
   ${body}
@@ -183,8 +186,7 @@ export async function getBrandModelPage(req, res) {
     listings.forEach(l => { if (l.location_country) countryCounts[l.location_country] = (countryCounts[l.location_country] || 0) + 1; });
     const topCountries = Object.entries(countryCounts).sort((a, b) => b[1] - a[1]).slice(0, 6);
 
-    // Related models (same brand, different models from DB — approximated as top models from top 50 in this request)
-    // We'll do a separate lightweight query
+    // Related models (same brand, different models)
     const { data: relatedData } = await supabase
       .from('listings')
       .select('model')
@@ -200,26 +202,140 @@ export async function getBrandModelPage(req, res) {
       .slice(0, 6)
       .map(([model]) => ({ model, slug: slugify(model) }));
 
+    // Comparable models from other brands (similar avg price ±30%)
+    let comparableModels = [];
+    if (avg) {
+      const priceMin = Math.round(avg * 0.7);
+      const priceMax = Math.round(avg * 1.3);
+      const { data: compData } = await supabase
+        .from('listings')
+        .select('brand, model, price, location_country, currency')
+        .eq('status', 'active')
+        .not('brand', 'ilike', `%${brandSearch}%`)
+        .gte('price', priceMin * 0.8)
+        .lte('price', priceMax * 1.2)
+        .limit(600);
+
+      if (compData?.length) {
+        const compMap = {};
+        compData.forEach(l => {
+          const key = `${l.brand}|${l.model}`;
+          if (!compMap[key]) compMap[key] = { brand: l.brand, model: l.model, prices: [], count: 0 };
+          const p = toEUR(l.price, l.location_country, l.currency);
+          if (p > 500) { compMap[key].prices.push(p); compMap[key].count++; }
+        });
+        comparableModels = Object.values(compMap)
+          .filter(m => m.count >= 3)
+          .map(m => ({ ...m, avg: Math.round(m.prices.reduce((s, p) => s + p, 0) / m.prices.length) }))
+          .filter(m => m.avg >= priceMin && m.avg <= priceMax)
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 6)
+          .map(m => ({ brand: m.brand, model: m.model, avg: m.avg, slug: `${slugify(m.brand)}/${slugify(m.model)}` }));
+      }
+    }
+
+    // Extra stats for editorial & FAQ
+    const fuelCounts = {};
+    listings.forEach(l => { if (l.fuel_type) fuelCounts[l.fuel_type] = (fuelCounts[l.fuel_type] || 0) + 1; });
+    const topFuel = Object.entries(fuelCounts).sort((a, b) => b[1] - a[1]);
+    const dominantFuel = topFuel[0]?.[0];
+    const dominantFuelPct = topFuel[0] ? Math.round((topFuel[0][1] / listings.length) * 100) : null;
+
+    const withDrops = listings.filter(l => l.price_drop_pct > 0).length;
+    const dropPct = listings.length ? Math.round((withDrops / listings.length) * 100) : 0;
+
+    // Country avg prices for editorial insight
+    const countryPrices = {};
+    listings.forEach(l => {
+      if (!l.location_country) return;
+      const p = toEUR(l.price, l.location_country, l.currency);
+      if (p > 500) {
+        if (!countryPrices[l.location_country]) countryPrices[l.location_country] = [];
+        countryPrices[l.location_country].push(p);
+      }
+    });
+    const countryAvgs = Object.entries(countryPrices)
+      .filter(([, prices]) => prices.length >= 3)
+      .map(([code, prices]) => ({ code, avg: Math.round(prices.reduce((s, p) => s + p, 0) / prices.length), count: prices.length }))
+      .sort((a, b) => a.avg - b.avg);
+    const cheapestCountry = countryAvgs[0];
+    const mostExpensive = countryAvgs[countryAvgs.length - 1];
+
+    // Median mileage
+    const mileages = listings.map(l => l.mileage).filter(m => m > 0 && m < 500000).sort((a, b) => a - b);
+    const medianMileage = mileages.length ? mileages[Math.floor(mileages.length / 2)] : null;
+
+    // Most common years
+    const yearCounts = {};
+    years.forEach(y => { yearCounts[y] = (yearCounts[y] || 0) + 1; });
+    const topYears = Object.entries(yearCounts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([y]) => y);
+
     const canonicalUrl = `${SITE_URL}/prix-marche/${brandSlug}/${modelSlug}`;
     const description = avg
       ? `Prix moyen ${realBrand} ${realModel} : ${formatPrice(avg)} (basé sur ${listings.length} annonces). Évolution des prix, meilleures offres du moment sur 13 marchés européens.`
       : `${listings.length} annonces ${realBrand} ${realModel} d'occasion en Europe. Comparez les prix, accédez aux scores de bonne affaire et aux alertes de prix.`;
 
-    const jsonLd = {
-      '@context': 'https://schema.org',
-      '@type': 'Product',
-      name: `${realBrand} ${realModel} d'occasion`,
-      description,
-      ...(avg && {
-        offers: {
-          '@type': 'AggregateOffer',
-          lowPrice: String(min),
-          highPrice: String(max),
-          priceCurrency: 'EUR',
-          offerCount: String(listings.length),
-        },
-      }),
-    };
+    const faqItems = [
+      {
+        q: `Quel est le prix moyen d'une ${realBrand} ${realModel} d'occasion ?`,
+        a: avg
+          ? `Le prix moyen d'une ${realBrand} ${realModel} d'occasion est de ${formatPrice(avg)}, basé sur ${formatNum(listings.length)} annonces actives en Europe. Les prix varient de ${formatPrice(min)} à ${formatPrice(max)} selon l'année, le kilométrage et l'état.`
+          : `Le prix d'une ${realBrand} ${realModel} d'occasion varie selon l'année et le kilométrage. Carindex suit ${formatNum(listings.length)} annonces actives pour vous donner l'estimation la plus précise.`,
+      },
+      cheapestCountry && mostExpensive && cheapestCountry.code !== mostExpensive.code ? {
+        q: `Où acheter une ${realBrand} ${realModel} d'occasion au meilleur prix en Europe ?`,
+        a: `${COUNTRY_NAMES[cheapestCountry.code] || cheapestCountry.code} propose les prix les plus compétitifs pour la ${realBrand} ${realModel}, avec un prix moyen de ${formatPrice(cheapestCountry.avg)}. ${COUNTRY_NAMES[mostExpensive.code] || mostExpensive.code} affiche les prix les plus élevés (${formatPrice(mostExpensive.avg)} en moyenne). L'écart est de ${formatPrice(mostExpensive.avg - cheapestCountry.avg)}.`,
+      } : null,
+      medianMileage ? {
+        q: `Quel kilométrage attendre pour une ${realBrand} ${realModel} d'occasion ?`,
+        a: `Le kilométrage médian d'une ${realBrand} ${realModel} d'occasion sur le marché européen est de ${formatNum(medianMileage)} km. Les véhicules avec moins de ${formatNum(Math.round(medianMileage * 0.5))} km sont généralement plus rares et affichent un prix plus élevé.`,
+      } : null,
+      topYears.length ? {
+        q: `Quelle année de ${realBrand} ${realModel} est la plus disponible ?`,
+        a: `Les millésimes les plus représentés sur le marché d'occasion pour la ${realBrand} ${realModel} sont ${topYears.join(', ')}. ${minYear && maxYear ? `L'offre couvre les années ${minYear} à ${maxYear}.` : ''}`,
+      } : null,
+      dropPct > 0 ? {
+        q: `Y a-t-il des baisses de prix récentes sur la ${realBrand} ${realModel} ?`,
+        a: `${dropPct}% des annonces ${realBrand} ${realModel} actuellement en ligne ont enregistré une baisse de prix récente. Carindex détecte automatiquement ces opportunités et vous permet de créer des alertes pour être notifié dès qu'une annonce baisse de prix.`,
+      } : null,
+    ].filter(Boolean);
+
+    const jsonLd = [
+      {
+        '@context': 'https://schema.org',
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'Accueil', item: SITE_URL },
+          { '@type': 'ListItem', position: 2, name: 'Prix du marché', item: `${SITE_URL}/prix-marche` },
+          { '@type': 'ListItem', position: 3, name: realBrand, item: `${SITE_URL}/prix-marche/${brandSlug}` },
+          { '@type': 'ListItem', position: 4, name: `${realBrand} ${realModel}`, item: canonicalUrl },
+        ],
+      },
+      {
+        '@context': 'https://schema.org',
+        '@type': 'Product',
+        name: `${realBrand} ${realModel} d'occasion`,
+        description,
+        ...(avg && {
+          offers: {
+            '@type': 'AggregateOffer',
+            lowPrice: String(min),
+            highPrice: String(max),
+            priceCurrency: 'EUR',
+            offerCount: String(listings.length),
+          },
+        }),
+      },
+      faqItems.length ? {
+        '@context': 'https://schema.org',
+        '@type': 'FAQPage',
+        mainEntity: faqItems.map(({ q, a }) => ({
+          '@type': 'Question',
+          name: q,
+          acceptedAnswer: { '@type': 'Answer', text: a },
+        })),
+      } : null,
+    ].filter(Boolean);
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
@@ -306,22 +422,63 @@ export async function getBrandModelPage(req, res) {
           </div>
         </section>` : ''}
 
-        <!-- SEO text block -->
+        <!-- Dynamic editorial analysis -->
         <section class="mb-14 prose prose-sm prose-zinc max-w-none">
-          <h2>Prix d'une ${realBrand} ${realModel} d'occasion en Europe</h2>
+          <h2>Analyse du marché : ${realBrand} ${realModel} d'occasion en Europe</h2>
           <p>
             Le prix moyen d'une <strong>${realBrand} ${realModel}</strong> d'occasion en Europe est de <strong>${avg ? formatPrice(avg) : 'variable'}</strong>,
-            basé sur ${formatNum(listings.length)} annonces actives collectées sur 13 marchés européens.
-            ${min && max ? `Les prix s'échelonnent de ${formatPrice(min)} à ${formatPrice(max)} selon l'année, le kilométrage et l'état du véhicule.` : ''}
+            basé sur <strong>${formatNum(listings.length)} annonces actives</strong> collectées en temps réel sur 13 marchés européens.
+            ${min && max ? `Les prix s'échelonnent de <strong>${formatPrice(min)}</strong> à <strong>${formatPrice(max)}</strong> selon l'année, le kilométrage et l'état du véhicule.` : ''}
           </p>
+          ${cheapestCountry && mostExpensive && cheapestCountry.code !== mostExpensive.code ? `
           <p>
-            Carindex actualise les données chaque jour et calcule un <strong>indice de confiance</strong> (0–100 %) reflétant la fiabilité de l'estimation de prix pour chaque modèle.
-            Plus il y a d'annonces comparables, plus la précision est élevée.
-          </p>
-          ${minYear && maxYear ? `<p>Les millésimes disponibles vont de <strong>${minYear}</strong> à <strong>${maxYear}</strong>.
-          Les modèles plus récents affichent généralement un prix plus élevé,
-          mais certaines opportunités d'achat existent sur des versions récentes avec baisse de prix récente.</p>` : ''}
+            <strong>Arbitrage géographique :</strong> ${COUNTRY_NAMES[cheapestCountry.code] || cheapestCountry.code} est actuellement le marché le plus compétitif
+            pour la ${realBrand} ${realModel}, avec un prix moyen de <strong>${formatPrice(cheapestCountry.avg)}</strong>
+            (${formatNum(cheapestCountry.count)} annonces).
+            À l'inverse, ${COUNTRY_NAMES[mostExpensive.code] || mostExpensive.code} affiche les prix les plus élevés
+            (<strong>${formatPrice(mostExpensive.avg)}</strong> en moyenne), soit un écart de <strong>${formatPrice(mostExpensive.avg - cheapestCountry.avg)}</strong> —
+            une opportunité d'import à considérer selon votre situation fiscale.
+          </p>` : ''}
+          ${dominantFuel && dominantFuelPct ? `
+          <p>
+            <strong>Motorisation :</strong> ${dominantFuelPct}% des ${realBrand} ${realModel} d'occasion disponibles sont à
+            motorisation <strong>${dominantFuel.toLowerCase()}</strong>.
+            ${topFuel.length > 1 ? `Les autres motorisations représentées sont : ${topFuel.slice(1, 3).map(([f, n]) => `${f.toLowerCase()} (${Math.round(n / listings.length * 100)}%)`).join(', ')}.` : ''}
+          </p>` : ''}
+          ${medianMileage ? `
+          <p>
+            <strong>Kilométrage :</strong> Le kilométrage médian sur le marché est de <strong>${formatNum(medianMileage)} km</strong>.
+            Les exemplaires sous les ${formatNum(Math.round(medianMileage * 0.6))} km se négocient généralement avec une prime de prix significative.
+          </p>` : ''}
+          ${dropPct > 5 ? `
+          <p>
+            <strong>Tendance des prix :</strong> ${dropPct}% des annonces ${realBrand} ${realModel} actuellement en ligne ont enregistré une baisse de prix récente.
+            Activez une alerte Carindex pour être notifié dès qu'une annonce correspondant à vos critères baisse de prix.
+          </p>` : ''}
+          ${minYear && maxYear ? `
+          <p>
+            Les millésimes disponibles couvrent de <strong>${minYear}</strong> à <strong>${maxYear}</strong>.
+            ${topYears.length ? `Les années les plus représentées sur le marché sont ${topYears.slice(0, 3).join(', ')}.` : ''}
+          </p>` : ''}
         </section>
+
+        <!-- FAQ -->
+        ${faqItems.length ? `
+        <section class="mb-14">
+          <h2 class="text-xl font-bold text-zinc-900 mb-6">Questions fréquentes — ${realBrand} ${realModel} d'occasion</h2>
+          <div class="space-y-4">
+            ${faqItems.map(({ q, a }) => `
+            <details class="border border-zinc-200 rounded-xl overflow-hidden group">
+              <summary class="flex items-center justify-between px-5 py-4 cursor-pointer font-medium text-zinc-900 hover:bg-zinc-50 transition list-none">
+                <span>${q}</span>
+                <svg class="w-4 h-4 text-zinc-400 shrink-0 ml-3 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+              </summary>
+              <div class="px-5 pb-5 pt-1 text-sm text-zinc-600 leading-relaxed border-t border-zinc-100">${a}</div>
+            </details>`).join('')}
+          </div>
+        </section>` : ''}
 
         <!-- Related models -->
         ${relatedModels.length ? `
@@ -332,6 +489,21 @@ export async function getBrandModelPage(req, res) {
             <a href="/prix-marche/${brandSlug}/${m.slug}"
                class="border border-zinc-200 hover:border-zinc-900 hover:bg-zinc-900 hover:text-white rounded-lg px-4 py-2 text-sm font-medium transition">
               ${realBrand} ${m.model}
+            </a>`).join('')}
+          </div>
+        </section>` : ''}
+
+        <!-- Comparable models from other brands -->
+        ${comparableModels.length ? `
+        <section class="mb-14">
+          <h2 class="text-xl font-bold text-zinc-900 mb-2">Alternatives à la ${realBrand} ${realModel}</h2>
+          <p class="text-sm text-zinc-500 mb-5">Modèles d'autres marques dans la même gamme de prix (${avg ? formatPrice(avg) : ''} ±30%).</p>
+          <div class="flex flex-wrap gap-2">
+            ${comparableModels.map(m => `
+            <a href="/prix-marche/${m.slug}"
+               class="flex items-center gap-2 border border-zinc-200 hover:border-zinc-900 rounded-lg px-4 py-2 text-sm font-medium transition group">
+              <span class="text-zinc-900 group-hover:text-zinc-700">${m.brand} ${m.model}</span>
+              ${m.avg ? `<span class="text-xs text-zinc-400 group-hover:text-zinc-500">${formatPrice(m.avg)}</span>` : ''}
             </a>`).join('')}
           </div>
         </section>` : ''}
