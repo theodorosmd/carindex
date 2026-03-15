@@ -131,11 +131,11 @@ export async function getBrandModelPage(req, res) {
   try {
     const { data: listings, error } = await supabase
       .from('listings')
-      .select('id, brand, model, year, price, location_country, currency, mileage, price_drop_pct, images, url, deal_score, fuel_type')
+      .select('id, brand, model, year, price, location_country, currency, mileage, price_drop_pct, images, url, fuel_type')
       .eq('status', 'active')
       .ilike('brand', `%${brandSearch}%`)
       .ilike('model', `%${modelSearch}%`)
-      .order('deal_score', { ascending: false, nullsFirst: false })
+      .order('price_drop_pct', { ascending: false, nullsFirst: false })
       .limit(500);
 
     if (error) {
