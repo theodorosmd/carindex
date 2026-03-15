@@ -54,7 +54,7 @@ export function renderListingDetails() {
     '<header class="bg-white shadow-sm sticky top-0 z-50">' +
     '<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">' +
     '<div class="flex items-center justify-between h-14 sm:h-16">' +
-    '<a href="/#/" class="flex items-center space-x-2"><span class="text-xl sm:text-2xl font-bold text-zinc-900">Carindex</span></a>' +
+    '<a href="/#/" class="flex items-center gap-2.5"><div class="w-8 h-8 bg-zinc-900 rounded-lg flex items-center justify-center shrink-0"><span class="text-white font-bold text-sm">C</span></div><span class="text-lg font-semibold text-zinc-900 tracking-tight">Carindex</span></a>' +
     '<nav class="flex items-center space-x-2 sm:space-x-4">' +
     '<a href="/#/search" class="hidden sm:inline text-gray-700 hover:text-zinc-900 transition text-sm sm:text-base">' + searchLabel + '</a>' +
     langToggle +
@@ -423,7 +423,7 @@ function renderListingContent(listing) {
     '<div class="lg:col-span-2">' +
     '<div class="bg-white rounded-lg sm:rounded-xl shadow-lg overflow-hidden mb-4 sm:mb-6">' +
     '<div class="relative bg-zinc-950 overflow-hidden" id="main-image-container" style="height:580px">' +
-    '<img id="main-image" src="' + mainImage + '" alt="' + listing.brand + ' ' + listing.model + '" class="absolute inset-0 w-full h-full block" referrerpolicy="no-referrer" loading="eager" fetchpriority="high" style="object-fit:contain;object-position:center;image-rendering:-webkit-optimize-contrast;image-rendering:crisp-edges">' +
+    '<img id="main-image" src="' + mainImage + '" alt="' + listing.brand + ' ' + listing.model + '" class="absolute inset-0 w-full h-full block" referrerpolicy="no-referrer" loading="eager" fetchpriority="high" style="object-fit:contain;object-position:center;image-rendering:auto">' +
     carouselHtml +
     '</div>' + thumbnailsHtml + '</div>' +
     descriptionHtml +
