@@ -1,4 +1,7 @@
-import { getAuthToken } from '../main.js'
+// Read token directly from localStorage to avoid circular import with main.js
+function getAuthToken() {
+  return localStorage.getItem('carindex_token')
+}
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 

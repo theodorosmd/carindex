@@ -57,7 +57,7 @@ function route() {
     // to avoid path-based checks intercepting hash routes
     const effectivePath = hash ? null : path
 
-    const isAdminRoute = hash === '#/admin' || hash === '#/dashboard/admin' || effectivePath === '/admin' || (effectivePath && effectivePath.startsWith('/admin'))
+    const isAdminRoute = hash === '#/admin' || hash === '#/admin/blog' || hash === '#/dashboard/admin' || effectivePath === '/admin' || (effectivePath && effectivePath.startsWith('/admin'))
     if (!isAdminRoute) {
       cleanupAdminDashboard()
     }
@@ -484,7 +484,7 @@ document.addEventListener('click', (e) => {
     } else if (hash === '#/import-arbitrage') {
       window.history.pushState({}, '', '/import-arbitrage')
       route()
-    } else if (hash === '#/login' || hash === '#/signup' || hash === '#/dashboard' || hash === '#/admin' || hash === '#/dashboard/admin' || hash === '#/stock-analysis' || hash === '#/auction-margin' || hash === '#/billing' || hash.startsWith('#/listing/')) {
+    } else if (hash === '#/login' || hash === '#/signup' || hash === '#/dashboard' || hash === '#/admin' || hash === '#/admin/blog' || hash === '#/dashboard/admin' || hash === '#/stock-analysis' || hash === '#/auction-margin' || hash === '#/billing' || hash.startsWith('#/listing/')) {
       // Auth routes, dashboard, admin, stock analysis, billing, and listing details
       const nextPath = hash.replace('#', '')
       window.history.pushState({}, '', nextPath)
