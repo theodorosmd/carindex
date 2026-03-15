@@ -52,3 +52,5 @@ apify_storage/
 
 .vercel
 backend/node
+.claude/worktrees/
+supabase/.temp/
