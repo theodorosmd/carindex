@@ -95,7 +95,32 @@ export async function getFacetsService(baseFilters = {}) {
       !baseFilters.publication_date;
 
     if (hasNoFilters) {
-      const { data: rpcData, error: rpcError } = await supabase.rpc('get_listing_facets_counts');
+      // Call RPC but override country counts with a direct active-only query
+      const [rpcResult, countryResult] = await Promise.all([
+        supabase.rpc('get_listing_facets_counts'),
+        supabase.rpc('get_active_country_counts').catch(() => ({ data: null, error: 'no_rpc' }))
+      ]);
+
+      // Fallback: direct query for active country counts if RPC missing
+      let activeCountries = null;
+      if (!countryResult.error && countryResult.data) {
+        activeCountries = countryResult.data;
+      } else {
+        // Direct active-only country count via group-by (fast with index)
+        const { data: cData } = await supabase
+          .from('listings')
+          .select('location_country', { count: 'planned' })
+          .eq('status', 'active')
+          .not('location_country', 'is', null)
+          .limit(800000);
+        if (cData) {
+          const map = {};
+          cData.forEach(r => { if (r.location_country) map[r.location_country] = (map[r.location_country] || 0) + 1; });
+          activeCountries = map;
+        }
+      }
+
+      const { data: rpcData, error: rpcError } = rpcResult;
 
       if (!rpcError && rpcData) {
         const raw = rpcData;
@@ -133,12 +158,15 @@ export async function getFacetsService(baseFilters = {}) {
           if (num > 0) doors[num] = (doors[num] || 0) + cnt;
         }
 
+        const activeTotal = activeCountries ? Object.values(activeCountries).reduce((s, n) => s + n, 0) : null;
         const result = {
-          total: raw.total || 0,
+          total: activeTotal || raw.total || 0,
           facets: {
             brands: toArr(raw.brands),
             models: toArr(raw.models),
-            countries: toArr(raw.countries).filter(c => c.name && c.name.trim()),
+            countries: activeCountries
+              ? Object.entries(activeCountries).filter(([k]) => k && k.trim()).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count)
+              : toArr(raw.countries).filter(c => c.name && c.name.trim()),
             fuel_types: Object.entries(fuelTypes).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count),
             transmissions: Object.entries(transmissions).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count),
             steering: Object.entries(steeringMap).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count),

@@ -48,7 +48,9 @@ export function renderListingDetails() {
   const backToSearchLabel = tr('Back to search', 'Retour à la recherche')
   const langToggle = renderLanguageToggle()
   
-  document.body.innerHTML = '<div class="min-h-screen bg-gray-50">' +
+  // Render into #app (not document.body) so the SPA hashchange listener stays intact
+  const __appEl = document.getElementById('app') || document.body;
+  __appEl.innerHTML = '<div class="min-h-screen bg-gray-50">' +
     '<header class="bg-white shadow-sm sticky top-0 z-50">' +
     '<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">' +
     '<div class="flex items-center justify-between h-14 sm:h-16">' +
@@ -420,8 +422,8 @@ function renderListingContent(listing) {
   const html = '<div class="grid lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">' +
     '<div class="lg:col-span-2">' +
     '<div class="bg-white rounded-lg sm:rounded-xl shadow-lg overflow-hidden mb-4 sm:mb-6">' +
-    '<div class="relative bg-gray-100 overflow-hidden" id="main-image-container" style="height:480px">' +
-    '<img id="main-image" src="' + mainImage + '" alt="' + listing.brand + ' ' + listing.model + '" class="absolute inset-0 w-full h-full object-cover object-center block" referrerpolicy="no-referrer" loading="eager" fetchpriority="high" style="image-rendering:high-quality">' +
+    '<div class="relative bg-zinc-950 overflow-hidden" id="main-image-container" style="height:580px">' +
+    '<img id="main-image" src="' + mainImage + '" alt="' + listing.brand + ' ' + listing.model + '" class="absolute inset-0 w-full h-full block" referrerpolicy="no-referrer" loading="eager" fetchpriority="high" style="object-fit:contain;object-position:center;image-rendering:-webkit-optimize-contrast;image-rendering:crisp-edges">' +
     carouselHtml +
     '</div>' + thumbnailsHtml + '</div>' +
     descriptionHtml +
