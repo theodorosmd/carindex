@@ -468,12 +468,12 @@ export async function getMarketPriceHub(req, res) {
       .map(([brand, count]) => ({ brand, count, slug: slugify(brand) }));
 
     const canonicalUrl = `${SITE_URL}/prix-marche`;
-    const description = 'Prix du marché des voitures d'occasion en Europe. Comparez BMW, Audi, Volkswagen, Peugeot et 100+ marques sur 13 pays.';
+    const description = "Prix du marché des voitures d'occasion en Europe. Comparez BMW, Audi, Volkswagen, Peugeot et 100+ marques sur 13 pays.";
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
     res.send(htmlShell(
-      { title: 'Prix marché voiture d'occasion en Europe | Carindex', description, canonical: canonicalUrl },
+      { title: "Prix marché voiture d'occasion en Europe | Carindex", description, canonical: canonicalUrl },
       `
       ${navHtml([['Prix du marché', null]])}
 
