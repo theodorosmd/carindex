@@ -8,6 +8,8 @@
     { "source": "/prix-marche", "destination": "https://carindex-production.up.railway.app/prix-marche" },
     { "source": "/prix-marche/:brand", "destination": "https://carindex-production.up.railway.app/prix-marche/:brand" },
     { "source": "/prix-marche/:brand/:model", "destination": "https://carindex-production.up.railway.app/prix-marche/:brand/:model" },
+    { "source": "/blog", "destination": "https://carindex-production.up.railway.app/blog" },
+    { "source": "/blog/:slug", "destination": "https://carindex-production.up.railway.app/blog/:slug" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
